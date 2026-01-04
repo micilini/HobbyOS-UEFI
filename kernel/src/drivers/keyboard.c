@@ -12,7 +12,6 @@ static bool g_alt = false;
 static bool g_e0_prefix = false;
 
 
-
 static bool g_stop_repeating = false;
 
 
@@ -29,9 +28,12 @@ static char apply_modifiers_symbol(char normal, char shifted) {
 
 void keyboard_init() {
     
-    while(ps2_has_data()) {
-        ps2_read_data();
-    }
+    
+    
+    
+    
+    
+   
     
     g_shift = false;
     g_capslock = false;
@@ -54,7 +56,7 @@ static char scancode_to_ascii(uint8_t code) {
     
     if (code & 0x80) {
         uint8_t released_code = code & 0x7F; 
-
+        
         
         g_stop_repeating = true;
 
@@ -65,7 +67,6 @@ static char scancode_to_ascii(uint8_t code) {
         return 0; 
     }
 
-    
     
     g_stop_repeating = false;
 
@@ -146,13 +147,11 @@ static char scancode_to_ascii(uint8_t code) {
 
 void keyboard_handle_interrupt() {
     
+    
     while (ps2_has_data()) {
         uint8_t scancode = inb(PS2_DATA_PORT); 
         
-        
         unsigned char ascii = (unsigned char)scancode_to_ascii(scancode);
-        
-        
         
         
         if (g_stop_repeating && (ascii != 0)) {
