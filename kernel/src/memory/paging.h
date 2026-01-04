@@ -14,24 +14,20 @@
 #define PAGE_ACCESSED  (1 << 5)
 #define PAGE_DIRTY     (1 << 6)
 #define PAGE_HUGE      (1 << 7) 
+#define PAGE_PAT       (1 << 7) 
 #define PAGE_GLOBAL    (1 << 8)
 #define PAGE_NX        (1ULL << 63) 
 
-
 #define PAGE_ADDR_MASK 0x000FFFFFFFFFF000
 
-
 typedef uint64_t PageEntry;
-
 
 typedef struct {
     PageEntry entries[512];
 } __attribute__((aligned(4096))) PageTable;
 
 
-
 void init_paging(uint64_t fb_base, uint64_t fb_size);
-
 
 
 void paging_map(uint64_t vaddr, uint64_t paddr, uint64_t flags);
