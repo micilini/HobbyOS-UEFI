@@ -36,7 +36,6 @@ void *load_elf_kernel(EFI_FILE *kernel_file)
 {
     EFI_STATUS status;
 
-    // 1) Read ELF header
     Elf64_Ehdr header;
     UINTN size = sizeof(Elf64_Ehdr);
 
@@ -55,7 +54,6 @@ void *load_elf_kernel(EFI_FILE *kernel_file)
         return NULL;
     }
 
-    // 2) Load program headers table
     UINTN ph_table_size = header.e_phnum * header.e_phentsize;
     void *ph_buffer = NULL;
 
@@ -75,7 +73,6 @@ void *load_elf_kernel(EFI_FILE *kernel_file)
         return NULL;
     }
 
-    // 3) Compute ONE contiguous physical range that covers all PT_LOAD segments
     EFI_PHYSICAL_ADDRESS min_start = (EFI_PHYSICAL_ADDRESS)(~0ULL);
     EFI_PHYSICAL_ADDRESS max_end = 0;
 
@@ -106,7 +103,6 @@ void *load_elf_kernel(EFI_FILE *kernel_file)
 
     UINTN total_pages = (UINTN)((max_end - min_start) / 0x1000);
 
-    // 4) Allocate the whole kernel region ONCE at the requested physical base
     EFI_PHYSICAL_ADDRESS alloc_base = min_start;
     status = uefi_call_wrapper(BS->AllocatePages, 4, AllocateAddress, EfiLoaderData, total_pages, &alloc_base);
 
@@ -118,10 +114,8 @@ void *load_elf_kernel(EFI_FILE *kernel_file)
         return NULL;
     }
 
-    // 5) Zero the whole allocated region (covers all .bss safely)
     uefi_call_wrapper(BS->SetMem, 3, (void *)min_start, (max_end - min_start), 0);
 
-    // 6) Load each PT_LOAD into its p_paddr
     phdr = (Elf64_Phdr *)ph_buffer;
 
     for (int i = 0; i < header.e_phnum; i++)
@@ -145,7 +139,6 @@ void *load_elf_kernel(EFI_FILE *kernel_file)
         phdr = (Elf64_Phdr *)((UINT8 *)phdr + header.e_phentsize);
     }
 
-    // 7) Free PH buffer and return entry
     uefi_call_wrapper(BS->FreePool, 1, ph_buffer);
     return (void *)header.e_entry;
 }

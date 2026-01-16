@@ -112,7 +112,8 @@ KERNEL_SRCS = $(KERNEL_DIR)/kernel.c \
 			  $(KERNEL_DIR)/src/drivers/watchdog/acpi_wdat.c \
 			  $(KERNEL_DIR)/src/drivers/watchdog/acpi_wddt.c \
 			  $(KERNEL_DIR)/src/drivers/watchdog/acpi_wdrt.c \
-			  $(KERNEL_DIR)/src/drivers/usb/xhci/xhci.c
+			  $(KERNEL_DIR)/src/drivers/usb/xhci/xhci.c \
+			  $(KERNEL_DIR)/src/drivers/usb/xhci/usb_hub.c
 
 # Transforma .c em .o
 KERNEL_OBJS = $(KERNEL_SRCS:.c=.o)
@@ -162,6 +163,33 @@ run: hobbyos.img
 		-drive file=hobbyos.img,format=raw,cache=writeback \
 		-serial stdio \
 		-device nec-usb-xhci,id=xhci,msi=on,msix=off -device usb-kbd,bus=xhci.0
+
+# Teste básico - hub simples
+run-hub: hobbyos.img
+	qemu-system-x86_64 \
+		-machine q35,accel=kvm \
+		-cpu host \
+		-m 2G \
+		-bios /usr/share/ovmf/OVMF.fd \
+		-drive file=hobbyos.img,format=raw,cache=writeback \
+		-serial stdio \
+		-device nec-usb-xhci,id=xhci \
+		-device usb-hub,bus=xhci.0,port=1 \
+		-device usb-kbd,bus=xhci.0,port=1.1
+
+# Teste avançado - múltiplos dispositivos
+run-hub-multi: hobbyos.img
+	qemu-system-x86_64 \
+		-machine q35,accel=kvm \
+		-cpu host \
+		-m 2G \
+		-bios /usr/share/ovmf/OVMF.fd \
+		-drive file=hobbyos.img,format=raw,cache=writeback \
+		-serial stdio \
+		-device nec-usb-xhci,id=xhci \
+		-device usb-hub,bus=xhci.0,port=1 \
+		-device usb-kbd,bus=xhci.0,port=1.1 \
+		-device usb-kbd,bus=xhci.0,port=1.2
 
 # TO Reconize Pen Drive in Linux: udisksctl mount -b /dev/sda1
 
