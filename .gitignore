@@ -1,0 +1,19 @@
+# ===== Build artifacts (HobbyOS) =====
+
+# Objetos (root e subpastas)
+*.o
+
+# Outputs do bootloader/kernel
+*.so
+*.elf
+*.EFI
+*.img
+
+# Nomes específicos gerados pelo makefile
+bootx64.so
+BOOTX64.EFI
+kernel.elf
+hobbyos.img
+
+# (opcional) se você gerar logs temporários
+*.log
