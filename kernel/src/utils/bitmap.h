@@ -5,17 +5,16 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-typedef struct {
-    uint8_t* buffer;    
-    size_t size;        
-    size_t total_bits;  
+typedef struct
+{
+    uint8_t *buffer;
+    size_t size;
+    size_t total_bits;
 } Bitmap;
 
+void bitmap_init(Bitmap *bitmap, void *buffer, size_t total_bits);
 
-void bitmap_init(Bitmap* bitmap, void* buffer, size_t total_bits);
-
-
-bool bitmap_get(Bitmap* bitmap, size_t index);
-void bitmap_set(Bitmap* bitmap, size_t index, bool value);
+bool bitmap_get(Bitmap *bitmap, size_t index);
+void bitmap_set(Bitmap *bitmap, size_t index, bool value);
 
 #endif

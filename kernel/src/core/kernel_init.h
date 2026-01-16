@@ -3,8 +3,6 @@
 
 #include "../../../shared/protocol.h"
 
-
-
-void init_system_core(BootInfo* boot_info);
+void init_system_core(BootInfo *boot_info);
 
 #endif

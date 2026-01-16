@@ -3,6 +3,6 @@
 
 #include "boot.h"
 
-Framebuffer* get_framebuffer();
+Framebuffer *get_framebuffer();
 
 #endif

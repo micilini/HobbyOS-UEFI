@@ -2,14 +2,16 @@
 #define ACPI_H
 
 #include <stdint.h>
-
+#include <stdbool.h>
 
 #define ACPI_SIG_RSDP "RSD PTR "
-#define ACPI_SIG_MADT "APIC" 
+#define ACPI_SIG_MADT "APIC"
 #define ACPI_SIG_HPET "HPET"
+#define ACPI_SIG_MCFG "MCFG"
+#define ACPI_SIG_FADT "FACP"
 
-
-typedef struct {
+typedef struct
+{
     char signature[4];
     uint32_t length;
     uint8_t revision;
@@ -21,8 +23,8 @@ typedef struct {
     uint32_t creator_revision;
 } __attribute__((packed)) AcpiSdtHeader;
 
-
-typedef struct {
+typedef struct
+{
     char signature[8];
     uint8_t checksum;
     char oem_id[6];
@@ -34,7 +36,92 @@ typedef struct {
     uint8_t reserved[3];
 } __attribute__((packed)) AcpiRsdp;
 
-void init_acpi(void* rsdp_address);
-void* acpi_find_table(const char* signature);
+typedef struct
+{
+    uint8_t address_space_id;
+    uint8_t register_bit_width;
+    uint8_t register_bit_offset;
+    uint8_t access_size;
+    uint64_t address;
+} __attribute__((packed)) AcpiGas;
+
+typedef struct
+{
+    AcpiSdtHeader header;
+
+    uint32_t firmware_ctrl;
+    uint32_t dsdt;
+
+    uint8_t reserved0;
+
+    uint8_t preferred_pm_profile;
+    uint16_t sci_int;
+    uint32_t smi_cmd;
+    uint8_t acpi_enable;
+    uint8_t acpi_disable;
+    uint8_t s4bios_req;
+    uint8_t pstate_cnt;
+
+    uint32_t pm1a_evt_blk;
+    uint32_t pm1b_evt_blk;
+    uint32_t pm1a_cnt_blk;
+    uint32_t pm1b_cnt_blk;
+    uint32_t pm2_cnt_blk;
+    uint32_t pm_tmr_blk;
+    uint32_t gpe0_blk;
+    uint32_t gpe1_blk;
+
+    uint8_t pm1_evt_len;
+    uint8_t pm1_cnt_len;
+    uint8_t pm2_cnt_len;
+    uint8_t pm_tmr_len;
+    uint8_t gpe0_blk_len;
+    uint8_t gpe1_blk_len;
+    uint8_t gpe1_base;
+    uint8_t cst_cnt;
+
+    uint16_t p_lvl2_lat;
+    uint16_t p_lvl3_lat;
+    uint16_t flush_size;
+    uint16_t flush_stride;
+    uint8_t duty_offset;
+    uint8_t duty_width;
+    uint8_t day_alrm;
+    uint8_t mon_alrm;
+    uint8_t century;
+
+    uint16_t iapc_boot_arch;
+    uint8_t reserved1;
+    uint32_t flags;
+
+    AcpiGas reset_reg;
+    uint8_t reset_value;
+    uint16_t arm_boot_arch;
+    uint8_t fadt_minor_version;
+
+    uint64_t x_firmware_ctrl;
+    uint64_t x_dsdt;
+
+    AcpiGas x_pm1a_evt_blk;
+    AcpiGas x_pm1b_evt_blk;
+    AcpiGas x_pm1a_cnt_blk;
+    AcpiGas x_pm1b_cnt_blk;
+    AcpiGas x_pm2_cnt_blk;
+    AcpiGas x_pm_tmr_blk;
+    AcpiGas x_gpe0_blk;
+    AcpiGas x_gpe1_blk;
+} __attribute__((packed)) AcpiFadt;
+
+const AcpiFadt *acpi_get_fadt(void);
+uint16_t acpi_get_pmbase(void);
+void acpi_enable_mode(void);
+
+void init_acpi(void *rsdp_address);
+void *acpi_find_table(const char *signature);
+
+void acpi_list_tables_debug(void);
+void acpi_list_tables(void);
+
+const AcpiSdtHeader *acpi_get_dsdt(void);
 
 #endif
