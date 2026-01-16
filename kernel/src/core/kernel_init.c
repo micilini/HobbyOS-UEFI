@@ -54,6 +54,7 @@ void init_system_core(BootInfo *boot_info)
 
     console_init(boot_info);
     console_clear(CONSOLE_COLOR_BLACK);
+
     console_set_debug_enabled(0);
 
     void *test_heap = kmalloc(16);

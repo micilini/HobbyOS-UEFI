@@ -344,7 +344,7 @@ void xhci_set_debug_flags(uint32_t flags);
 uint32_t xhci_get_debug_flags(void);
 
 void xhci_init(uint64_t base_address);
-void xhci_handle_interrupt();
+void xhci_handle_interrupt(void);
 void xhci_process_events(void);
 void xhci_poll_events(void);
 void xhci_poll_keyboard_test(uint8_t slot_id);
@@ -353,4 +353,19 @@ int xhci_set_interface(uint8_t slot_id, uint8_t interface_num, uint8_t alt_setti
 int xhci_get_endpoint_status(uint8_t slot_id, uint8_t ep_addr, uint16_t *out_status);
 int xhci_set_idle(uint8_t slot_id, uint8_t interface_num, uint8_t duration, uint8_t report_id);
 
-#endif
+/* =========================================================================
+ * USB HUB Support
+ * ========================================================================= */
+
+#define USB_CLASS_HUB 0x09
+
+/* Forward declaration - full definition in usb_hub.h */
+struct usb_device_context;
+typedef struct usb_device_context usb_device_context_t;
+
+/* Hub support functions */
+int xhci_configure_device_with_context(int port_id, int speed_id, usb_device_context_t *ctx);
+int xhci_get_descriptor_device(uint8_t slot_id, usb_device_descriptor_t *out_desc, uint16_t len);
+void *xhci_get_config_descriptor(uint8_t slot_id, uint16_t *out_len);
+
+#endif /* XHCI_H */

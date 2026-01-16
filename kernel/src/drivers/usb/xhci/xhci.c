@@ -1,3 +1,4 @@
+#include "usb_hub.h"
 #include "xhci.h"
 #include "../../../memory/paging.h"
 #include "../../../memory/heap.h"
@@ -6,6 +7,9 @@
 #include "../../../drivers/timer.h"
 #include "../../../libc/memory.h"
 #include "../../keyboard.h"
+
+static void xhci_queue_kbd_request_buf(uint8_t slot, uint8_t *buf);
+void xhci_parse_config(void *config_buffer, uint16_t len, usb_device_info_t *info);
 
 static volatile uint64_t xhci_dbg_isr_count = 0;
 static volatile uint64_t xhci_dbg_last_progress_ms = 0;
@@ -831,14 +835,15 @@ void xhci_configure_device(int port_id, int speed_id)
     memset(tr_ring, 0, 4096);
 
     xhci_trb_t *ring = (xhci_trb_t *)tr_ring;
-    ring[0].Parameter = tr_phys + 0x10;
-    ring[0].Status = 0;
-    ring[0].Control = (TRB_TYPE_LINK << 10) | 1;
+    ring[255].Parameter = tr_phys;
+    ring[255].Status = 0;
+    ring[255].Control = (TRB_TYPE_LINK << 10) | (1 << 1) | 1;
 
     uint16_t initial_mps = (speed_id <= 2) ? 8 : 64;
-    ep0_dw[1] = (initial_mps << 16) | (4u << 3);
+    ep0_dw[1] = (initial_mps << 16) | (4u << 3) | (3u << 1);
     ep0_dw[2] = (uint32_t)tr_phys | 1u;
     ep0_dw[3] = (uint32_t)(tr_phys >> 32);
+    ep0_dw[4] = 8;
 
     for (uint64_t off = 0; off < in_bytes; off += 64)
         __asm__ volatile("clflush (%0)" ::"r"((uint64_t)input_ctx + off));
@@ -878,7 +883,29 @@ void xhci_configure_device(int port_id, int speed_id)
         console_print_hex_debug(desc.VendorID);
         console_write_debug(" PID=");
         console_print_hex_debug(desc.ProductID);
+        console_write_debug(" Class=");
+        console_print_hex_debug(desc.DeviceClass);
         console_write_debug(")");
+
+        if (desc.DeviceClass == USB_CLASS_HUB)
+        {
+            console_set_color_debug(CONSOLE_COLOR_YELLOW, CONSOLE_COLOR_BLACK);
+            console_write_debug("\n[XHCI] USB HUB detected on root port!\n");
+            console_set_color_debug(CONSOLE_COLOR_WHITE, CONSOLE_COLOR_BLACK);
+
+            int is_usb3 = (desc.DeviceProtocol >= 3) || (speed_id >= 4);
+
+            usb_hub_enumerate(
+                slot_id,
+                port_id + 1,
+                0,
+                0,
+                0,
+                0,
+                is_usb3);
+
+            return;
+        }
 
         uint16_t conf_len = 0;
         void *conf_buf = xhci_get_config_descriptor(slot_id, &conf_len);
@@ -897,7 +924,6 @@ void xhci_configure_device(int port_id, int speed_id)
 
                 if (xhci_set_configuration(slot_id, info.config_value))
                 {
-
                     console_write_debug("[XHCI][KBD] Using parsed endpoint: IF=");
                     console_print_dec_debug(info.interface_num);
                     console_write_debug(" EP=0x");
@@ -909,7 +935,6 @@ void xhci_configure_device(int port_id, int speed_id)
                     console_write_debug("\n");
 
                     xhci_set_protocol(slot_id, info.interface_num, 0);
-
                     xhci_set_idle(slot_id, info.interface_num, 0, 0);
 
                     int result = xhci_configure_endpoint_irq(
@@ -2538,7 +2563,11 @@ void xhci_init(uint64_t base_address)
     console_set_color_debug(CONSOLE_COLOR_GREEN, CONSOLE_COLOR_BLACK);
     console_write_debug("[SUCCESS] XHCI Init Done.\n");
 
+    usb_hub_init();
+
     xhci_probe_ports();
+
+    usb_hub_print_tree();
 
     console_write_debug("==================================\n");
     console_set_color_debug(CONSOLE_COLOR_WHITE, CONSOLE_COLOR_BLACK);
@@ -3232,4 +3261,237 @@ int xhci_control_transfer(uint8_t slot_id, usb_setup_packet_t *setup, void *data
 
     console_write_debug("[USB] Control Transfer Timeout.\n");
     return 0;
+}
+
+int xhci_configure_device_with_context(int port_id, int speed_id, usb_device_context_t *ctx)
+{
+
+    if (ctx == NULL)
+    {
+        xhci_configure_device(port_id, speed_id);
+        return 0;
+    }
+
+    if (xhci_send_command_wait(TRB_TYPE_NOOP, 0, 0) == 0)
+        return 0;
+
+    uint8_t slot_id = xhci_send_command_wait(TRB_TYPE_ENABLE_SLOT, 0, 0);
+    if (slot_id == 0)
+        return 0;
+
+    console_write_debug(" [XHCI] Device (via hub) at Slot ");
+    console_print_dec_debug(slot_id);
+    console_write_debug("\n");
+
+    ctx->slot_id = slot_id;
+
+    uint32_t hcc1 = xhci_driver.cap_regs->HccParams1;
+    uint32_t ctx_size = ((hcc1 >> 2) & 1) ? 64 : 32;
+
+    uint64_t out_bytes = ctx_size * 32;
+    if (out_bytes < 4096)
+        out_bytes = 4096;
+    void *dev_ctx = kmalloc_aligned(out_bytes, 4096);
+    uint64_t dev_phys = paging_get_physical_address((uint64_t)dev_ctx);
+    paging_map((uint64_t)dev_ctx, dev_phys, PAGE_PRESENT | PAGE_RW);
+    memset(dev_ctx, 0, out_bytes);
+    xhci_driver.dcbaa[slot_id] = dev_phys;
+    __asm__ volatile("clflush (%0)" ::"r"(&xhci_driver.dcbaa[slot_id]));
+    __asm__ volatile("mfence" ::: "memory");
+
+    uint64_t in_bytes = ctx_size * 33;
+    if (in_bytes < 4096)
+        in_bytes = 4096;
+    void *input_ctx = kmalloc_aligned(in_bytes, 4096);
+    uint64_t inp_phys = paging_get_physical_address((uint64_t)input_ctx);
+    paging_map((uint64_t)input_ctx, inp_phys, PAGE_PRESENT | PAGE_RW);
+    memset(input_ctx, 0, in_bytes);
+
+    uint32_t *icc_add = (uint32_t *)((uint8_t *)input_ctx + 4);
+    *icc_add = (1u << 0) | (1u << 1);
+
+    uint32_t *slot_dw = (uint32_t *)((uint8_t *)input_ctx + ctx_size);
+
+    slot_dw[0] = ((1u & 0x1Fu) << 27) |
+                 (((uint32_t)speed_id & 0xFu) << 20) |
+                 (ctx->route_string & 0xFFFFF);
+
+    slot_dw[1] = ((uint32_t)ctx->root_port << 16);
+
+    if (ctx->tt_hub_slot_id != 0)
+    {
+        slot_dw[2] = ((uint32_t)ctx->tt_hub_slot_id) |
+                     ((uint32_t)ctx->tt_port_num << 8);
+
+        console_write_debug("[XHCI] TT configured: hub_slot=");
+        console_print_dec_debug(ctx->tt_hub_slot_id);
+        console_write_debug(" port=");
+        console_print_dec_debug(ctx->tt_port_num);
+        console_write_debug("\n");
+    }
+
+    uint32_t *ep0_dw = (uint32_t *)((uint8_t *)input_ctx + (ctx_size * 2));
+
+    void *tr_ring = kmalloc_aligned(4096, 4096);
+    uint64_t tr_phys = paging_get_physical_address((uint64_t)tr_ring);
+    paging_map((uint64_t)tr_ring, tr_phys, PAGE_PRESENT | PAGE_RW);
+    memset(tr_ring, 0, 4096);
+
+    xhci_trb_t *ring = (xhci_trb_t *)tr_ring;
+    ring[255].Parameter = tr_phys;
+    ring[255].Status = 0;
+    ring[255].Control = (TRB_TYPE_LINK << 10) | (1 << 1) | 1;
+
+    uint16_t initial_mps;
+    switch (speed_id)
+    {
+    case 1:
+        initial_mps = 8;
+        break;
+    case 2:
+        initial_mps = 8;
+        break;
+    case 3:
+        initial_mps = 64;
+        break;
+    case 4:
+        initial_mps = 512;
+        break;
+    case 5:
+        initial_mps = 512;
+        break;
+    default:
+        initial_mps = 8;
+        break;
+    }
+
+    ep0_dw[1] = (initial_mps << 16) | (4u << 3) | (3u << 1);
+    ep0_dw[2] = (uint32_t)tr_phys | 1u;
+    ep0_dw[3] = (uint32_t)(tr_phys >> 32);
+    ep0_dw[4] = 8;
+
+    for (uint64_t off = 0; off < in_bytes; off += 64)
+        __asm__ volatile("clflush (%0)" ::"r"((uint64_t)input_ctx + off));
+    __asm__ volatile("mfence" ::: "memory");
+
+    if (speed_id <= 3)
+        timer_sleep(20);
+
+    uint8_t res = xhci_send_command_wait(TRB_TYPE_ADDRESS_DEVICE, inp_phys, (slot_id << 24));
+    if (res != slot_id)
+    {
+        console_write_debug("-> Address Device Failed.\n");
+        return 0;
+    }
+
+    xhci_driver.slot_ep0_rings[slot_id] = (xhci_trb_t *)tr_ring;
+    xhci_driver.slot_ep0_enqueue[slot_id] = 0;
+    xhci_driver.slot_ep0_cycle[slot_id] = 1;
+
+    if (speed_id < 3)
+    {
+        usb_device_descriptor_t desc_short;
+        if (xhci_get_descriptor_device(slot_id, &desc_short, 8))
+        {
+            int real_mps = desc_short.MaxPacketSize0;
+            if (real_mps > 0 && real_mps != initial_mps)
+            {
+                xhci_evaluate_context(slot_id, (uint16_t)real_mps, port_id, speed_id);
+            }
+        }
+    }
+
+    usb_device_descriptor_t desc;
+    if (!xhci_get_descriptor_device(slot_id, &desc, 18))
+    {
+        console_write_debug(" -> Device Descriptor Failed.\n");
+        return slot_id;
+    }
+
+    console_write_debug(" (VID=");
+    console_print_hex_debug(desc.VendorID);
+    console_write_debug(" PID=");
+    console_print_hex_debug(desc.ProductID);
+    console_write_debug(" Class=");
+    console_print_hex_debug(desc.DeviceClass);
+    console_write_debug(")\n");
+
+    if (desc.DeviceClass == USB_CLASS_HUB)
+    {
+        console_set_color_debug(CONSOLE_COLOR_YELLOW, CONSOLE_COLOR_BLACK);
+        console_write_debug("[XHCI] USB HUB detected! Enumerating...\n");
+        console_set_color_debug(CONSOLE_COLOR_WHITE, CONSOLE_COLOR_BLACK);
+
+        int is_usb3 = (desc.DeviceProtocol >= 3) || (speed_id >= 4);
+
+        usb_hub_enumerate(
+            slot_id,
+            ctx->root_port,
+            ctx->route_string,
+            ctx->hub_depth,
+            ctx->parent_hub_slot,
+            ctx->port_on_parent,
+            is_usb3);
+
+        return slot_id;
+    }
+
+    uint16_t conf_len = 0;
+    void *conf_buf = xhci_get_config_descriptor(slot_id, &conf_len);
+
+    if (conf_buf)
+    {
+        usb_device_info_t info;
+        memset(&info, 0, sizeof(info));
+        xhci_parse_config(conf_buf, conf_len, &info);
+
+        if (info.found)
+        {
+            console_set_color_debug(CONSOLE_COLOR_GREEN, CONSOLE_COLOR_BLACK);
+            console_write_debug(" -> KEYBOARD DETECTED (via Hub).\n");
+            console_set_color_debug(CONSOLE_COLOR_WHITE, CONSOLE_COLOR_BLACK);
+
+            if (xhci_set_configuration(slot_id, info.config_value))
+            {
+                console_write_debug("[XHCI][KBD] Using parsed endpoint: IF=");
+                console_print_dec_debug(info.interface_num);
+                console_write_debug(" EP=0x");
+                console_print_hex_debug(info.endpoint_addr);
+                console_write_debug(" MPS=");
+                console_print_dec_debug(info.endpoint_mps);
+                console_write_debug(" INT=");
+                console_print_dec_debug(info.endpoint_interval);
+                console_write_debug("\n");
+
+                xhci_set_protocol(slot_id, info.interface_num, 0);
+                xhci_set_idle(slot_id, info.interface_num, 0, 0);
+
+                int result = xhci_configure_endpoint_irq(
+                    slot_id,
+                    port_id,
+                    speed_id,
+                    info.endpoint_addr,
+                    info.endpoint_mps,
+                    info.endpoint_interval);
+
+                if (result == 0)
+                {
+                    console_write_debug("[XHCI] Endpoint configured successfully!\n");
+
+                    xhci_driver.slot_kbd_pending[slot_id] = 0;
+                    xhci_queue_kbd_request_buf(slot_id, xhci_driver.slot_kbd_buffers[slot_id][0]);
+
+                    console_set_color_debug(CONSOLE_COLOR_GREEN, CONSOLE_COLOR_BLACK);
+                    console_write_debug("[XHCI] Keyboard ready (via Hub)!\n");
+                    console_set_color_debug(CONSOLE_COLOR_WHITE, CONSOLE_COLOR_BLACK);
+                }
+            }
+        }
+        else
+        {
+            console_write_debug(" -> Not a boot keyboard.\n");
+        }
+    }
+
+    return slot_id;
 }
