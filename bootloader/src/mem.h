@@ -1,8 +1,8 @@
 #ifndef MEM_H
 #define MEM_H
 
-#include "boot.h" 
+#include "boot.h"
 
-MemoryMap* get_memory_map();
+MemoryMap *get_memory_map();
 
 #endif

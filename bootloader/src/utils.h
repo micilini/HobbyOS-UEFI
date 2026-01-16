@@ -3,6 +3,6 @@
 
 #include "boot.h"
 
-int memcmp(const void* a, const void* b, UINTN n);
+int memcmp(const void *a, const void *b, UINTN n);
 
 #endif

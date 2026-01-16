@@ -1,12 +1,19 @@
-/* kernel/link.ld */
 OUTPUT_FORMAT(elf64-x86-64)
 ENTRY(_start)
 
 SECTIONS
 {
-    . = 0x100000; /* Load kernel in addr upper to 1MB */
+    . = 0x2000000; /* 32MB */
 
-    .text : { *(.text) }
-    .data : { *(.data) }
-    .bss  : { *(.bss)  }
+    . = ALIGN(0x1000);
+    .text : { *(.text .text.*) }
+
+    . = ALIGN(0x1000);
+    .rodata : { *(.rodata .rodata.*) }
+
+    . = ALIGN(0x1000);
+    .data : { *(.data .data.*) }
+
+    . = ALIGN(0x1000);
+    .bss : { *(.bss .bss.*) *(COMMON) }
 }

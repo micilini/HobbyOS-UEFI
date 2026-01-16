@@ -3,6 +3,6 @@
 
 #include "boot.h"
 
-Psf1_Font* load_psf_font(EFI_FILE* directory, CHAR16* path);
+Psf1_Font *load_psf_font(EFI_FILE *directory, CHAR16 *path);
 
 #endif

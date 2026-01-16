@@ -88,8 +88,31 @@ KERNEL_SRCS = $(KERNEL_DIR)/kernel.c \
 			  $(KERNEL_DIR)/src/drivers/ps2.c \
               $(KERNEL_DIR)/src/drivers/keyboard.c \
               $(KERNEL_DIR)/src/libc/string.c \
-			  $(KERNEL_DIR)/src/core/shell.c \
-			  $(KERNEL_DIR)/src/drivers/timer.c
+			  $(KERNEL_DIR)/src/shell/shell.c \
+			  $(KERNEL_DIR)/src/shell/commands/registry.c \
+			  $(KERNEL_DIR)/src/shell/commands/cmd_help.c \
+			  $(KERNEL_DIR)/src/shell/commands/cmd_clear.c \
+			  $(KERNEL_DIR)/src/shell/commands/cmd_version.c \
+			  $(KERNEL_DIR)/src/shell/commands/cmd_mem.c \
+			  $(KERNEL_DIR)/src/shell/commands/cmd_panic.c \
+			  $(KERNEL_DIR)/src/shell/commands/cmd_cpu.o \
+		      $(KERNEL_DIR)/src/shell/commands/cmd_pci.o \
+			  $(KERNEL_DIR)/src/shell/commands/cmd_acpi.o \
+			  $(KERNEL_DIR)/src/shell/commands/cmd_irq.o \
+			  $(KERNEL_DIR)/src/shell/commands/cmd_echo.o \
+			  $(KERNEL_DIR)/src/core/irq_stats.o \
+			  $(KERNEL_DIR)/src/power/power.c \
+			  $(KERNEL_DIR)/src/shell/commands/cmd_power.c \
+			  $(KERNEL_DIR)/src/acpi/sleep.c \
+			  $(KERNEL_DIR)/src/drivers/timer.c \
+			  $(KERNEL_DIR)/src/drivers/pci.c \
+			  $(KERNEL_DIR)/src/drivers/pci_descriptors.c \
+			  $(KERNEL_DIR)/src/drivers/watchdog/intel_tco.c \
+			  $(KERNEL_DIR)/src/cpu/tss.c \
+			  $(KERNEL_DIR)/src/drivers/watchdog/acpi_wdat.c \
+			  $(KERNEL_DIR)/src/drivers/watchdog/acpi_wddt.c \
+			  $(KERNEL_DIR)/src/drivers/watchdog/acpi_wdrt.c \
+			  $(KERNEL_DIR)/src/drivers/usb/xhci/xhci.c
 
 # Transforma .c em .o
 KERNEL_OBJS = $(KERNEL_SRCS:.c=.o)
@@ -118,17 +141,28 @@ hobbyos.img: BOOTX64.EFI kernel.elf $(BOOT_DIR)/startup.nsh
 	mcopy -i $@ $(BOOT_DIR)/startup.nsh ::/startup.nsh
 
 clean:
-	# Limpa também os objetos dentro de bootloader/src
-	rm -f *.o *.so *.EFI *.elf *.img $(BOOT_DIR)/*.o $(BOOT_DIR)/src/*.o $(KERNEL_DIR)/*.o
-	rm -f $(KERNEL_DIR)/*.o $(KERNEL_DIR)/src/*/*.o
+	# Artefatos do diretório raiz
+	rm -f *.o *.so *.EFI *.elf *.img bootx64.so BOOTX64.EFI kernel.elf hobbyos.img
+
+	# Objetos do bootloader (recursivo)
+	find $(BOOT_DIR) -type f -name "*.o" -delete
+
+	# Objetos do kernel (recursivo)
+	find $(KERNEL_DIR) -type f -name "*.o" -delete
+
 
 run: hobbyos.img
 	qemu-system-x86_64 \
-		-machine accel=kvm \
+		-machine q35,accel=kvm \
 		-cpu host \
 		-smp 4,sockets=1,cores=4,threads=1 \
 		-m 2G \
 		-bios /usr/share/ovmf/OVMF.fd \
 		-net none \
 		-drive file=hobbyos.img,format=raw,cache=writeback \
-		-serial stdio
+		-serial stdio \
+		-device nec-usb-xhci,id=xhci,msi=on,msix=off -device usb-kbd,bus=xhci.0
+
+# TO Reconize Pen Drive in Linux: udisksctl mount -b /dev/sda1
+
+# liga watch do XHCI de dump: xhci_set_debug_flags(XHCI_DBG_WATCH | XHCI_DBG_DUMP);
