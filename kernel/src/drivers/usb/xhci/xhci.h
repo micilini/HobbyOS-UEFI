@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#define XHCI_KBD_PIPE_DEPTH 1
+#define XHCI_KBD_PIPE_DEPTH 8
 
 typedef struct
 {
@@ -352,6 +352,8 @@ void xhci_kbd_recover_poll(void);
 int xhci_set_interface(uint8_t slot_id, uint8_t interface_num, uint8_t alt_setting);
 int xhci_get_endpoint_status(uint8_t slot_id, uint8_t ep_addr, uint16_t *out_status);
 int xhci_set_idle(uint8_t slot_id, uint8_t interface_num, uint8_t duration, uint8_t report_id);
+void xhci_diag_latency(void);
+void xhci_kbd_repeat_poll(void);
 
 /* =========================================================================
  * USB HUB Support

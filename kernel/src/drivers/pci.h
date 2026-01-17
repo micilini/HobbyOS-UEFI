@@ -26,14 +26,11 @@ typedef struct
     uint8_t NextCap;
 } __attribute__((packed)) PciCapabilityHeader;
 
-typedef struct
-{
-    PciCapabilityHeader Header;
-    uint16_t MessageControl;
-    uint32_t MessageAddress;
-    uint32_t MessageAddressHigh;
-    uint16_t MessageData;
-} __attribute__((packed)) PciMsiCapability;
+#define PCI_MSI_CTL_ENABLE (1u << 0)
+#define PCI_MSI_CTL_MMC_MASK (0x000Eu)
+#define PCI_MSI_CTL_MME_MASK (0x0070u)
+#define PCI_MSI_CTL_64BIT (1u << 7)
+#define PCI_MSI_CTL_PERVEC_MASK (1u << 8)
 
 typedef struct
 {

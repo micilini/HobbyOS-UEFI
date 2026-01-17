@@ -100,6 +100,7 @@ KERNEL_SRCS = $(KERNEL_DIR)/kernel.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_acpi.o \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_irq.o \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_echo.o \
+			  $(KERNEL_DIR)/src/shell/commands/cmd_usbdiag.o \
 			  $(KERNEL_DIR)/src/core/irq_stats.o \
 			  $(KERNEL_DIR)/src/power/power.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_power.c \

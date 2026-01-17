@@ -59,7 +59,7 @@ int cmd_cpu(int argc, char **argv)
     }
 
     console_set_color(CONSOLE_COLOR_YELLOW, CONSOLE_COLOR_HOBBYOS_BLUE);
-    console_write("CPU / Plataforma\n");
+    console_write("CPU / Platform\n");
     console_set_color(CONSOLE_COLOR_WHITE, CONSOLE_COLOR_HOBBYOS_BLUE);
 
     console_write("Vendor: ");

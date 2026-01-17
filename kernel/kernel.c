@@ -49,10 +49,8 @@ static void kernel_main(BootInfo *boot_info)
     for (;;)
     {
 
-        xhci_process_events();
+        xhci_bottom_half();
 
-        xhci_kbd_recover_poll();
-
-        __asm__ volatile("pause");
+        __asm__ volatile("hlt");
     }
 }

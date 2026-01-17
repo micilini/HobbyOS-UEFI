@@ -3,6 +3,8 @@
 #include "../libc/string.h"
 #include "../libc/memory.h"
 #include "commands/registry.h"
+#include "../drivers/keyboard.h"
+#include "../drivers/usb/xhci/xhci.h"
 
 static char g_buffer[SHELL_CMD_BUFFER_SIZE];
 static int g_len = 0;
@@ -430,6 +432,10 @@ void shell_on_tick()
 {
     if (!g_shell_active)
         return;
+
+    xhci_kbd_repeat_poll();
+
+    keyboard_usb_pump_to_shell(64);
 
     static int tick = 0;
     tick++;
