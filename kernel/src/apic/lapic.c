@@ -51,10 +51,12 @@ uint32_t lapic_read(uint32_t reg)
 
 uint32_t lapic_get_id(void)
 {
-    if (g_x2apic)
-    {
+    uint64_t apic_msr = cpu_read_msr(IA32_APIC_BASE_MSR);
+    uint8_t x2apic = (apic_msr & (1ULL << 10)) ? 1 : 0;
 
-        return (uint32_t)cpu_read_msr(x2apic_msr_index(LAPIC_ID));
+    if (x2apic)
+    {
+        return lapic_read(LAPIC_ID);
     }
 
     uint32_t v = lapic_read(LAPIC_ID);

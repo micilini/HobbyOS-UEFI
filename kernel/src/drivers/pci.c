@@ -70,16 +70,27 @@ uint32_t pci_enable_msi(uint64_t device_addr, uint8_t vector)
         return 0;
     }
 
-    PciMsiCapability *msi = (PciMsiCapability *)msi_addr;
+    volatile uint8_t *cap = (volatile uint8_t *)msi_addr;
+    volatile uint16_t *msg_ctl_p = (volatile uint16_t *)(cap + 0x02);
+    uint16_t msg_ctl = *msg_ctl_p;
+
+    const uint8_t is_64bit = (msg_ctl & PCI_MSI_CTL_64BIT) ? 1u : 0u;
+
+    volatile uint32_t *msg_addr_lo_p = (volatile uint32_t *)(cap + 0x04);
+    volatile uint32_t *msg_addr_hi_p = is_64bit ? (volatile uint32_t *)(cap + 0x08) : NULL;
+    volatile uint16_t *msg_data_p = is_64bit ? (volatile uint16_t *)(cap + 0x0C)
+                                             : (volatile uint16_t *)(cap + 0x08);
 
     uint32_t apic_id = lapic_get_id();
 
-    msi->MessageAddress = 0xFEE00000 | (apic_id << 12);
-    msi->MessageAddressHigh = 0;
+    *msg_addr_lo_p = 0xFEE00000u | (apic_id << 12);
+    if (msg_addr_hi_p)
+        *msg_addr_hi_p = 0;
+    *msg_data_p = (uint16_t)(vector & 0xFFu);
 
-    msi->MessageData = (uint16_t)(vector & 0xFF);
-
-    msi->MessageControl |= 1;
+    msg_ctl &= (uint16_t)~PCI_MSI_CTL_MME_MASK;
+    msg_ctl |= PCI_MSI_CTL_ENABLE;
+    *msg_ctl_p = msg_ctl;
 
     console_set_color(CONSOLE_COLOR_GREEN, CONSOLE_COLOR_BLACK);
     console_write_debug("[PCI] MSI Enabled: vector=");
@@ -132,7 +143,7 @@ void pci_enumerate_function(uint64_t device_addr, uint64_t function, uint8_t bus
         console_write_debug("\n[PCI] Command Reg was: 0x");
         console_print_hex_debug(cmd);
 
-        cmd |= (1 << 1) | (1 << 2) | (1 << 10);
+        cmd |= (1 << 1) | (1 << 2);
 
         pci_legacy_write(bus, slot, function, 0x04, cmd);
 

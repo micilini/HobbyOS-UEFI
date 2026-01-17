@@ -9,15 +9,20 @@
 extern void xhci_poll_events(void);
 
 static uint64_t g_ticks = 0;
-static const uint64_t TICK_MS = 10;
+
+static const uint64_t TICK_MS = 1;
 
 static int g_xhci_poll_counter = 0;
 static const int XHCI_POLL_THRESHOLD = 1;
+
+static int g_shell_tick_counter = 0;
+static const int SHELL_TICK_DIVIDER = 10;
 
 void timer_init(void)
 {
     g_ticks = 0;
     g_xhci_poll_counter = 0;
+    g_shell_tick_counter = 0;
 
     uint8_t apic_id = (uint8_t)lapic_get_id();
     hpet_configure_timer0_irq(32, apic_id);
@@ -51,7 +56,12 @@ void timer_handler(void)
 {
     g_ticks++;
 
-    shell_on_tick();
+    g_shell_tick_counter++;
+    if (g_shell_tick_counter >= SHELL_TICK_DIVIDER)
+    {
+        shell_on_tick();
+        g_shell_tick_counter = 0;
+    }
 
     g_xhci_poll_counter++;
     if (g_xhci_poll_counter >= XHCI_POLL_THRESHOLD)

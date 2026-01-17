@@ -11,6 +11,7 @@
 #include "cmd_acpi.h"
 #include "cmd_irq.h"
 #include "cmd_echo.h"
+#include "cmd_usbdiag.h"
 
 #include "../../libc/string.h"
 
@@ -29,6 +30,7 @@ static const char *g_aliases_pci[] = {"pci", 0};
 static const char *g_aliases_acpi[] = {"acpi", 0};
 static const char *g_aliases_irq[] = {"irq", "int", 0};
 static const char *g_aliases_echo[] = {"eco", 0};
+static const char *g_aliases_usbdiag[] = {"usb", "xhci", 0};
 
 static const ShellCommand g_commands[] = {
     {.name = "help",
@@ -91,6 +93,11 @@ static const ShellCommand g_commands[] = {
      .desc = "prints text to the console",
      .usage = "echo [-n] \"text\"",
      .handler = cmd_echo},
+    {.name = "usbdiag",
+     .aliases = g_aliases_usbdiag,
+     .desc = "USB/xHCI latency diagnostics",
+     .usage = "usbdiag",
+     .handler = cmd_usbdiag},
 };
 
 static bool shell_command_matches(const ShellCommand *cmd, const char *token)

@@ -12,6 +12,91 @@ static bool g_e0_prefix = false;
 
 static bool g_stop_repeating = false;
 
+typedef struct
+{
+    uint8_t value;
+    uint8_t is_special;
+} kbd_evt_t;
+
+#define USB_KBD_FIFO_SIZE 512
+
+static volatile kbd_evt_t g_usb_fifo[USB_KBD_FIFO_SIZE];
+static volatile uint32_t g_usb_fifo_head = 0;
+static volatile uint32_t g_usb_fifo_tail = 0;
+static volatile uint32_t g_usb_fifo_drops = 0;
+
+static inline uint64_t irq_save(void)
+{
+    uint64_t flags;
+    __asm__ volatile("pushfq; popq %0; cli" : "=r"(flags)::"memory");
+    return flags;
+}
+
+static inline void irq_restore(uint64_t flags)
+{
+    __asm__ volatile("pushq %0; popfq" ::"r"(flags) : "memory");
+}
+
+static inline void usb_fifo_push(uint8_t value, uint8_t is_special)
+{
+    uint64_t flags = irq_save();
+
+    uint32_t head = g_usb_fifo_head;
+    uint32_t next = (head + 1) % USB_KBD_FIFO_SIZE;
+
+    if (next == g_usb_fifo_tail)
+    {
+
+        g_usb_fifo_drops++;
+        irq_restore(flags);
+        return;
+    }
+
+    g_usb_fifo[head].value = value;
+    g_usb_fifo[head].is_special = is_special;
+    __asm__ volatile("" ::: "memory");
+
+    g_usb_fifo_head = next;
+
+    irq_restore(flags);
+}
+
+void keyboard_usb_pump_to_shell(uint32_t budget)
+{
+    if (budget == 0)
+        return;
+
+    uint32_t count = 0;
+
+    while (count < budget)
+    {
+        uint64_t flags = irq_save();
+
+        if (g_usb_fifo_tail == g_usb_fifo_head)
+        {
+            irq_restore(flags);
+            break;
+        }
+
+        kbd_evt_t ev = g_usb_fifo[g_usb_fifo_tail];
+        g_usb_fifo_tail = (g_usb_fifo_tail + 1) % USB_KBD_FIFO_SIZE;
+
+        irq_restore(flags);
+
+        if (ev.is_special)
+            shell_receive_special(ev.value);
+        else
+            shell_receive_char((char)ev.value);
+
+        count++;
+    }
+}
+
+uint32_t keyboard_usb_fifo_drops(void)
+{
+    return (uint32_t)g_usb_fifo_drops;
+}
+
 static char apply_modifiers_letter(char lower, char upper)
 {
     bool upper_mode = g_shift;
@@ -166,11 +251,13 @@ void keyboard_push_usb_event(uint8_t modifiers, uint8_t keycode)
     {
         if (ascii >= KEY_SPECIAL_LEFT && ascii <= KEY_SPECIAL_DOWN)
         {
-            shell_receive_special((uint8_t)ascii);
+
+            usb_fifo_push((uint8_t)ascii, 1);
         }
         else
         {
-            shell_receive_char((char)ascii);
+
+            usb_fifo_push((uint8_t)ascii, 0);
         }
     }
 }
