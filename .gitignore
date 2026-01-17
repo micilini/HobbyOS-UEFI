@@ -17,3 +17,4 @@ hobbyos.img
 
 # (optional) if you generate temporary logs
 *.log
+*.zip
