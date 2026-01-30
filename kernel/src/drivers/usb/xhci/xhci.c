@@ -1,4 +1,5 @@
 #include "usb_hub.h"
+#include "usb_hotplug.h"
 #include "xhci.h"
 #include "../../../memory/paging.h"
 #include "../../../memory/heap.h"
@@ -819,6 +820,7 @@ void xhci_configure_device(int port_id, int speed_id)
         return;
 
     console_write_debug(" [XHCI] Device at Slot ");
+
     console_print_dec_debug(slot_id);
 
     uint32_t hcc1 = xhci_driver.cap_regs->HccParams1;
@@ -885,6 +887,9 @@ void xhci_configure_device(int port_id, int speed_id)
     xhci_driver.slot_ep0_rings[slot_id] = (xhci_trb_t *)tr_ring;
     xhci_driver.slot_ep0_enqueue[slot_id] = 0;
     xhci_driver.slot_ep0_cycle[slot_id] = 1;
+    
+    /* Notify hotplug module that device is configured on this root port */
+    usb_hotplug_notify_root_device_configured((uint8_t)(port_id + 1), slot_id);
 
     if (speed_id < 3)
     {
@@ -1957,7 +1962,45 @@ void xhci_process_events(void)
                     uint8_t pick = rr_err[slot]++ % XHCI_KBD_PIPE_DEPTH;
                     uint8_t *fallback = xhci_driver.slot_kbd_buffers[slot][pick];
                     xhci_queue_kbd_request_buf(slot, fallback);
+                xhci_queue_kbd_request_buf(slot, fallback);
                 }
+            }
+        }
+        else if (type == TRB_TYPE_PORT_STATUS)
+        {
+            /*
+             * Port Status Change Event
+             * Parameter bits 24-31 = Port ID (1-based)
+             */
+            uint8_t port_id = (uint8_t)((param >> 24) & 0xFF);
+
+            if (port_id >= 1 && port_id <= xhci_driver.max_ports)
+            {
+                /* Read current PORTSC */
+                volatile xhci_port_regs_t *port = &xhci_driver.port_regs[port_id - 1];
+                uint32_t portsc = port->PortSC;
+
+                /* Notify hotplug module */
+                usb_hotplug_handle_root_port_status(port_id, portsc);
+
+                /*
+                 * Clear change bits (write-1-to-clear) while preserving RW bits.
+                 * Change bits: CSC(17), PEC(18), WRC(19), OCC(20), PRC(21), PLC(22), CEC(23)
+                 * We must NOT touch: PED(1) which is RW1C and would disable port!
+                 */
+                uint32_t preserve_mask = (1u << 9);    /* PP - Port Power */
+                uint32_t change_bits = (1u << 17) |    /* CSC - Connect Status Change */
+                                       (1u << 18) |    /* PEC - Port Enabled Change */
+                                       (1u << 19) |    /* WRC - Warm Reset Change */
+                                       (1u << 20) |    /* OCC - Over-current Change */
+                                       (1u << 21) |    /* PRC - Port Reset Change */
+                                       (1u << 22) |    /* PLC - Port Link State Change */
+                                       (1u << 23);     /* CEC - Config Error Change */
+
+                /* Write back: preserve power bit, set change bits to clear them */
+                uint32_t write_val = (portsc & preserve_mask) | change_bits;
+                port->PortSC = write_val;
+                (void)port->PortSC; /* Flush write */
             }
         }
 
@@ -3294,6 +3337,9 @@ int xhci_configure_device_with_context(int port_id, int speed_id, usb_device_con
     xhci_driver.slot_ep0_rings[slot_id] = (xhci_trb_t *)tr_ring;
     xhci_driver.slot_ep0_enqueue[slot_id] = 0;
     xhci_driver.slot_ep0_cycle[slot_id] = 1;
+    
+    /* Notify hotplug module that device is configured on this root port */
+    usb_hotplug_notify_root_device_configured((uint8_t)(port_id + 1), slot_id);
 
     if (speed_id < 3)
     {
