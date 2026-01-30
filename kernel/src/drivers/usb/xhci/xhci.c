@@ -10,6 +10,8 @@
 #include "../../keyboard.h"
 #include "../../../memory/pmem.h"
 
+int xhci_port_reset_hs_style(volatile xhci_port_regs_t *port, int port_index, int is_usb3);
+
 static void xhci_queue_kbd_request_buf(uint8_t slot, uint8_t *buf);
 void xhci_parse_config(void *config_buffer, uint16_t len, usb_device_info_t *info);
 
@@ -583,6 +585,109 @@ int xhci_configure_endpoint_irq(uint8_t slot_id, int port_id, int speed_id,
     return 0;
 }
 
+/*
+ * Enumerate a device on a specific port (called by hotplug module)
+ * port_0based: port index starting from 0
+ */
+void xhci_hotplug_enumerate_port(uint8_t port_0based)
+{
+    if (port_0based >= xhci_driver.max_ports)
+        return;
+
+    volatile xhci_port_regs_t *port = &xhci_driver.port_regs[port_0based];
+    
+    /* Give device time to stabilize after connection */
+    timer_sleep(100);
+    
+    uint32_t sc = port->PortSC;
+
+    /* Check if device is still connected */
+    const uint32_t CCS = (1u << 0);
+    if ((sc & CCS) == 0)
+    {
+        console_write_debug("[XHCI][HOTPLUG] Device no longer connected on port ");
+        console_print_dec_debug(port_0based + 1);
+        console_write_debug("\n");
+        return;
+    }
+
+    /* Clear any pending change bits first (W1C) */
+    const uint32_t PORT_POWER = (1u << 9);
+    const uint32_t CHG_BITS = (1u << 17) | (1u << 18) | (1u << 19) | 
+                              (1u << 20) | (1u << 21) | (1u << 22) | (1u << 23);
+    
+    port->PortSC = (sc & PORT_POWER) | CHG_BITS;
+    (void)port->PortSC;
+    timer_sleep(10);
+
+    /* Re-read after clearing change bits */
+    sc = port->PortSC;
+
+    /* Check if port needs reset */
+    const uint32_t PED = (1u << 1);
+    int ok = 0;
+
+    if ((sc & PED) == 0)
+    {
+        console_write_debug("[XHCI][HOTPLUG] Resetting port ");
+        console_print_dec_debug(port_0based + 1);
+        console_write_debug("... ");
+
+        /* 
+         * Determine if USB3 based on current speed.
+         * Speed 0 means not yet determined - try USB2 reset first.
+         * Speed 4+ means SuperSpeed (USB3).
+         */
+        const uint32_t SPEED_MASK = (0xFu << 10);
+        uint8_t speed = (uint8_t)((sc & SPEED_MASK) >> 10);
+        
+        /* If speed is 0 or unknown, default to USB2 reset (more compatible) */
+        int is_usb3 = (speed >= 4);
+        
+        console_write_debug("(speed=");
+        console_print_dec_debug(speed);
+        console_write_debug(", usb3=");
+        console_print_dec_debug(is_usb3);
+        console_write_debug(") ");
+
+        ok = xhci_port_reset_hs_style(port, port_0based, is_usb3);
+        
+        if (!ok && is_usb3)
+        {
+            /* USB3 reset failed, try USB2 reset as fallback */
+            console_write_debug("FAIL! Trying USB2 reset... ");
+            timer_sleep(50);
+            ok = xhci_port_reset_hs_style(port, port_0based, 0);
+        }
+        
+        console_write_debug(ok ? "OK!\n" : "FAIL!\n");
+    }
+    else
+    {
+        console_write_debug("[XHCI][HOTPLUG] Port ");
+        console_print_dec_debug(port_0based + 1);
+        console_write_debug(" already enabled\n");
+        ok = 1;
+    }
+
+    if (ok)
+    {
+        /* Small delay for port to stabilize after reset */
+        timer_sleep(20);
+        
+        /* Read speed after reset */
+        sc = port->PortSC;
+        const uint32_t SPEED_MASK = (0xFu << 10);
+        uint8_t speed = (uint8_t)((sc & SPEED_MASK) >> 10);
+
+        console_write_debug("[XHCI][HOTPLUG] Configuring device (speed=");
+        console_print_dec_debug(speed);
+        console_write_debug(")...\n");
+
+        xhci_configure_device(port_0based, speed);
+    }
+}
+
 extern volatile int g_xhci_need_bh;
 
 void xhci_bottom_half(void)
@@ -593,6 +698,9 @@ void xhci_bottom_half(void)
     g_xhci_need_bh = 0;
 
     xhci_process_events();
+
+    /* Process any pending hotplug enumerations */
+    usb_hotplug_process_pending();
 
     keyboard_usb_pump_to_shell(256);
 }
@@ -1105,7 +1213,7 @@ static void xhci_build_port_protocol_lists(
     }
 }
 
-static int xhci_port_reset_hs_style(volatile xhci_port_regs_t *port, int port_index, int is_usb3)
+int xhci_port_reset_hs_style(volatile xhci_port_regs_t *port, int port_index, int is_usb3)
 {
     const uint32_t PORT_POWER = (1u << 9);
 
@@ -2081,6 +2189,9 @@ void xhci_handle_interrupt(void)
     {
 
         xhci_process_events();
+
+        /* Signal bottom half to process pending hotplug work */
+        g_xhci_need_bh = 1;
 
         iman_val = xhci_read32(iman);
         if (iman_val & XHCI_IMAN_IP)

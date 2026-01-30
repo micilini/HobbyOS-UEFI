@@ -370,4 +370,7 @@ int xhci_configure_device_with_context(int port_id, int speed_id, usb_device_con
 int xhci_get_descriptor_device(uint8_t slot_id, usb_device_descriptor_t *out_desc, uint16_t len);
 void *xhci_get_config_descriptor(uint8_t slot_id, uint16_t *out_len);
 
+/* Hotplug enumeration - called by usb_hotplug.c */
+void xhci_hotplug_enumerate_port(uint8_t port_0based);
+
 #endif /* XHCI_H */
