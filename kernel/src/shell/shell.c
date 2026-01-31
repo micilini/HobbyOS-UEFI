@@ -5,6 +5,7 @@
 #include "commands/registry.h"
 #include "../drivers/keyboard.h"
 #include "../drivers/usb/xhci/xhci.h"
+#include "../core/spinlock.h"
 
 static char g_buffer[SHELL_CMD_BUFFER_SIZE];
 static int g_len = 0;
@@ -12,6 +13,8 @@ static int g_pos = 0;
 static bool g_cursor_visible = true;
 static bool g_shell_active = false;
 static char g_cursor_underlying = ' ';
+
+static spinlock_t g_shell_lock;
 
 static bool g_limit_banner = false;
 
@@ -38,7 +41,7 @@ static int g_hist_draft_pos = 0;
 static void shell_hide_cursor();
 static void shell_show_cursor();
 static void shell_reset_buffer();
-static void shell_execute_command();
+static void shell_execute_command_line(const char *line);
 static void shell_insert_char(char c);
 static void shell_backspace();
 static void shell_delete();
@@ -366,43 +369,36 @@ static int shell_parse_args_inplace(char *line, char **argv, int max_argv)
     return argc;
 }
 
-static void shell_execute_command()
+static void shell_execute_command_line(const char *line)
 {
-    shell_hide_cursor();
-    console_put_char('\n');
-
-    if (g_len == 0)
+    if (!line || !line[0])
     {
-        shell_reset_buffer();
         return;
     }
 
-    if (g_len >= SHELL_CMD_BUFFER_SIZE)
-    {
-        g_buffer[SHELL_CMD_BUFFER_SIZE - 1] = 0;
-    }
-    else
-    {
-        g_buffer[g_len] = 0;
-    }
-
-    shell_history_push(g_buffer);
-
-    g_hist_nav = -1;
-
+    char work[SHELL_CMD_BUFFER_SIZE];
     char original_line[SHELL_CMD_BUFFER_SIZE];
+
+    memset(work, 0, sizeof(work));
     memset(original_line, 0, sizeof(original_line));
-    for (int i = 0; i < SHELL_CMD_BUFFER_SIZE - 1 && g_buffer[i]; i++)
+
+    int n = (int)strlen(line);
+    if (n > SHELL_CMD_BUFFER_SIZE - 1)
+        n = SHELL_CMD_BUFFER_SIZE - 1;
+
+    for (int i = 0; i < n; i++)
     {
-        original_line[i] = g_buffer[i];
+        work[i] = line[i];
+        original_line[i] = line[i];
     }
+    work[n] = 0;
+    original_line[n] = 0;
 
     char *argv[16];
-    int argc = shell_parse_args_inplace(g_buffer, argv, 16);
+    int argc = shell_parse_args_inplace(work, argv, 16);
 
     if (argc <= 0)
     {
-        shell_reset_buffer();
         return;
     }
 
@@ -413,19 +409,20 @@ static void shell_execute_command()
         console_write("Command '");
         console_write(original_line);
         console_write("' not recognized.\n");
-        shell_reset_buffer();
         return;
     }
 
     cmd->handler(argc, argv);
-
-    shell_reset_buffer();
 }
 
 void shell_init()
 {
+    spinlock_init(&g_shell_lock);
+
+    irq_flags_t flags = spin_lock_irqsave(&g_shell_lock);
     g_shell_active = true;
     shell_reset_buffer();
+    spin_unlock_irqrestore(&g_shell_lock, flags);
 }
 
 void shell_on_tick()
@@ -441,10 +438,17 @@ void shell_on_tick()
     tick++;
     if ((tick % 40) == 0)
     {
-        if (g_cursor_visible)
-            shell_hide_cursor();
-        else
-            shell_show_cursor();
+        irq_flags_t flags = spin_lock_irqsave(&g_shell_lock);
+
+        if (g_shell_active)
+        {
+            if (g_cursor_visible)
+                shell_hide_cursor();
+            else
+                shell_show_cursor();
+        }
+
+        spin_unlock_irqrestore(&g_shell_lock, flags);
     }
 }
 
@@ -454,6 +458,15 @@ void shell_receive_char(char c)
         return;
 
     console_begin_batch();
+
+    irq_flags_t flags = spin_lock_irqsave(&g_shell_lock);
+
+    if (!g_shell_active)
+    {
+        spin_unlock_irqrestore(&g_shell_lock, flags);
+        console_end_batch();
+        return;
+    }
 
     if (g_hist_nav != -1)
     {
@@ -465,8 +478,47 @@ void shell_receive_char(char c)
 
     if (c == '\n' || c == '\r')
     {
-        shell_execute_command();
-        goto end_batch;
+        char line[SHELL_CMD_BUFFER_SIZE];
+        int n = g_len;
+
+        if (n < 0)
+            n = 0;
+        if (n > SHELL_CMD_BUFFER_SIZE - 1)
+            n = SHELL_CMD_BUFFER_SIZE - 1;
+
+        for (int i = 0; i < n; i++)
+        {
+            line[i] = g_buffer[i];
+        }
+        line[n] = 0;
+
+        shell_hide_cursor();
+        console_put_char('\n');
+
+        if (n > 0)
+        {
+            shell_history_push(line);
+        }
+
+        g_hist_nav = -1;
+
+       
+        g_shell_active = false;
+
+        spin_unlock_irqrestore(&g_shell_lock, flags);
+
+        if (n > 0)
+        {
+            shell_execute_command_line(line);
+        }
+
+        flags = spin_lock_irqsave(&g_shell_lock);
+        g_shell_active = true;
+        shell_reset_buffer();
+        spin_unlock_irqrestore(&g_shell_lock, flags);
+
+        console_end_batch();
+        return;
     }
 
     if (c == '\b')
@@ -489,6 +541,7 @@ void shell_receive_char(char c)
 
 end_batch:
     shell_show_cursor();
+    spin_unlock_irqrestore(&g_shell_lock, flags);
     console_end_batch();
 }
 
@@ -498,6 +551,16 @@ void shell_receive_special(uint8_t key)
         return;
 
     console_begin_batch();
+
+    irq_flags_t flags = spin_lock_irqsave(&g_shell_lock);
+
+    if (!g_shell_active)
+    {
+        spin_unlock_irqrestore(&g_shell_lock, flags);
+        console_end_batch();
+        return;
+    }
+
     shell_hide_cursor();
 
     if (key == KEY_SPECIAL_LEFT)
@@ -514,7 +577,6 @@ void shell_receive_special(uint8_t key)
         {
             if (g_hist_nav == -1)
             {
-
                 g_hist_draft_len = g_len;
                 g_hist_draft_pos = g_pos;
                 shell_strncpy0(g_hist_draft, g_buffer, SHELL_CMD_BUFFER_SIZE);
@@ -533,7 +595,7 @@ void shell_receive_special(uint8_t key)
     }
     else if (key == KEY_SPECIAL_DOWN)
     {
-        if (g_hist_count > 0)
+        if (g_hist_count > 0 && g_hist_nav != -1)
         {
             if (g_hist_nav > 0)
             {
@@ -546,7 +608,6 @@ void shell_receive_special(uint8_t key)
             }
             else if (g_hist_nav == 0)
             {
-
                 g_hist_nav = -1;
                 shell_replace_input_state(g_hist_draft, g_hist_draft_len, g_hist_draft_pos);
             }
@@ -554,6 +615,8 @@ void shell_receive_special(uint8_t key)
     }
 
     shell_show_cursor();
+
+    spin_unlock_irqrestore(&g_shell_lock, flags);
     console_end_batch();
 }
 
