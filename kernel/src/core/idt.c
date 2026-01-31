@@ -33,7 +33,6 @@ static void set_idt_gate(int vector, void *handler, uint8_t type)
 
 void init_idt()
 {
-
     memset(&g_idt, 0, sizeof(g_idt));
 
     set_idt_gate_ex(0, exc_isr0, IDT_TA_INTERRUPT_GATE, 0);
@@ -94,4 +93,29 @@ void enable_interrupts()
 void disable_interrupts()
 {
     __asm__ volatile("cli");
+}
+
+
+
+irq_flags_t irq_save(void)
+{
+    irq_flags_t flags;
+    __asm__ volatile(
+        "pushfq\n\t"
+        "popq %0\n\t"
+        "cli\n\t"
+        : "=r"(flags)
+        :
+        : "memory");
+    return flags;
+}
+
+void irq_restore(irq_flags_t flags)
+{
+    __asm__ volatile(
+        "pushq %0\n\t"
+        "popfq\n\t"
+        :
+        : "r"(flags)
+        : "memory", "cc");
 }

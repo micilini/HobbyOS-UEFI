@@ -30,8 +30,35 @@ typedef struct
     uint64_t base;
 } __attribute__((packed)) IdtPtr;
 
+
+
+typedef uint64_t irq_flags_t;
+
+
 void init_idt();
 void enable_interrupts();
 void disable_interrupts();
+
+
+irq_flags_t irq_save(void);
+void irq_restore(irq_flags_t flags);
+
+static inline void irq_disable(void)
+{
+    disable_interrupts();
+}
+
+static inline void irq_enable(void)
+{
+    enable_interrupts();
+}
+
+
+static inline int irq_are_enabled(void)
+{
+    irq_flags_t f;
+    __asm__ volatile("pushfq; popq %0" : "=r"(f) : : "memory");
+    return ((f & (1ULL << 9)) != 0);
+}
 
 #endif
