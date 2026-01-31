@@ -1,6 +1,6 @@
 #include "panic.h"
 #include "../graphics/console.h"
-
+#include "idt.h"
 #include "../timer/hpet.h"
 #include "../power/power.h"
 #include "io.h"
@@ -132,7 +132,7 @@ void panic_config(PanicAction action, uint32_t timeout_seconds)
 
 void kpanic(char *message)
 {
-    __asm__ volatile("cli");
+    irq_disable();
 
     console_clear(COLOR_BSOD_BG);
     console_set_color(COLOR_BSOD_FG, COLOR_BSOD_BG);
@@ -159,7 +159,7 @@ void kpanic_exception_ex(const char *title, uint8_t vector, void *frame,
                          uint64_t error_code, int has_error_code,
                          uint64_t cr2, int has_cr2)
 {
-    __asm__ volatile("cli");
+    irq_disable();
 
     typedef struct
     {

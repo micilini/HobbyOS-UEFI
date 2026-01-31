@@ -9,6 +9,7 @@
 #include "../../../libc/memory.h"
 #include "../../keyboard.h"
 #include "../../../memory/pmem.h"
+#include "../../../core/idt.h"
 
 static volatile uint64_t g_cmd_last_ptr = 0;
 static volatile uint32_t g_cmd_last_cc = 0;
@@ -723,7 +724,7 @@ static int xhci_recover_command_ring(void)
 
     console_write_debug("[XHCI] Command ring lost! Full recovery...\n");
 
-    __asm__ volatile("cli");
+    irq_flags_t irq_flags = irq_save();
 
     uint32_t cmd = xhci_read32((volatile uint32_t *)(op_base + OP_USBCMD));
     xhci_write32((volatile uint32_t *)(op_base + OP_USBCMD), cmd & ~(USBCMD_RUN_STOP | USBCMD_INTE));
@@ -757,71 +758,26 @@ static int xhci_recover_command_ring(void)
         xhci_busy_wait(1000);
     }
 
-    console_write_debug("[XHCI] Reset done\n");
-
-    xhci_busy_wait(100000);
-
-    for (int i = 0; i < 64; i++)
-    {
-        xhci_driver.dcbaa[i] = 0;
-        xhci_driver.slot_ep0_rings[i] = NULL;
-        xhci_driver.slot_ep0_enqueue[i] = 0;
-        xhci_driver.slot_ep0_cycle[i] = 0;
-        xhci_driver.slot_kbd_rings[i] = NULL;
-        xhci_driver.slot_kbd_enqueue[i] = 0;
-        xhci_driver.slot_kbd_cycle[i] = 0;
-        xhci_driver.slot_kbd_dci[i] = 0;
-        xhci_driver.slot_kbd_pending[i] = 0;
-    }
-    __asm__ volatile("sfence" ::: "memory");
+    console_write_debug("[XHCI] Re-init rings...\n");
 
     xhci_driver.cmd_ring_enqueue_idx = 0;
     xhci_driver.cmd_ring_cycle_bit = 1;
 
-    memset(xhci_driver.cmd_ring_base, 0, 4096);
-
-    xhci_trb_t *link = &xhci_driver.cmd_ring_base[xhci_driver.cmd_ring_size - 1];
-    link->Parameter = expected_base;
-    link->Status = 0;
-    link->Control = (TRB_TYPE_LINK << 10) | (1 << 1) | 1;
-
-    for (uint64_t off = 0; off < 4096; off += 64)
-        __asm__ volatile("clflush (%0)" ::"r"((uint64_t)xhci_driver.cmd_ring_base + off));
-    __asm__ volatile("mfence" ::: "memory");
-
     xhci_driver.event_ring_dequeue_idx = 0;
     xhci_driver.event_ring_cycle_bit = 1;
 
-    memset(xhci_driver.event_ring, 0, xhci_driver.event_ring_size * sizeof(xhci_trb_t));
+    uint64_t cmd_ring_phys = paging_get_physical_address((uint64_t)xhci_driver.cmd_ring_base);
 
-    for (uint64_t off = 0; off < xhci_driver.event_ring_size * sizeof(xhci_trb_t); off += 64)
-        __asm__ volatile("clflush (%0)" ::"r"((uint64_t)xhci_driver.event_ring + off));
+    uint64_t crcr_val = (cmd_ring_phys & ~0x3FULL) | 1ULL;
+    xhci_write64_split(op_base + OP_CRCR, crcr_val);
     __asm__ volatile("mfence" ::: "memory");
-
-    xhci_write32((volatile uint32_t *)(op_base + OP_CONFIG), xhci_driver.max_slots);
 
     uint64_t dcbaap_phys = paging_get_physical_address((uint64_t)xhci_driver.dcbaa);
     xhci_write64_split(op_base + OP_DCBAAP, dcbaap_phys);
-
-    uint64_t ir0 = (uint64_t)xhci_driver.run_regs + 0x20;
-
-    *(volatile uint32_t *)(ir0 + 0x08) = 1;
-
-    uint64_t ev_ring_phys = paging_get_physical_address((uint64_t)xhci_driver.event_ring);
-    xhci_driver.erst[0].BaseAddress = ev_ring_phys;
-    xhci_driver.erst[0].Size = xhci_driver.event_ring_size;
-    __asm__ volatile("clflush (%0)" ::"r"(xhci_driver.erst));
     __asm__ volatile("mfence" ::: "memory");
 
-    uint64_t erst_phys = paging_get_physical_address((uint64_t)xhci_driver.erst);
-    xhci_write64_split(ir0 + 0x10, erst_phys);
-    xhci_write64_split(ir0 + 0x18, ev_ring_phys | (1ULL << 3));
-
-    *(volatile uint32_t *)(ir0 + 0x00) = XHCI_IMAN_IP | XHCI_IMAN_IE;
-
-    uint64_t crcr_val = (expected_base & ~0x3FULL) | 1ULL;
-    xhci_write64_split(op_base + OP_CRCR, crcr_val);
-    __asm__ volatile("mfence" ::: "memory");
+    uint32_t config = xhci_read32((volatile uint32_t *)(op_base + OP_CONFIG));
+    (void)config;
 
     console_write_debug("[XHCI] Starting...\n");
 
@@ -838,7 +794,7 @@ static int xhci_recover_command_ring(void)
 
     xhci_busy_wait(500000);
 
-    __asm__ volatile("sti");
+    irq_restore(irq_flags);
 
     xhci_driver.event_ring_dequeue_idx = 0;
     xhci_driver.event_ring_cycle_bit = 1;
