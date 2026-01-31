@@ -1,4 +1,5 @@
 #include "usb_hub.h"
+#include "usb_hotplug.h"
 #include "xhci.h"
 #include "../../../memory/paging.h"
 #include "../../../memory/heap.h"
@@ -8,6 +9,19 @@
 #include "../../../libc/memory.h"
 #include "../../keyboard.h"
 #include "../../../memory/pmem.h"
+
+static volatile uint64_t g_cmd_last_ptr = 0;
+static volatile uint32_t g_cmd_last_cc = 0;
+static volatile uint32_t g_cmd_last_slot = 0;
+static volatile int g_cmd_waiting = 0;
+static volatile int g_ep0_waiting = 0;
+static volatile int g_ep0_target_slot = 0;
+static volatile int g_ep0_result_cc = 0;
+
+uint64_t xhci_read64(uint64_t addr);
+void xhci_write64(uint64_t addr, uint64_t value);
+
+int xhci_port_reset_hs_style(volatile xhci_port_regs_t *port, int port_index, int is_usb3);
 
 static void xhci_queue_kbd_request_buf(uint8_t slot, uint8_t *buf);
 void xhci_parse_config(void *config_buffer, uint16_t len, usb_device_info_t *info);
@@ -582,6 +596,345 @@ int xhci_configure_endpoint_irq(uint8_t slot_id, int port_id, int speed_id,
     return 0;
 }
 
+void xhci_disable_slot(uint8_t slot_id)
+{
+    if (slot_id == 0 || slot_id > xhci_driver.max_slots)
+        return;
+
+    console_write_debug("[XHCI] Disabling slot ");
+    console_print_dec_debug(slot_id);
+    console_write_debug("... ");
+
+    if (xhci_driver.slot_ep0_rings[slot_id] != NULL)
+    {
+
+        uint8_t res = xhci_send_command_wait(TRB_TYPE_DISABLE_SLOT, 0, (slot_id << 24));
+        if (res == 0)
+            console_write_debug("(Hardware cmd failed) ");
+        else
+            console_write_debug("(Hardware disable OK) ");
+    }
+
+    xhci_driver.dcbaa[slot_id] = 0;
+    __asm__ volatile("sfence" ::: "memory");
+
+    xhci_driver.slot_ep0_rings[slot_id] = NULL;
+    xhci_driver.slot_ep0_enqueue[slot_id] = 0;
+    xhci_driver.slot_ep0_cycle[slot_id] = 0;
+
+    xhci_driver.slot_kbd_rings[slot_id] = NULL;
+    xhci_driver.slot_kbd_enqueue[slot_id] = 0;
+    xhci_driver.slot_kbd_cycle[slot_id] = 0;
+    xhci_driver.slot_kbd_dci[slot_id] = 0;
+    xhci_driver.slot_kbd_pending[slot_id] = 0;
+    xhci_driver.slot_kbd_buffer[slot_id] = NULL;
+
+    console_write_debug("done\n");
+}
+
+static void xhci_drain_events(void)
+{
+    int drained = 0;
+    int max_drain = 256;
+
+    while (max_drain-- > 0)
+    {
+        volatile xhci_trb_t *evt = &xhci_driver.event_ring[xhci_driver.event_ring_dequeue_idx];
+
+        __asm__ volatile("clflush (%0)" ::"r"(evt));
+        __asm__ volatile("mfence" ::: "memory");
+
+        uint32_t ctrl = evt->Control;
+        uint8_t evt_cycle = (uint8_t)(ctrl & 1);
+
+        if (evt_cycle != xhci_driver.event_ring_cycle_bit)
+        {
+            break;
+        }
+
+        uint32_t trb_type = (ctrl >> 10) & 0x3F;
+        drained++;
+
+        xhci_driver.event_ring_dequeue_idx++;
+        if (xhci_driver.event_ring_dequeue_idx >= xhci_driver.event_ring_size)
+        {
+            xhci_driver.event_ring_dequeue_idx = 0;
+            xhci_driver.event_ring_cycle_bit ^= 1;
+        }
+    }
+
+    if (drained > 0)
+    {
+
+        uint64_t erdp_phys = paging_get_physical_address(
+            (uint64_t)&xhci_driver.event_ring[xhci_driver.event_ring_dequeue_idx]);
+
+        uint64_t ir0 = (uint64_t)xhci_driver.run_regs + 0x20;
+        xhci_write64(ir0 + 0x18, erdp_phys | (1ULL << 3));
+
+        xhci_write32(&xhci_driver.op_regs->UsbSts, USBSTS_EINT);
+        volatile uint32_t *iman = (volatile uint32_t *)(ir0 + 0x00);
+        xhci_write32(iman, xhci_read32(iman) | XHCI_IMAN_IP);
+
+        console_write_debug("[XHCI] Drained ");
+        console_print_dec_debug(drained);
+        console_write_debug(" stale events\n");
+    }
+}
+
+static void xhci_write64_split(uint64_t addr, uint64_t val)
+{
+    volatile uint32_t *lo = (volatile uint32_t *)addr;
+    volatile uint32_t *hi = (volatile uint32_t *)(addr + 4);
+
+    *lo = (uint32_t)(val & 0xFFFFFFFF);
+    __asm__ volatile("mfence" ::: "memory");
+    *hi = (uint32_t)(val >> 32);
+    __asm__ volatile("mfence" ::: "memory");
+}
+
+static void xhci_busy_wait(uint32_t iterations)
+{
+    for (volatile uint32_t i = 0; i < iterations; i++)
+    {
+        __asm__ volatile("pause");
+    }
+}
+
+static int xhci_recover_command_ring(void)
+{
+    uint64_t op_base = (uint64_t)xhci_driver.op_regs;
+
+#define OP_USBCMD 0x00
+#define OP_USBSTS 0x04
+#define OP_CRCR 0x18
+#define OP_DCBAAP 0x30
+#define OP_CONFIG 0x38
+
+    uint64_t crcr = xhci_read64(op_base + OP_CRCR);
+    uint64_t crcr_addr = crcr & ~0x3FULL;
+
+    uint64_t expected_base = paging_get_physical_address((uint64_t)xhci_driver.cmd_ring_base);
+
+    if (crcr_addr >= expected_base && crcr_addr < (expected_base + 4096))
+    {
+        return 1;
+    }
+
+    console_write_debug("[XHCI] Command ring lost! Full recovery...\n");
+
+    __asm__ volatile("cli");
+
+    uint32_t cmd = xhci_read32((volatile uint32_t *)(op_base + OP_USBCMD));
+    xhci_write32((volatile uint32_t *)(op_base + OP_USBCMD), cmd & ~(USBCMD_RUN_STOP | USBCMD_INTE));
+
+    for (int timeout = 10000; timeout > 0; timeout--)
+    {
+        uint32_t sts = xhci_read32((volatile uint32_t *)(op_base + OP_USBSTS));
+        if (sts & USBSTS_HC_HALTED)
+            break;
+        xhci_busy_wait(10000);
+    }
+
+    console_write_debug("[XHCI] HC Reset...\n");
+
+    cmd = xhci_read32((volatile uint32_t *)(op_base + OP_USBCMD));
+    xhci_write32((volatile uint32_t *)(op_base + OP_USBCMD), cmd | USBCMD_HC_RESET);
+
+    for (int timeout = 100000; timeout > 0; timeout--)
+    {
+        cmd = xhci_read32((volatile uint32_t *)(op_base + OP_USBCMD));
+        if (!(cmd & USBCMD_HC_RESET))
+            break;
+        xhci_busy_wait(1000);
+    }
+
+    for (int timeout = 100000; timeout > 0; timeout--)
+    {
+        uint32_t sts = xhci_read32((volatile uint32_t *)(op_base + OP_USBSTS));
+        if (!(sts & (1 << 11)))
+            break;
+        xhci_busy_wait(1000);
+    }
+
+    console_write_debug("[XHCI] Reset done\n");
+
+    xhci_busy_wait(100000);
+
+    for (int i = 0; i < 64; i++)
+    {
+        xhci_driver.dcbaa[i] = 0;
+        xhci_driver.slot_ep0_rings[i] = NULL;
+        xhci_driver.slot_ep0_enqueue[i] = 0;
+        xhci_driver.slot_ep0_cycle[i] = 0;
+        xhci_driver.slot_kbd_rings[i] = NULL;
+        xhci_driver.slot_kbd_enqueue[i] = 0;
+        xhci_driver.slot_kbd_cycle[i] = 0;
+        xhci_driver.slot_kbd_dci[i] = 0;
+        xhci_driver.slot_kbd_pending[i] = 0;
+    }
+    __asm__ volatile("sfence" ::: "memory");
+
+    xhci_driver.cmd_ring_enqueue_idx = 0;
+    xhci_driver.cmd_ring_cycle_bit = 1;
+
+    memset(xhci_driver.cmd_ring_base, 0, 4096);
+
+    xhci_trb_t *link = &xhci_driver.cmd_ring_base[xhci_driver.cmd_ring_size - 1];
+    link->Parameter = expected_base;
+    link->Status = 0;
+    link->Control = (TRB_TYPE_LINK << 10) | (1 << 1) | 1;
+
+    for (uint64_t off = 0; off < 4096; off += 64)
+        __asm__ volatile("clflush (%0)" ::"r"((uint64_t)xhci_driver.cmd_ring_base + off));
+    __asm__ volatile("mfence" ::: "memory");
+
+    xhci_driver.event_ring_dequeue_idx = 0;
+    xhci_driver.event_ring_cycle_bit = 1;
+
+    memset(xhci_driver.event_ring, 0, xhci_driver.event_ring_size * sizeof(xhci_trb_t));
+
+    for (uint64_t off = 0; off < xhci_driver.event_ring_size * sizeof(xhci_trb_t); off += 64)
+        __asm__ volatile("clflush (%0)" ::"r"((uint64_t)xhci_driver.event_ring + off));
+    __asm__ volatile("mfence" ::: "memory");
+
+    xhci_write32((volatile uint32_t *)(op_base + OP_CONFIG), xhci_driver.max_slots);
+
+    uint64_t dcbaap_phys = paging_get_physical_address((uint64_t)xhci_driver.dcbaa);
+    xhci_write64_split(op_base + OP_DCBAAP, dcbaap_phys);
+
+    uint64_t ir0 = (uint64_t)xhci_driver.run_regs + 0x20;
+
+    *(volatile uint32_t *)(ir0 + 0x08) = 1;
+
+    uint64_t ev_ring_phys = paging_get_physical_address((uint64_t)xhci_driver.event_ring);
+    xhci_driver.erst[0].BaseAddress = ev_ring_phys;
+    xhci_driver.erst[0].Size = xhci_driver.event_ring_size;
+    __asm__ volatile("clflush (%0)" ::"r"(xhci_driver.erst));
+    __asm__ volatile("mfence" ::: "memory");
+
+    uint64_t erst_phys = paging_get_physical_address((uint64_t)xhci_driver.erst);
+    xhci_write64_split(ir0 + 0x10, erst_phys);
+    xhci_write64_split(ir0 + 0x18, ev_ring_phys | (1ULL << 3));
+
+    *(volatile uint32_t *)(ir0 + 0x00) = XHCI_IMAN_IP | XHCI_IMAN_IE;
+
+    uint64_t crcr_val = (expected_base & ~0x3FULL) | 1ULL;
+    xhci_write64_split(op_base + OP_CRCR, crcr_val);
+    __asm__ volatile("mfence" ::: "memory");
+
+    console_write_debug("[XHCI] Starting...\n");
+
+    cmd = xhci_read32((volatile uint32_t *)(op_base + OP_USBCMD));
+    xhci_write32((volatile uint32_t *)(op_base + OP_USBCMD), cmd | USBCMD_RUN_STOP | USBCMD_INTE);
+
+    for (int timeout = 10000; timeout > 0; timeout--)
+    {
+        uint32_t sts = xhci_read32((volatile uint32_t *)(op_base + OP_USBSTS));
+        if (!(sts & USBSTS_HC_HALTED))
+            break;
+        xhci_busy_wait(10000);
+    }
+
+    xhci_busy_wait(500000);
+
+    __asm__ volatile("sti");
+
+    xhci_driver.event_ring_dequeue_idx = 0;
+    xhci_driver.event_ring_cycle_bit = 1;
+
+    console_write_debug("[XHCI] Recovery complete!\n");
+    return 1;
+}
+
+void xhci_hotplug_enumerate_port(uint8_t port_0based)
+{
+    if (port_0based >= xhci_driver.max_ports)
+        return;
+
+    xhci_drain_events();
+
+    uint32_t status = xhci_read32(&xhci_driver.op_regs->UsbSts);
+    if (status & USBSTS_HC_HALTED)
+    {
+        console_write_debug("[XHCI][HOTPLUG] Controller HALTED! Recovery needed.\n");
+        if (!xhci_recover_command_ring())
+            return;
+    }
+
+    volatile xhci_port_regs_t *port = &xhci_driver.port_regs[port_0based];
+
+    const uint32_t CCS = (1u << 0);
+    const uint32_t PED = (1u << 1);
+    const uint32_t PORT_POWER = (1u << 9);
+    const uint32_t SPEED_MASK = (0xFu << 10);
+    const uint32_t PR = (1u << 4);
+    const uint32_t PRC = (1u << 21);
+    const uint32_t CHG_BITS = (1u << 17) | (1u << 18) | (1u << 19) |
+                              (1u << 20) | (1u << 21) | (1u << 22) | (1u << 23);
+
+    timer_sleep(150);
+
+    uint32_t sc = port->PortSC;
+    if ((sc & CCS) == 0)
+        return;
+
+    port->PortSC = (sc & PORT_POWER) | CHG_BITS;
+    (void)port->PortSC;
+    timer_sleep(10);
+
+    sc = port->PortSC;
+
+    if (sc & PED)
+    {
+        uint8_t speed = (uint8_t)((sc & SPEED_MASK) >> 10);
+        xhci_configure_device(port_0based, speed);
+        return;
+    }
+
+    console_write_debug("[XHCI][HOTPLUG] Resetting port ");
+    console_print_dec_debug(port_0based + 1);
+    console_write_debug("... ");
+
+    port->PortSC = (sc & PORT_POWER) | PR;
+    (void)port->PortSC;
+
+    int ok = 0;
+    for (int i = 0; i < 100; i++)
+    {
+        timer_sleep(10);
+        sc = port->PortSC;
+        if ((sc & PRC) || (sc & PED))
+        {
+            ok = 1;
+            break;
+        }
+    }
+
+    if (!ok)
+        console_write_debug("timeout! ");
+    else
+        console_write_debug("OK! ");
+
+    port->PortSC = (sc & PORT_POWER) | CHG_BITS;
+    (void)port->PortSC;
+    timer_sleep(30);
+
+    sc = port->PortSC;
+    if ((sc & PED) && (sc & CCS))
+    {
+        uint8_t speed = (uint8_t)((sc & SPEED_MASK) >> 10);
+        console_write_debug("Configuring (speed=");
+        console_print_dec_debug(speed);
+        console_write_debug(")...\n");
+        xhci_configure_device(port_0based, speed);
+    }
+    else
+    {
+        console_write_debug("Failed to enable port.\n");
+    }
+}
+
 extern volatile int g_xhci_need_bh;
 
 void xhci_bottom_half(void)
@@ -592,6 +945,8 @@ void xhci_bottom_half(void)
     g_xhci_need_bh = 0;
 
     xhci_process_events();
+
+    usb_hotplug_process_pending();
 
     keyboard_usb_pump_to_shell(256);
 }
@@ -811,12 +1166,87 @@ void xhci_poll_keyboard_test(uint8_t ignored_slot_id)
 
 void xhci_configure_device(int port_id, int speed_id)
 {
-    if (xhci_send_command_wait(TRB_TYPE_NOOP, 0, 0) == 0)
-        return;
+    console_write_debug("[XHCI-DBG] configure_device: port=");
+    console_print_dec_debug(port_id);
+    console_write_debug(" speed=");
+    console_print_dec_debug(speed_id);
+    console_write_debug("\n");
 
+    int found_sync = 0;
+    for (uint64_t i = 0; i < xhci_driver.event_ring_size; i++)
+    {
+        volatile xhci_trb_t *evt = &xhci_driver.event_ring[i];
+        uint8_t cycle = evt->Control & 1;
+
+        if (i > 0)
+        {
+            volatile xhci_trb_t *prev = &xhci_driver.event_ring[i - 1];
+            uint8_t prev_cycle = prev->Control & 1;
+            if (prev_cycle == 1 && cycle == 0)
+            {
+                xhci_driver.event_ring_dequeue_idx = i;
+                xhci_driver.event_ring_cycle_bit = 1;
+                found_sync = 1;
+                break;
+            }
+        }
+    }
+
+    if (!found_sync)
+    {
+
+        xhci_driver.event_ring_dequeue_idx = 0;
+        xhci_driver.event_ring_cycle_bit = 1;
+    }
+
+    console_write_debug("[XHCI-DBG] EVT synced to idx=");
+    console_print_dec_debug(xhci_driver.event_ring_dequeue_idx);
+    console_write_debug("\n");
+
+    console_write_debug("[XHCI-DBG] CMD Ring: enq_idx=");
+    console_print_dec_debug(xhci_driver.cmd_ring_enqueue_idx);
+    console_write_debug(" cycle=");
+    console_print_dec_debug(xhci_driver.cmd_ring_cycle_bit);
+    console_write_debug("\n");
+
+    console_write_debug("[XHCI-DBG] EVT Ring: deq_idx=");
+    console_print_dec_debug(xhci_driver.event_ring_dequeue_idx);
+    console_write_debug(" cycle=");
+    console_print_dec_debug(xhci_driver.event_ring_cycle_bit);
+    console_write_debug("\n");
+
+    uint32_t sts = xhci_read32(&xhci_driver.op_regs->UsbSts);
+    uint32_t cmd = xhci_read32(&xhci_driver.op_regs->UsbCmd);
+    console_write_debug("[XHCI-DBG] STS=0x");
+    console_print_hex_debug(sts);
+    console_write_debug(" CMD=0x");
+    console_print_hex_debug(cmd);
+    console_write_debug("\n");
+
+    if (sts & USBSTS_HC_HALTED)
+    {
+        console_write_debug("[XHCI-DBG] ERROR: Controller is HALTED!\n");
+        return;
+    }
+
+    console_write_debug("[XHCI-DBG] Sending NOOP...\n");
+    if (xhci_send_command_wait(TRB_TYPE_NOOP, 0, 0) == 0)
+    {
+        console_write_debug("[XHCI-DBG] NOOP FAILED!\n");
+        return;
+    }
+    console_write_debug("[XHCI-DBG] NOOP OK\n");
+
+    console_write_debug("[XHCI-DBG] Sending ENABLE_SLOT...\n");
     uint8_t slot_id = xhci_send_command_wait(TRB_TYPE_ENABLE_SLOT, 0, 0);
     if (slot_id == 0)
+    {
+        console_write_debug("[XHCI-DBG] ENABLE_SLOT FAILED!\n");
         return;
+    }
+    console_write_debug("[XHCI-DBG] ENABLE_SLOT OK, slot=");
+    console_print_dec_debug(slot_id);
+    console_write_debug("\n");
 
     console_write_debug(" [XHCI] Device at Slot ");
     console_print_dec_debug(slot_id);
@@ -875,16 +1305,20 @@ void xhci_configure_device(int port_id, int speed_id)
     if (speed_id <= 3)
         timer_sleep(20);
 
+    console_write_debug("[XHCI-DBG] Sending ADDRESS_DEVICE...\n");
     uint8_t res = xhci_send_command_wait(TRB_TYPE_ADDRESS_DEVICE, inp_phys, (slot_id << 24));
     if (res != slot_id)
     {
         console_write_debug("-> Addr Fail.\n");
         return;
     }
+    console_write_debug("[XHCI-DBG] ADDRESS_DEVICE OK\n");
 
     xhci_driver.slot_ep0_rings[slot_id] = (xhci_trb_t *)tr_ring;
     xhci_driver.slot_ep0_enqueue[slot_id] = 0;
     xhci_driver.slot_ep0_cycle[slot_id] = 1;
+
+    usb_hotplug_notify_root_device_configured((uint8_t)(port_id + 1), slot_id);
 
     if (speed_id < 3)
     {
@@ -920,7 +1354,7 @@ void xhci_configure_device(int port_id, int speed_id)
 
             usb_hub_enumerate(
                 slot_id,
-                port_id + 1,
+                (uint8_t)(port_id + 1),
                 0,
                 0,
                 0,
@@ -935,6 +1369,7 @@ void xhci_configure_device(int port_id, int speed_id)
 
         if (conf_buf)
         {
+
             usb_device_info_t info;
             memset(&info, 0, sizeof(info));
             xhci_parse_config(conf_buf, conf_len, &info);
@@ -972,12 +1407,6 @@ void xhci_configure_device(int port_id, int speed_id)
                     {
                         console_write_debug("[XHCI] Endpoint configured successfully!\n");
 
-                        console_write_debug("[DEBUG] ep_addr=0x");
-                        console_print_hex_debug(info.endpoint_addr);
-                        console_write_debug(" dci=");
-                        console_print_dec_debug(xhci_driver.slot_kbd_dci[slot_id]);
-                        console_write_debug("\n");
-
                         xhci_driver.slot_kbd_pending[slot_id] = 0;
 
                         for (int q = 0; q < XHCI_KBD_PIPE_DEPTH; q++)
@@ -987,29 +1416,24 @@ void xhci_configure_device(int port_id, int speed_id)
 
                         console_set_color_debug(CONSOLE_COLOR_GREEN, CONSOLE_COLOR_BLACK);
                         console_write_debug("[XHCI] Keyboard ready! Press keys to test.\n");
+                        console_write_debug("       Slot=");
+                        console_print_dec_debug(slot_id);
+                        console_write_debug(" DCI=");
+                        console_print_dec_debug(xhci_driver.slot_kbd_dci[slot_id]);
+                        console_write_debug("\n");
                         console_set_color_debug(CONSOLE_COLOR_WHITE, CONSOLE_COLOR_BLACK);
-
-                        return;
-                    }
-                    else
-                    {
-                        console_write_debug("[XHCI] Endpoint configuration failed!\n");
                     }
                 }
             }
             else
             {
-                console_write_debug(" -> Not a boot keyboard.\n");
+                console_write_debug(" [Not a keyboard]\n");
             }
-        }
-        else
-        {
-            console_write_debug(" -> Config Fail.\n");
         }
     }
     else
     {
-        console_write_debug(" -> Desc Fail.\n");
+        console_write_debug(" (Desc Fail)\n");
     }
 }
 
@@ -1100,7 +1524,7 @@ static void xhci_build_port_protocol_lists(
     }
 }
 
-static int xhci_port_reset_hs_style(volatile xhci_port_regs_t *port, int port_index, int is_usb3)
+int xhci_port_reset_hs_style(volatile xhci_port_regs_t *port, int port_index, int is_usb3)
 {
     const uint32_t PORT_POWER = (1u << 9);
 
@@ -1767,14 +2191,11 @@ static void xhci_dbg_dump_state(const char *tag)
 void xhci_process_events(void)
 {
     if (xhci_processing_events)
-    {
         return;
-    }
     xhci_processing_events = 1;
 
     uint32_t processed = 0;
     uint32_t kbd_processed = 0;
-
     uint64_t ev_ring_phys_base = paging_get_physical_address((uint64_t)xhci_driver.event_ring);
 
     uint32_t safety = 0;
@@ -1783,22 +2204,17 @@ void xhci_process_events(void)
     while (safety < safety_limit)
     {
         safety++;
-
         volatile xhci_trb_t *evt = &xhci_driver.event_ring[xhci_driver.event_ring_dequeue_idx];
-
         __asm__ volatile("lfence" ::: "memory");
 
         uint32_t ctrl = evt->Control;
         uint8_t evt_cycle = ctrl & 1;
 
         if (evt_cycle != xhci_driver.event_ring_cycle_bit)
-        {
             break;
-        }
 
         uint32_t sts = evt->Status;
         uint64_t param = evt->Parameter;
-
         uint32_t type = (ctrl >> 10) & 0x3F;
         uint8_t slot = (ctrl >> 24) & 0xFF;
         uint8_t ep_id = (ctrl >> 16) & 0x1F;
@@ -1806,14 +2222,30 @@ void xhci_process_events(void)
 
         processed++;
 
-        if (type == TRB_TYPE_TRANSFER_EVENT)
+        if (type == TRB_TYPE_CMD_COMPLETE)
         {
 
-            if (slot < 64 &&
-                xhci_driver.slot_kbd_dci[slot] &&
-                ep_id == xhci_driver.slot_kbd_dci[slot])
+            if (g_cmd_waiting)
             {
+                g_cmd_last_ptr = (param & ~0xFULL);
+                g_cmd_last_cc = cc;
+                g_cmd_last_slot = slot;
+            }
+        }
+        else if (type == TRB_TYPE_TRANSFER_EVENT)
+        {
 
+            if (ep_id == 1)
+            {
+                if (g_ep0_waiting && slot == g_ep0_target_slot)
+                {
+                    g_ep0_result_cc = cc;
+                    g_ep0_waiting = 0;
+                }
+            }
+
+            else if (slot < 64 && xhci_driver.slot_kbd_dci[slot] && ep_id == xhci_driver.slot_kbd_dci[slot])
+            {
                 if (xhci_driver.slot_kbd_pending[slot] > 0)
                     xhci_driver.slot_kbd_pending[slot]--;
 
@@ -1821,132 +2253,102 @@ void xhci_process_events(void)
                 {
                     kbd_processed++;
                     xhci_dbg_last_kbd_ms[slot] = timer_get_uptime_ms();
-
                     uint64_t trb_phys = (param & ~0xFULL);
 
                     volatile xhci_trb_t *ring = xhci_driver.slot_kbd_rings[slot];
-                    if (!ring)
+                    if (ring)
                     {
-                        goto next_event;
-                    }
+                        uint64_t ring_phys = xhci_driver.slot_kbd_ring_phys[slot];
+                        uint32_t trb_idx = 0xFFFF;
 
-                    uint64_t ring_phys = xhci_driver.slot_kbd_ring_phys[slot];
+                        if (ring_phys && trb_phys >= ring_phys && trb_phys < (ring_phys + 4096))
+                            trb_idx = (uint32_t)((trb_phys - ring_phys) / 16);
 
-                    uint32_t trb_idx = 0xFFFF;
-                    if (ring_phys && trb_phys >= ring_phys && trb_phys < (ring_phys + 4096))
-                    {
-                        trb_idx = (uint32_t)((trb_phys - ring_phys) / 16);
-                    }
-
-                    uint8_t *buf = NULL;
-                    if (trb_idx < 255)
-                    {
-                        buf = xhci_driver.slot_kbd_trb_buf[slot][trb_idx];
-                        xhci_driver.slot_kbd_trb_buf[slot][trb_idx] = NULL;
-                    }
-
-                    if (!buf)
-                    {
-                        static uint8_t rr_fallback[64] = {0};
-                        uint8_t pick = rr_fallback[slot]++ % XHCI_KBD_PIPE_DEPTH;
-                        buf = xhci_driver.slot_kbd_buffers[slot][pick];
-                    }
-
-                    if (buf)
-                    {
-
-                        uint8_t modifiers = buf[0];
-                        uint8_t keys[6];
-                        for (int i = 0; i < 6; i++)
-                            keys[i] = buf[2 + i];
-
-                        buf[0] = 0;
-                        buf[1] = 0;
-                        for (int i = 0; i < 6; i++)
-                            buf[2 + i] = 0;
-
-                        xhci_queue_kbd_request_buf(slot, buf);
-
-                        int any_key_down = 0;
-                        for (int i = 0; i < 6; i++)
+                        uint8_t *buf = NULL;
+                        if (trb_idx < 255)
                         {
-                            if (keys[i] != 0 && keys[i] != 0x01)
-                            {
-                                any_key_down = 1;
-                                break;
-                            }
+                            buf = xhci_driver.slot_kbd_trb_buf[slot][trb_idx];
+                            xhci_driver.slot_kbd_trb_buf[slot][trb_idx] = NULL;
                         }
 
-                        if (!any_key_down)
+                        if (!buf)
                         {
-
-                            xhci_driver.slot_kbd_repeat_active[slot] = 0;
-                            xhci_driver.slot_kbd_repeat_key[slot] = 0;
-                            xhci_driver.slot_kbd_repeat_mods[slot] = 0;
-                            xhci_driver.slot_kbd_repeat_next_ms[slot] = 0;
+                            static uint8_t rr_fallback[64] = {0};
+                            uint8_t pick = rr_fallback[slot]++ % XHCI_KBD_PIPE_DEPTH;
+                            buf = xhci_driver.slot_kbd_buffers[slot][pick];
                         }
 
-                        for (int i = 0; i < 6; i++)
+                        if (buf)
                         {
-                            uint8_t keycode = keys[i];
-                            if (keycode == 0 || keycode == 0x01)
-                                continue;
 
-                            int dup_in_report = 0;
-                            for (int j = 0; j < i; j++)
-                            {
-                                if (keys[j] == keycode)
-                                {
-                                    dup_in_report = 1;
-                                    break;
-                                }
-                            }
-                            if (dup_in_report)
-                                continue;
+                            uint8_t modifiers = buf[0];
+                            uint8_t keys[6];
+                            for (int i = 0; i < 6; i++)
+                                keys[i] = buf[2 + i];
 
-                            int already_pressed = 0;
-                            for (int p = 0; p < 6; p++)
-                            {
-                                if (xhci_driver.slot_kbd_prev_keys[slot][p] == keycode)
-                                {
-                                    already_pressed = 1;
-                                    break;
-                                }
-                            }
-                            if (already_pressed)
-                                continue;
+                            memset(buf, 0, 8);
+                            xhci_queue_kbd_request_buf(slot, buf);
 
-                            keyboard_push_usb_event(modifiers, keycode);
-
-                            xhci_driver.slot_kbd_repeat_key[slot] = keycode;
-                            xhci_driver.slot_kbd_repeat_mods[slot] = modifiers;
-                            xhci_driver.slot_kbd_repeat_active[slot] = 1;
-                            xhci_driver.slot_kbd_repeat_next_ms[slot] = timer_get_uptime_ms() + 350;
-                        }
-
-                        for (int i = 0; i < 6; i++)
-                            xhci_driver.slot_kbd_prev_keys[slot][i] = keys[i];
-                        xhci_driver.slot_kbd_prev_mods[slot] = modifiers;
-
-                        if (xhci_driver.slot_kbd_repeat_active[slot])
-                        {
-                            uint8_t rk = xhci_driver.slot_kbd_repeat_key[slot];
-                            int still_down = 0;
+                            int any_key_down = 0;
                             for (int i = 0; i < 6; i++)
                             {
-                                if (keys[i] == rk)
+                                if (keys[i] != 0 && keys[i] != 0x01)
                                 {
-                                    still_down = 1;
+                                    any_key_down = 1;
                                     break;
                                 }
                             }
-                            if (!still_down)
+
+                            if (!any_key_down)
                             {
+
                                 xhci_driver.slot_kbd_repeat_active[slot] = 0;
                                 xhci_driver.slot_kbd_repeat_key[slot] = 0;
                                 xhci_driver.slot_kbd_repeat_mods[slot] = 0;
                                 xhci_driver.slot_kbd_repeat_next_ms[slot] = 0;
                             }
+
+                            for (int i = 0; i < 6; i++)
+                            {
+                                uint8_t keycode = keys[i];
+                                if (keycode == 0 || keycode == 0x01)
+                                    continue;
+
+                                int dup_in_report = 0;
+                                for (int j = 0; j < i; j++)
+                                {
+                                    if (keys[j] == keycode)
+                                    {
+                                        dup_in_report = 1;
+                                        break;
+                                    }
+                                }
+                                if (dup_in_report)
+                                    continue;
+
+                                int already_pressed = 0;
+                                for (int p = 0; p < 6; p++)
+                                {
+                                    if (xhci_driver.slot_kbd_prev_keys[slot][p] == keycode)
+                                    {
+                                        already_pressed = 1;
+                                        break;
+                                    }
+                                }
+                                if (already_pressed)
+                                    continue;
+
+                                keyboard_push_usb_event(modifiers, keycode);
+
+                                xhci_driver.slot_kbd_repeat_key[slot] = keycode;
+                                xhci_driver.slot_kbd_repeat_mods[slot] = modifiers;
+                                xhci_driver.slot_kbd_repeat_active[slot] = 1;
+                                xhci_driver.slot_kbd_repeat_next_ms[slot] = timer_get_uptime_ms() + 500;
+                            }
+
+                            for (int i = 0; i < 6; i++)
+                                xhci_driver.slot_kbd_prev_keys[slot][i] = keys[i];
+                            xhci_driver.slot_kbd_prev_mods[slot] = modifiers;
                         }
                     }
                 }
@@ -1955,13 +2357,26 @@ void xhci_process_events(void)
 
                     static uint8_t rr_err[64] = {0};
                     uint8_t pick = rr_err[slot]++ % XHCI_KBD_PIPE_DEPTH;
-                    uint8_t *fallback = xhci_driver.slot_kbd_buffers[slot][pick];
-                    xhci_queue_kbd_request_buf(slot, fallback);
+                    xhci_queue_kbd_request_buf(slot, xhci_driver.slot_kbd_buffers[slot][pick]);
                 }
             }
         }
+        else if (type == TRB_TYPE_PORT_STATUS)
+        {
 
-    next_event:
+            uint8_t port_id = (uint8_t)((param >> 24) & 0xFF);
+            if (port_id >= 1 && port_id <= xhci_driver.max_ports)
+            {
+                volatile xhci_port_regs_t *port = &xhci_driver.port_regs[port_id - 1];
+                uint32_t portsc = port->PortSC;
+                usb_hotplug_handle_root_port_status(port_id, portsc);
+
+                uint32_t preserve = (1u << 9);
+                uint32_t change_bits = (1u << 17) | (1u << 18) | (1u << 19) |
+                                       (1u << 20) | (1u << 21) | (1u << 22) | (1u << 23);
+                port->PortSC = (portsc & preserve) | change_bits;
+            }
+        }
 
         xhci_driver.event_ring_dequeue_idx++;
         if (xhci_driver.event_ring_dequeue_idx >= xhci_driver.event_ring_size)
@@ -1976,9 +2391,7 @@ void xhci_process_events(void)
         uint64_t erdp_phys = ev_ring_phys_base +
                              (xhci_driver.event_ring_dequeue_idx * sizeof(xhci_trb_t));
 
-        xhci_write64((uint64_t)&xhci_driver.run_regs->Interrupters[0].Erdp,
-                     erdp_phys | (1ULL << 3));
-
+        xhci_write64((uint64_t)&xhci_driver.run_regs->Interrupters[0].Erdp, erdp_phys | (1ULL << 3));
         __asm__ volatile("sfence" ::: "memory");
 
         xhci_total_events_processed += processed;
@@ -1988,7 +2401,6 @@ void xhci_process_events(void)
 
     xhci_dbg_last_evt_processed = processed;
     xhci_dbg_last_kbd_processed = kbd_processed;
-
     xhci_processing_events = 0;
 }
 
@@ -2038,6 +2450,8 @@ void xhci_handle_interrupt(void)
     {
 
         xhci_process_events();
+
+        g_xhci_need_bh = 1;
 
         iman_val = xhci_read32(iman);
         if (iman_val & XHCI_IMAN_IP)
@@ -2632,8 +3046,12 @@ uint8_t xhci_send_command_wait(uint32_t type, uint64_t param, uint32_t control_b
         return 0;
     }
 
-    const uint32_t TRB_CTRL_IOC = (1u << 5);
+    g_cmd_last_ptr = 0;
+    g_cmd_last_cc = 0;
+    g_cmd_last_slot = 0;
+    g_cmd_waiting = 1;
 
+    const uint32_t TRB_CTRL_IOC = (1u << 5);
     uint64_t idx = xhci_driver.cmd_ring_enqueue_idx;
     uint8_t cycle = xhci_driver.cmd_ring_cycle_bit & 1;
 
@@ -2652,6 +3070,13 @@ uint8_t xhci_send_command_wait(uint32_t type, uint64_t param, uint32_t control_b
     idx++;
     if (idx >= (xhci_driver.cmd_ring_size - 1))
     {
+        volatile xhci_trb_t *link = &xhci_driver.cmd_ring_base[idx];
+
+        link->Control = (TRB_TYPE_LINK << 10) | (1u << 1) | cycle;
+
+        __asm__ volatile("clflush (%0)" ::"r"(link));
+        __asm__ volatile("mfence" ::: "memory");
+
         xhci_driver.cmd_ring_enqueue_idx = 0;
         xhci_driver.cmd_ring_cycle_bit ^= 1;
     }
@@ -2662,106 +3087,37 @@ uint8_t xhci_send_command_wait(uint32_t type, uint64_t param, uint32_t control_b
 
     xhci_ring_command_doorbell();
 
-    int timeout_ms = 2000;
+    int timeout_ms = 3000;
     while (timeout_ms-- > 0)
     {
         timer_sleep(1);
 
-        volatile xhci_trb_t *evt =
-            (volatile xhci_trb_t *)&xhci_driver.event_ring[xhci_driver.event_ring_dequeue_idx];
+        xhci_process_events();
 
-        __asm__ volatile("clflush (%0)" ::"r"(evt));
-        __asm__ volatile("mfence" ::: "memory");
-
-        uint32_t ctrl = evt->Control;
-        uint8_t evt_cycle = (uint8_t)(ctrl & 1);
-
-        if (evt_cycle != xhci_driver.event_ring_cycle_bit)
+        if (g_cmd_last_ptr == cmd_phys)
         {
-            continue;
-        }
+            g_cmd_waiting = 0;
 
-        uint32_t trb_type = (ctrl >> 10) & 0x3F;
-        uint32_t cc = (evt->Status >> 24) & 0xFF;
-        uint8_t slot_evt = (ctrl >> 24) & 0xFF;
-        uint8_t ep_evt = (ctrl >> 16) & 0x1F;
-
-        uint64_t trb_ptr_evt = ((uint64_t)evt->Parameter) & ~0xFULL;
-
-        xhci_driver.event_ring_dequeue_idx++;
-        if (xhci_driver.event_ring_dequeue_idx == xhci_driver.event_ring_size)
-        {
-            xhci_driver.event_ring_dequeue_idx = 0;
-            xhci_driver.event_ring_cycle_bit ^= 1;
-        }
-
-        uint64_t erdp_phys = paging_get_physical_address(
-            (uint64_t)&xhci_driver.event_ring[xhci_driver.event_ring_dequeue_idx]);
-
-        uint64_t ir0 = (uint64_t)xhci_driver.run_regs + 0x20;
-        xhci_write64(ir0 + 0x18, erdp_phys | (1ULL << 3));
-
-        xhci_write32(&xhci_driver.op_regs->UsbSts, USBSTS_EINT);
-        volatile uint32_t *iman = (volatile uint32_t *)(ir0 + 0x00);
-        xhci_write32(iman, xhci_read32(iman) | XHCI_IMAN_IP);
-
-        if (trb_type == TRB_TYPE_CMD_COMPLETE)
-        {
-
-            if (trb_ptr_evt != cmd_phys)
+            if (g_cmd_last_cc != 1)
             {
-                continue;
-            }
-
-            if (cc != 1)
-            {
-                console_write_debug("\n[XHCI] CMD FAILED: type=");
-                console_print_dec_debug(type);
-                console_write_debug(" cc=");
-                console_print_dec_debug(cc);
-                console_write_debug(" slot_evt=");
-                console_print_dec_debug(slot_evt);
+                console_write_debug("[XHCI] CMD FAILED. CC=");
+                console_print_dec_debug(g_cmd_last_cc);
                 console_write_debug("\n");
                 return 0;
             }
 
-            if (type == TRB_TYPE_ENABLE_SLOT ||
-                type == TRB_TYPE_ADDRESS_DEVICE ||
-                type == TRB_TYPE_CONFIG_EP ||
-                type == TRB_TYPE_EVALUATE_CONTEXT)
+            if (type == TRB_TYPE_ENABLE_SLOT || type == TRB_TYPE_ADDRESS_DEVICE ||
+                type == TRB_TYPE_CONFIG_EP || type == TRB_TYPE_EVALUATE_CONTEXT)
             {
-                return slot_evt;
+                return (uint8_t)g_cmd_last_slot;
             }
-
             return 1;
-        }
-
-        if (trb_type == TRB_TYPE_TRANSFER_EVENT)
-        {
-
-            if (xhci_driver.event_ring_dequeue_idx == 0)
-            {
-                xhci_driver.event_ring_dequeue_idx = xhci_driver.event_ring_size - 1;
-                xhci_driver.event_ring_cycle_bit ^= 1;
-            }
-            else
-            {
-                xhci_driver.event_ring_dequeue_idx--;
-            }
-
-            continue;
         }
     }
 
-    uint32_t sts_val = xhci_read32(&xhci_driver.op_regs->UsbSts);
-    uint64_t crcr_val = xhci_read64((uint64_t)&xhci_driver.op_regs->Crcr);
-
-    console_write_debug(" [TIMEOUT]\n");
-    console_write_debug("    -> STS:  0x");
-    console_print_hex_debug(sts_val);
-    console_write_debug("\n");
-    console_write_debug("    -> CRCR: 0x");
-    console_print_hex_debug(crcr_val);
+    g_cmd_waiting = 0;
+    console_write_debug("[XHCI] CMD TIMEOUT! Phys=0x");
+    console_print_hex_debug((uint32_t)cmd_phys);
     console_write_debug("\n");
     return 0;
 }
@@ -3053,6 +3409,10 @@ int xhci_control_transfer(uint8_t slot_id, usb_setup_packet_t *setup, void *data
         return 0;
     }
 
+    g_ep0_target_slot = slot_id;
+    g_ep0_result_cc = 0;
+    g_ep0_waiting = 1;
+
     uint8_t is_in = (setup->RequestType & USB_DIR_IN) ? 1 : 0;
     uint32_t trt = 0;
 
@@ -3073,7 +3433,6 @@ int xhci_control_transfer(uint8_t slot_id, usb_setup_packet_t *setup, void *data
     if (setup->Length > 0 && data != 0)
     {
         uint64_t data_phys = paging_get_physical_address((uint64_t)data);
-
         uint32_t dir_bit = is_in ? (1u << 16) : 0u;
 
         xhci_queue_trb(slot_id,
@@ -3095,78 +3454,27 @@ int xhci_control_transfer(uint8_t slot_id, usb_setup_packet_t *setup, void *data
 
     xhci_ring_ep_doorbell(slot_id, 1);
 
-    int timeout = 2500;
+    int timeout = 3000;
     while (timeout-- > 0)
     {
         timer_sleep(1);
 
-        volatile xhci_trb_t *evt = &xhci_driver.event_ring[xhci_driver.event_ring_dequeue_idx];
-        __asm__ volatile("clflush (%0)" ::"r"(evt));
-        __asm__ volatile("mfence" ::: "memory");
+        xhci_process_events();
 
-        if ((evt->Control & 1) != xhci_driver.event_ring_cycle_bit)
+        if (g_ep0_waiting == 0)
         {
-            continue;
-        }
-
-        uint32_t ctrl = evt->Control;
-        uint32_t sts = evt->Status;
-
-        uint32_t type = (ctrl >> 10) & 0x3F;
-        uint8_t cc = (uint8_t)((sts >> 24) & 0xFF);
-        uint8_t slot = (uint8_t)((ctrl >> 24) & 0xFF);
-        uint8_t ep_id_evt = (uint8_t)((ctrl >> 16) & 0x1F);
-
-        xhci_driver.event_ring_dequeue_idx++;
-        if (xhci_driver.event_ring_dequeue_idx == xhci_driver.event_ring_size)
-        {
-            xhci_driver.event_ring_dequeue_idx = 0;
-            xhci_driver.event_ring_cycle_bit ^= 1;
-        }
-
-        uint64_t erdp = paging_get_physical_address((uint64_t)&xhci_driver.event_ring[xhci_driver.event_ring_dequeue_idx]);
-        xhci_write64((uint64_t)&xhci_driver.run_regs->Interrupters[0].Erdp, erdp | (1ULL << 3));
-
-        if (type == TRB_TYPE_TRANSFER_EVENT && slot == slot_id && ep_id_evt == 1)
-        {
-            if (cc == 1)
+            if (g_ep0_result_cc == 1)
                 return 1;
 
             console_write_debug("[USB] Control Transfer Fail. CC=");
-            console_print_dec_debug(cc);
+            console_print_dec_debug(g_ep0_result_cc);
             console_write_debug("\n");
             return 0;
         }
-
-        if (type == TRB_TYPE_TRANSFER_EVENT)
-        {
-            if (slot < 64 &&
-                xhci_driver.slot_kbd_buffer[slot] != NULL &&
-                xhci_driver.slot_kbd_dci[slot] != 0 &&
-                ep_id_evt == xhci_driver.slot_kbd_dci[slot])
-            {
-                if (cc == 1)
-                {
-                    uint8_t *buf = xhci_driver.slot_kbd_buffer[slot];
-
-                    __asm__ volatile("clflush (%0)" ::"r"(buf));
-                    __asm__ volatile("mfence" ::: "memory");
-
-                    uint8_t modifiers = buf[0];
-                    uint8_t keycode = buf[2];
-
-                    if (keycode != 0)
-                    {
-                        keyboard_push_usb_event(modifiers, keycode);
-                    }
-
-                    xhci_queue_kbd_request(slot);
-                }
-            }
-        }
     }
 
-    console_write_debug("[USB] Control Transfer Timeout.\n");
+    g_ep0_waiting = 0;
+    console_write_debug("[USB] Control Transfer Timeout (No Event).\n");
     return 0;
 }
 
@@ -3294,6 +3602,8 @@ int xhci_configure_device_with_context(int port_id, int speed_id, usb_device_con
     xhci_driver.slot_ep0_rings[slot_id] = (xhci_trb_t *)tr_ring;
     xhci_driver.slot_ep0_enqueue[slot_id] = 0;
     xhci_driver.slot_ep0_cycle[slot_id] = 1;
+
+    usb_hotplug_notify_root_device_configured((uint8_t)(port_id + 1), slot_id);
 
     if (speed_id < 3)
     {

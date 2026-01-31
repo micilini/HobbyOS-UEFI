@@ -154,6 +154,7 @@ typedef struct
 #define TRB_TYPE_TRANSFER_EVENT 32
 #define TRB_TYPE_CMD_COMPLETE 33
 #define TRB_TYPE_PORT_STATUS 34
+#define TRB_TYPE_DISABLE_SLOT 10
 
 #define USB_REQ_TYPE_STANDARD (0x00 << 5)
 #define USB_REQ_TYPE_CLASS (0x01 << 5)
@@ -355,19 +356,17 @@ int xhci_set_idle(uint8_t slot_id, uint8_t interface_num, uint8_t duration, uint
 void xhci_diag_latency(void);
 void xhci_kbd_repeat_poll(void);
 
-/* =========================================================================
- * USB HUB Support
- * ========================================================================= */
-
 #define USB_CLASS_HUB 0x09
 
-/* Forward declaration - full definition in usb_hub.h */
 struct usb_device_context;
 typedef struct usb_device_context usb_device_context_t;
 
-/* Hub support functions */
 int xhci_configure_device_with_context(int port_id, int speed_id, usb_device_context_t *ctx);
 int xhci_get_descriptor_device(uint8_t slot_id, usb_device_descriptor_t *out_desc, uint16_t len);
 void *xhci_get_config_descriptor(uint8_t slot_id, uint16_t *out_len);
 
-#endif /* XHCI_H */
+void xhci_disable_slot(uint8_t slot_id);
+
+void xhci_hotplug_enumerate_port(uint8_t port_0based);
+
+#endif
