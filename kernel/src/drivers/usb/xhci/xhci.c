@@ -10,6 +10,7 @@
 #include "../../keyboard.h"
 #include "../../../memory/pmem.h"
 #include "../../../core/idt.h"
+#include "../../../core/spinlock.h"
 
 static volatile uint64_t g_cmd_last_ptr = 0;
 static volatile uint32_t g_cmd_last_cc = 0;
@@ -35,6 +36,10 @@ static volatile uint32_t xhci_dbg_last_kbd_processed = 0;
 
 static volatile uint32_t xhci_dbg_no_progress_streak = 0;
 
+static spinlock_t g_xhci_event_lock;
+static spinlock_t g_xhci_cmd_lock;
+static volatile uint32_t xhci_lock_flag = 0;
+
 static volatile uint64_t xhci_dbg_last_kbd_ms[64] = {0};
 static volatile uint32_t xhci_dbg_repeat_zombie_hits[64] = {0};
 
@@ -46,7 +51,7 @@ static volatile uint64_t xhci_last_successful_process_ms = 0;
 
 static volatile int xhci_driver_ready = 0;
 
-static volatile uint32_t xhci_lock_flag = 0;
+
 
 static inline int xhci_try_lock(void)
 {
@@ -724,6 +729,8 @@ static int xhci_recover_command_ring(void)
 
     console_write_debug("[XHCI] Command ring lost! Full recovery...\n");
 
+    spin_lock(&g_xhci_cmd_lock);
+
     irq_flags_t irq_flags = irq_save();
 
     uint32_t cmd = xhci_read32((volatile uint32_t *)(op_base + OP_USBCMD));
@@ -800,6 +807,7 @@ static int xhci_recover_command_ring(void)
     xhci_driver.event_ring_cycle_bit = 1;
 
     console_write_debug("[XHCI] Recovery complete!\n");
+    spin_unlock(&g_xhci_cmd_lock);
     return 1;
 }
 
@@ -2146,8 +2154,18 @@ static void xhci_dbg_dump_state(const char *tag)
 
 void xhci_process_events(void)
 {
-    if (xhci_processing_events)
+    if (!spin_trylock(&g_xhci_event_lock))
+    {
+        g_xhci_need_bh = 1;
         return;
+    }
+
+    if (xhci_processing_events)
+    {
+        spin_unlock(&g_xhci_event_lock);
+        return;
+    }
+
     xhci_processing_events = 1;
 
     uint32_t processed = 0;
@@ -2358,6 +2376,8 @@ void xhci_process_events(void)
     xhci_dbg_last_evt_processed = processed;
     xhci_dbg_last_kbd_processed = kbd_processed;
     xhci_processing_events = 0;
+
+    spin_unlock(&g_xhci_event_lock);
 }
 
 static volatile uint32_t xhci_isr_in_progress = 0;
@@ -2404,12 +2424,12 @@ void xhci_handle_interrupt(void)
 
     if (have_work)
     {
+        g_xhci_need_bh = 1;
 
         xhci_process_events();
 
-        g_xhci_need_bh = 1;
-
         iman_val = xhci_read32(iman);
+
         if (iman_val & XHCI_IMAN_IP)
         {
             xhci_write32(iman, iman_val | XHCI_IMAN_IP);
@@ -2695,16 +2715,21 @@ void xhci_poll_events(void)
     if (g_xhci_need_bh)
         return;
 
+    if (!spin_trylock(&g_xhci_event_lock))
+        return;
+
     volatile xhci_trb_t *evt = &xhci_driver.event_ring[xhci_driver.event_ring_dequeue_idx];
     uint32_t ctrl = evt->Control;
     uint8_t evt_cycle = (uint8_t)(ctrl & 1u);
 
     if (evt_cycle == xhci_driver.event_ring_cycle_bit)
     {
-
         g_xhci_need_bh = 1;
     }
+
+    spin_unlock(&g_xhci_event_lock);
 }
+
 
 void xhci_reset_controller()
 {
@@ -2732,6 +2757,9 @@ void xhci_reset_controller()
 
 void xhci_init(uint64_t base_address)
 {
+    spinlock_init(&g_xhci_event_lock);
+    spinlock_init(&g_xhci_cmd_lock);
+
     console_set_color_debug(CONSOLE_COLOR_CYAN, CONSOLE_COLOR_BLACK);
     console_write_debug("\n=== XHCI DRIVER FASE 5 (INVERTED CYCLE) ===\n");
 
@@ -3002,6 +3030,12 @@ uint8_t xhci_send_command_wait(uint32_t type, uint64_t param, uint32_t control_b
         return 0;
     }
 
+    /* Só 1 comando por vez. Não usamos irqsave aqui porque precisamos de IRQs
+       para receber o Command Completion Event. */
+    spin_lock(&g_xhci_cmd_lock);
+
+    uint8_t ret = 0;
+
     g_cmd_last_ptr = 0;
     g_cmd_last_cc = 0;
     g_cmd_last_slot = 0;
@@ -3059,15 +3093,19 @@ uint8_t xhci_send_command_wait(uint32_t type, uint64_t param, uint32_t control_b
                 console_write_debug("[XHCI] CMD FAILED. CC=");
                 console_print_dec_debug(g_cmd_last_cc);
                 console_write_debug("\n");
-                return 0;
+                ret = 0;
+                goto out;
             }
 
             if (type == TRB_TYPE_ENABLE_SLOT || type == TRB_TYPE_ADDRESS_DEVICE ||
                 type == TRB_TYPE_CONFIG_EP || type == TRB_TYPE_EVALUATE_CONTEXT)
             {
-                return (uint8_t)g_cmd_last_slot;
+                ret = (uint8_t)g_cmd_last_slot;
+                goto out;
             }
-            return 1;
+
+            ret = 1;
+            goto out;
         }
     }
 
@@ -3075,7 +3113,11 @@ uint8_t xhci_send_command_wait(uint32_t type, uint64_t param, uint32_t control_b
     console_write_debug("[XHCI] CMD TIMEOUT! Phys=0x");
     console_print_hex_debug((uint32_t)cmd_phys);
     console_write_debug("\n");
-    return 0;
+    ret = 0;
+
+out:
+    spin_unlock(&g_xhci_cmd_lock);
+    return ret;
 }
 
 int xhci_get_descriptor_device(uint8_t slot_id, usb_device_descriptor_t *out_desc, uint16_t len)
