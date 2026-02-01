@@ -1,284 +1,193 @@
 #include "usb_hotplug.h"
+#include "xhci.h" 
 #include "../../../core/spinlock.h"
+#include "../../../core/dpc.h"
+#include "../../../core/timers.h"
+#include "../../../graphics/console.h"
 
-#define HP_DISABLE_QUEUE_SIZE 16
-static uint8_t g_hp_pending_disable[HP_DISABLE_QUEUE_SIZE];
-static spinlock_t g_hp_lock;
 
-static uint8_t g_hp_disable_head = 0;
-static uint8_t g_hp_disable_tail = 0;
-static uint8_t g_hp_disable_count = 0;
-
-static uint64_t g_hp_last_enum_time[256] = {0};
+#define MAX_ROOT_PORTS 16 
 #define HP_ENUM_COOLDOWN_MS 2000
 
-extern uint64_t timer_get_uptime_ms(void);
 
-extern void console_write_debug(const char *str);
-extern void console_print_dec_debug(uint32_t val);
-extern void console_print_hex_debug(uint32_t val);
-
-extern void xhci_disable_slot(uint8_t slot_id);
-
-extern void xhci_hotplug_enumerate_port(uint8_t port_0based);
-
-static uint8_t g_hp_last_ccs[256];
-static uint8_t g_hp_port_slot[256];
+static spinlock_t g_hp_lock;
+static hp_port_context_t g_port_ctx[MAX_ROOT_PORTS + 1]; 
 static uint8_t g_hp_initialized = 0;
 
-#define HP_PENDING_QUEUE_SIZE 16
-static uint8_t g_hp_pending_ports[HP_PENDING_QUEUE_SIZE];
-static uint8_t g_hp_pending_head = 0;
-static uint8_t g_hp_pending_tail = 0;
-static uint8_t g_hp_pending_count = 0;
 
-static void hp_log_connect(uint8_t root_port, uint8_t slot_id)
-{
-    console_write_debug("[USB][HOTPLUG] connect on root port ");
-    console_print_dec_debug(root_port);
-    console_write_debug(" (Slot ");
-    console_print_dec_debug(slot_id);
-    console_write_debug(")\n");
+static void hp_fsm_run(void *ctx);
+static void hp_timer_callback(void *ctx);
+
+
+static uint32_t hp_read_portsc(uint8_t port_1based) {
+    if (port_1based == 0 || port_1based > xhci_driver.max_ports) return 0;
+    return xhci_driver.port_regs[port_1based - 1].PortSC;
 }
 
-static void hp_log_disconnect(uint8_t root_port, uint8_t slot_id)
-{
-    console_write_debug("[USB][HOTPLUG] disconnect on root port ");
-    console_print_dec_debug(root_port);
-    console_write_debug(" (Slot ");
-    console_print_dec_debug(slot_id);
-    console_write_debug(")\n");
+
+static void hp_write_portsc(uint8_t port_1based, uint32_t val) {
+    if (port_1based == 0 || port_1based > xhci_driver.max_ports) return;
+    volatile uint32_t *reg = &xhci_driver.port_regs[port_1based - 1].PortSC;
+    
+    
+    
+    
+    
+    
+    
+    *reg = val;
 }
 
-void usb_hotplug_init(void)
-{
-    if (g_hp_initialized)
-        return;
+
+void usb_hotplug_init(void) {
+    if (g_hp_initialized) return;
 
     spinlock_init(&g_hp_lock);
+    
+    for (int i = 0; i <= MAX_ROOT_PORTS; i++) {
+        g_port_ctx[i].state = HP_STATE_IDLE;
+        g_port_ctx[i].root_port_1based = i;
+        g_port_ctx[i].retries = 0;
+    }
 
     g_hp_initialized = 1;
-
-    for (int i = 0; i < 256; i++)
-    {
-        g_hp_last_ccs[i] = 0;
-        g_hp_port_slot[i] = 0;
-        g_hp_last_enum_time[i] = 0;
-    }
-
-    g_hp_pending_head = 0;
-    g_hp_pending_tail = 0;
-    g_hp_pending_count = 0;
-
-    g_hp_disable_head = 0;
-    g_hp_disable_tail = 0;
-    g_hp_disable_count = 0;
+    console_write_debug("[USB] Hotplug State Machine Initialized.\n");
 }
 
-static int hp_schedule_enumeration_nolock(uint8_t root_port_1based)
-{
-    if (g_hp_pending_count >= HP_PENDING_QUEUE_SIZE)
-    {
-        return -1;
-    }
 
-    uint64_t now = timer_get_uptime_ms();
-    uint64_t last = g_hp_last_enum_time[root_port_1based];
-    if (last != 0 && (now - last) < HP_ENUM_COOLDOWN_MS)
-    {
-        return 0;
-    }
 
-    for (uint8_t i = 0; i < g_hp_pending_count; i++)
-    {
-        uint8_t idx = (g_hp_pending_tail + i) % HP_PENDING_QUEUE_SIZE;
-        if (g_hp_pending_ports[idx] == root_port_1based)
-        {
-            return 0;
-        }
-    }
-
-    g_hp_last_enum_time[root_port_1based] = now;
-
-    g_hp_pending_ports[g_hp_pending_head] = root_port_1based;
-    g_hp_pending_head = (g_hp_pending_head + 1) % HP_PENDING_QUEUE_SIZE;
-    g_hp_pending_count++;
-
-    return 1;
+static void hp_timer_callback(void *ctx) {
+    hp_port_context_t *port_ctx = (hp_port_context_t *)ctx;
+    
+    dpc_enqueue(hp_fsm_run, port_ctx);
 }
 
-static uint8_t hp_take_pending_nolock(void)
-{
-    if (g_hp_pending_count == 0)
-        return 0;
 
-    uint8_t port = g_hp_pending_ports[g_hp_pending_tail];
-    g_hp_pending_tail = (g_hp_pending_tail + 1) % HP_PENDING_QUEUE_SIZE;
-    g_hp_pending_count--;
+static void hp_fsm_run(void *ctx) {
+    hp_port_context_t *p = (hp_port_context_t *)ctx;
+    uint8_t port = p->root_port_1based;
+    uint32_t sc = hp_read_portsc(port);
 
-    return port;
-}
-
-static int hp_schedule_disable_nolock(uint8_t slot_id)
-{
-    if (slot_id == 0)
-        return 0;
-
-    if (g_hp_disable_count >= HP_DISABLE_QUEUE_SIZE)
-    {
-        return -1;
-    }
-
-    for (uint8_t i = 0; i < g_hp_disable_count; i++)
-    {
-        uint8_t idx = (g_hp_disable_tail + i) % HP_DISABLE_QUEUE_SIZE;
-        if (g_hp_pending_disable[idx] == slot_id)
-        {
-            return 0;
-        }
-    }
-
-    g_hp_pending_disable[g_hp_disable_head] = slot_id;
-    g_hp_disable_head = (g_hp_disable_head + 1) % HP_DISABLE_QUEUE_SIZE;
-    g_hp_disable_count++;
-
-    return 1;
-}
-
-static uint8_t hp_take_pending_disable_nolock(void)
-{
-    if (g_hp_disable_count == 0)
-        return 0;
-
-    uint8_t slot = g_hp_pending_disable[g_hp_disable_tail];
-    g_hp_disable_tail = (g_hp_disable_tail + 1) % HP_DISABLE_QUEUE_SIZE;
-    g_hp_disable_count--;
-
-    return slot;
-}
-
-void usb_hotplug_handle_root_port_status(uint8_t root_port_1based, uint32_t portsc)
-{
-    if (!g_hp_initialized)
-        usb_hotplug_init();
-
-    if (root_port_1based == 0)
+    
+    if (!(sc & (1 << 0)) && p->state != HP_STATE_IDLE) { 
+        console_write_debug("[HP] Device disconnected during enum. Resetting state.\n");
+        p->state = HP_STATE_IDLE;
         return;
+    }
 
-    uint8_t ccs = (portsc & (1u << 0)) ? 1 : 0;
+    switch (p->state) {
+        case HP_STATE_IDLE:
+            
+            break;
 
-    uint8_t do_log_connect = 0;
-    uint8_t do_log_disconnect = 0;
-    uint8_t slot_for_log = 0;
+        case HP_STATE_WAIT_CONNECTION_STABLE:
+            
+            
+            console_write_debug("[HP] Connection stable. Starting Reset.\n");
+            
+            
+            
+            hp_write_portsc(port, (sc & (1<<9)) | (1<<4)); 
+            
+            p->state = HP_STATE_WAIT_RESET;
+            
+            timers_add(50, hp_timer_callback, p);
+            break;
 
-    int enum_status = 0;
-    int disable_status = 0;
+        case HP_STATE_WAIT_RESET:
+            
+            
+            if (sc & (1 << 1)) { 
+                console_write_debug("[HP] Port Enabled! Configuring device...\n");
+                p->state = HP_STATE_CONFIGURE_DEVICE;
+                
+                dpc_enqueue(hp_fsm_run, p);
+            } else {
+                
+                
+                if (p->retries++ < 5) {
+                    console_write_debug("[HP] Reset wait retry...\n");
+                    timers_add(50, hp_timer_callback, p);
+                } else {
+                    console_write_debug("[HP] Reset TIMEOUT. Aborting.\n");
+                    p->state = HP_STATE_ERROR;
+                }
+            }
+            break;
+
+        case HP_STATE_CONFIGURE_DEVICE:
+            
+            
+            
+            
+            
+            
+            uint8_t speed = (sc >> 10) & 0xF;
+            
+            
+            
+            xhci_configure_device(port - 1, speed);
+            
+            p->state = HP_STATE_DONE;
+            console_write_debug("[HP] Enumeration DONE.\n");
+            
+            
+            p->state = HP_STATE_IDLE; 
+            break;
+
+        case HP_STATE_ERROR:
+        case HP_STATE_DONE:
+            p->state = HP_STATE_IDLE;
+            break;
+    }
+}
+
+
+
+void usb_hotplug_handle_root_port_status(uint8_t root_port_1based, uint32_t portsc) {
+    if (!g_hp_initialized) usb_hotplug_init();
+    if (root_port_1based >= MAX_ROOT_PORTS) return;
+
+    hp_port_context_t *p = &g_port_ctx[root_port_1based];
+    uint8_t ccs = (portsc & 1); 
 
     irq_flags_t flags = spin_lock_irqsave(&g_hp_lock);
 
-    uint8_t prev = g_hp_last_ccs[root_port_1based];
-    if (ccs == prev)
-    {
-        spin_unlock_irqrestore(&g_hp_lock, flags);
-        return;
-    }
-
-    g_hp_last_ccs[root_port_1based] = ccs;
-
-    uint8_t slot = g_hp_port_slot[root_port_1based];
-    slot_for_log = slot;
-
-    if (ccs)
-    {
-        do_log_connect = 1;
-        enum_status = hp_schedule_enumeration_nolock(root_port_1based);
-    }
-    else
-    {
-        do_log_disconnect = 1;
-
-        if (slot != 0)
-        {
-            disable_status = hp_schedule_disable_nolock(slot);
+    if (ccs) {
+        
+        if (p->state == HP_STATE_IDLE) {
+            console_write_debug("[HP] Connect detected. Waiting debounce (150ms)...\n");
+            
+            
+            
+            
+            
+            p->state = HP_STATE_WAIT_CONNECTION_STABLE;
+            p->retries = 0;
+            
+            
+            timers_add(150, hp_timer_callback, p);
         }
-
-        g_hp_port_slot[root_port_1based] = 0;
-        g_hp_last_enum_time[root_port_1based] = 0;
+    } else {
+        
+        console_write_debug("[HP] Disconnect detected.\n");
+        
+        p->state = HP_STATE_IDLE;
+        
+        
+        
     }
 
     spin_unlock_irqrestore(&g_hp_lock, flags);
-
-    if (do_log_connect)
-    {
-        hp_log_connect(root_port_1based, slot_for_log);
-        if (enum_status < 0)
-            console_write_debug("[USB][HOTPLUG] WARNING: pending queue full!\n");
-    }
-    else if (do_log_disconnect)
-    {
-        hp_log_disconnect(root_port_1based, slot_for_log);
-        if (disable_status < 0)
-            console_write_debug("[USB][HOTPLUG] WARNING: disable queue full!\n");
-    }
 }
 
-void usb_hotplug_notify_root_device_configured(uint8_t root_port_1based, uint8_t slot_id)
-{
-    if (!g_hp_initialized)
-        usb_hotplug_init();
 
-    if (root_port_1based == 0)
-        return;
-
-    irq_flags_t flags = spin_lock_irqsave(&g_hp_lock);
-    g_hp_port_slot[root_port_1based] = slot_id;
-    g_hp_last_ccs[root_port_1based] = 1;
-    spin_unlock_irqrestore(&g_hp_lock, flags);
+void usb_hotplug_process_pending(void) {
+    
 }
 
-int usb_hotplug_process_pending(void)
-{
-    int processed = 0;
-
-    for (;;)
-    {
-        uint8_t slot_id = 0;
-
-        irq_flags_t flags = spin_lock_irqsave(&g_hp_lock);
-        slot_id = hp_take_pending_disable_nolock();
-        spin_unlock_irqrestore(&g_hp_lock, flags);
-
-        if (slot_id == 0)
-            break;
-
-        xhci_disable_slot(slot_id);
-        processed++;
-    }
-
-    for (;;)
-    {
-        uint8_t port_1based = 0;
-
-        irq_flags_t flags = spin_lock_irqsave(&g_hp_lock);
-        port_1based = hp_take_pending_nolock();
-        spin_unlock_irqrestore(&g_hp_lock, flags);
-
-        if (port_1based == 0)
-            break;
-
-        console_write_debug("[USB][HOTPLUG] Enumerating device on port ");
-        console_print_dec_debug(port_1based);
-        console_write_debug("...\n");
-
-        xhci_hotplug_enumerate_port(port_1based - 1);
-        processed++;
-    }
-
-    return processed;
-}
-
-void keyboard_on_usb_hid_key(uint8_t modifiers, uint8_t keycode)
-{
-    extern void keyboard_push_usb_event(uint8_t modifiers, uint8_t keycode);
-    keyboard_push_usb_event(modifiers, keycode);
+void usb_hotplug_notify_root_device_configured(uint8_t root_port_1based, uint8_t slot_id) {
+    
+    (void)root_port_1based;
+    (void)slot_id;
 }

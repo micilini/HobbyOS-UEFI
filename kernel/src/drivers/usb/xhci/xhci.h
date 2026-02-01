@@ -336,6 +336,7 @@ typedef struct
 
 } xhci_controller_t;
 
+extern xhci_controller_t xhci_driver;
 extern volatile uint32_t xhci_debug_flags;
 
 #define XHCI_DBG_WATCH (1u << 0)
