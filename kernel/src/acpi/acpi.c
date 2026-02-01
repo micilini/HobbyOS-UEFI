@@ -33,13 +33,24 @@ void init_acpi(void *rsdp_address)
 
 void *acpi_find_table(const char *signature)
 {
+    if (!signature || !signature[0] || !signature[1] || !signature[2] || !signature[3])
+        return NULL;
 
     if (g_xsdt)
     {
-        int entries = (g_xsdt->length - sizeof(AcpiSdtHeader)) / 8;
+        if (g_xsdt->length < sizeof(AcpiSdtHeader))
+            return NULL;
+
+        uint64_t bytes = (uint64_t)(g_xsdt->length - sizeof(AcpiSdtHeader));
+        uint64_t entries64 = bytes / 8;
+
+        // garante que o array cabe dentro da tabela
+        if (sizeof(AcpiSdtHeader) + entries64 * 8 > g_xsdt->length)
+            return NULL;
+
         uint64_t *pointers = (uint64_t *)((char *)g_xsdt + sizeof(AcpiSdtHeader));
 
-        for (int i = 0; i < entries; i++)
+        for (uint64_t i = 0; i < entries64; i++)
         {
             AcpiSdtHeader *header = (AcpiSdtHeader *)(uintptr_t)pointers[i];
             if (!header)
@@ -58,10 +69,19 @@ void *acpi_find_table(const char *signature)
 
     if (g_rsdt)
     {
-        int entries = (g_rsdt->length - sizeof(AcpiSdtHeader)) / 4;
+        if (g_rsdt->length < sizeof(AcpiSdtHeader))
+            return NULL;
+
+        uint64_t bytes = (uint64_t)(g_rsdt->length - sizeof(AcpiSdtHeader));
+        uint64_t entries64 = bytes / 4;
+
+        // garante que o array cabe dentro da tabela
+        if (sizeof(AcpiSdtHeader) + entries64 * 4 > g_rsdt->length)
+            return NULL;
+
         uint32_t *pointers = (uint32_t *)((char *)g_rsdt + sizeof(AcpiSdtHeader));
 
-        for (int i = 0; i < entries; i++)
+        for (uint64_t i = 0; i < entries64; i++)
         {
             AcpiSdtHeader *header = (AcpiSdtHeader *)(uintptr_t)pointers[i];
             if (!header)
@@ -84,21 +104,35 @@ void acpi_list_tables_debug(void)
 {
     if (g_xsdt)
     {
-        int entries = (g_xsdt->length - sizeof(AcpiSdtHeader)) / 8;
+        if (g_xsdt->length < sizeof(AcpiSdtHeader))
+        {
+            console_write_debug("[ACPI] XSDT length invalid.\n");
+            return;
+        }
+
+        uint64_t bytes = (uint64_t)(g_xsdt->length - sizeof(AcpiSdtHeader));
+        uint64_t entries = bytes / 8;
+
+        if (sizeof(AcpiSdtHeader) + entries * 8 > g_xsdt->length)
+        {
+            console_write_debug("[ACPI] XSDT entries overflow.\n");
+            return;
+        }
+
         uint64_t *pointers = (uint64_t *)((char *)g_xsdt + sizeof(AcpiSdtHeader));
 
         console_write_debug("[ACPI] Using XSDT. Tables: ");
-        console_print_dec_debug((uint64_t)entries);
+        console_print_dec_debug(entries);
         console_write_debug("\n");
 
-        for (int i = 0; i < entries; i++)
+        for (uint64_t i = 0; i < entries; i++)
         {
             AcpiSdtHeader *h = (AcpiSdtHeader *)(uintptr_t)pointers[i];
             if (!h)
                 continue;
 
             console_write_debug("  [");
-            console_print_dec_debug((uint64_t)i);
+            console_print_dec_debug(i);
             console_write_debug("] ");
             console_put_char_debug(h->signature[0]);
             console_put_char_debug(h->signature[1]);
@@ -117,21 +151,35 @@ void acpi_list_tables_debug(void)
 
     if (g_rsdt)
     {
-        int entries = (g_rsdt->length - sizeof(AcpiSdtHeader)) / 4;
+        if (g_rsdt->length < sizeof(AcpiSdtHeader))
+        {
+            console_write_debug("[ACPI] RSDT length invalid.\n");
+            return;
+        }
+
+        uint64_t bytes = (uint64_t)(g_rsdt->length - sizeof(AcpiSdtHeader));
+        uint64_t entries = bytes / 4;
+
+        if (sizeof(AcpiSdtHeader) + entries * 4 > g_rsdt->length)
+        {
+            console_write_debug("[ACPI] RSDT entries overflow.\n");
+            return;
+        }
+
         uint32_t *pointers = (uint32_t *)((char *)g_rsdt + sizeof(AcpiSdtHeader));
 
         console_write_debug("[ACPI] Using RSDT. Tables: ");
-        console_print_dec_debug((uint64_t)entries);
+        console_print_dec_debug(entries);
         console_write_debug("\n");
 
-        for (int i = 0; i < entries; i++)
+        for (uint64_t i = 0; i < entries; i++)
         {
             AcpiSdtHeader *h = (AcpiSdtHeader *)(uintptr_t)pointers[i];
             if (!h)
                 continue;
 
             console_write_debug("  [");
-            console_print_dec_debug((uint64_t)i);
+            console_print_dec_debug(i);
             console_write_debug("] ");
             console_put_char_debug(h->signature[0]);
             console_put_char_debug(h->signature[1]);
@@ -155,21 +203,35 @@ void acpi_list_tables(void)
 {
     if (g_xsdt)
     {
-        int entries = (g_xsdt->length - sizeof(AcpiSdtHeader)) / 8;
+        if (g_xsdt->length < sizeof(AcpiSdtHeader))
+        {
+            console_write("[ACPI] XSDT length invalid.\n");
+            return;
+        }
+
+        uint64_t bytes = (uint64_t)(g_xsdt->length - sizeof(AcpiSdtHeader));
+        uint64_t entries = bytes / 8;
+
+        if (sizeof(AcpiSdtHeader) + entries * 8 > g_xsdt->length)
+        {
+            console_write("[ACPI] XSDT entries overflow.\n");
+            return;
+        }
+
         uint64_t *pointers = (uint64_t *)((char *)g_xsdt + sizeof(AcpiSdtHeader));
 
         console_write("[ACPI] Using XSDT. Tables: ");
-        console_print_dec((uint64_t)entries);
+        console_print_dec(entries);
         console_write("\n");
 
-        for (int i = 0; i < entries; i++)
+        for (uint64_t i = 0; i < entries; i++)
         {
             AcpiSdtHeader *h = (AcpiSdtHeader *)(uintptr_t)pointers[i];
             if (!h)
                 continue;
 
             console_write("  [");
-            console_print_dec((uint64_t)i);
+            console_print_dec(i);
             console_write("] ");
             console_put_char(h->signature[0]);
             console_put_char(h->signature[1]);
@@ -188,21 +250,35 @@ void acpi_list_tables(void)
 
     if (g_rsdt)
     {
-        int entries = (g_rsdt->length - sizeof(AcpiSdtHeader)) / 4;
+        if (g_rsdt->length < sizeof(AcpiSdtHeader))
+        {
+            console_write("[ACPI] RSDT length invalid.\n");
+            return;
+        }
+
+        uint64_t bytes = (uint64_t)(g_rsdt->length - sizeof(AcpiSdtHeader));
+        uint64_t entries = bytes / 4;
+
+        if (sizeof(AcpiSdtHeader) + entries * 4 > g_rsdt->length)
+        {
+            console_write("[ACPI] RSDT entries overflow.\n");
+            return;
+        }
+
         uint32_t *pointers = (uint32_t *)((char *)g_rsdt + sizeof(AcpiSdtHeader));
 
         console_write("[ACPI] Using RSDT. Tables: ");
-        console_print_dec((uint64_t)entries);
+        console_print_dec(entries);
         console_write("\n");
 
-        for (int i = 0; i < entries; i++)
+        for (uint64_t i = 0; i < entries; i++)
         {
             AcpiSdtHeader *h = (AcpiSdtHeader *)(uintptr_t)pointers[i];
             if (!h)
                 continue;
 
             console_write("  [");
-            console_print_dec((uint64_t)i);
+            console_print_dec(i);
             console_write("] ");
             console_put_char(h->signature[0]);
             console_put_char(h->signature[1]);

@@ -3,6 +3,7 @@
 #include "../libc/string.h"
 #include "../shell/shell.h"
 #include "../core/io.h"
+#include "../core/spinlock.h"
 
 static bool g_shift = false;
 static bool g_capslock = false;
@@ -25,30 +26,19 @@ static volatile uint32_t g_usb_fifo_head = 0;
 static volatile uint32_t g_usb_fifo_tail = 0;
 static volatile uint32_t g_usb_fifo_drops = 0;
 
-static inline uint64_t irq_save(void)
-{
-    uint64_t flags;
-    __asm__ volatile("pushfq; popq %0; cli" : "=r"(flags)::"memory");
-    return flags;
-}
-
-static inline void irq_restore(uint64_t flags)
-{
-    __asm__ volatile("pushq %0; popfq" ::"r"(flags) : "memory");
-}
+static spinlock_t g_usb_fifo_lock;
 
 static inline void usb_fifo_push(uint8_t value, uint8_t is_special)
 {
-    uint64_t flags = irq_save();
+    irq_flags_t flags = spin_lock_irqsave(&g_usb_fifo_lock);
 
     uint32_t head = g_usb_fifo_head;
     uint32_t next = (head + 1) % USB_KBD_FIFO_SIZE;
 
     if (next == g_usb_fifo_tail)
     {
-
         g_usb_fifo_drops++;
-        irq_restore(flags);
+        spin_unlock_irqrestore(&g_usb_fifo_lock, flags);
         return;
     }
 
@@ -58,7 +48,7 @@ static inline void usb_fifo_push(uint8_t value, uint8_t is_special)
 
     g_usb_fifo_head = next;
 
-    irq_restore(flags);
+    spin_unlock_irqrestore(&g_usb_fifo_lock, flags);
 }
 
 void keyboard_usb_pump_to_shell(uint32_t budget)
@@ -70,18 +60,20 @@ void keyboard_usb_pump_to_shell(uint32_t budget)
 
     while (count < budget)
     {
-        uint64_t flags = irq_save();
+        kbd_evt_t ev;
+
+        irq_flags_t flags = spin_lock_irqsave(&g_usb_fifo_lock);
 
         if (g_usb_fifo_tail == g_usb_fifo_head)
         {
-            irq_restore(flags);
+            spin_unlock_irqrestore(&g_usb_fifo_lock, flags);
             break;
         }
 
-        kbd_evt_t ev = g_usb_fifo[g_usb_fifo_tail];
+        ev = g_usb_fifo[g_usb_fifo_tail];
         g_usb_fifo_tail = (g_usb_fifo_tail + 1) % USB_KBD_FIFO_SIZE;
 
-        irq_restore(flags);
+        spin_unlock_irqrestore(&g_usb_fifo_lock, flags);
 
         if (ev.is_special)
             shell_receive_special(ev.value);
@@ -94,7 +86,10 @@ void keyboard_usb_pump_to_shell(uint32_t budget)
 
 uint32_t keyboard_usb_fifo_drops(void)
 {
-    return (uint32_t)g_usb_fifo_drops;
+    irq_flags_t flags = spin_lock_irqsave(&g_usb_fifo_lock);
+    uint32_t v = (uint32_t)g_usb_fifo_drops;
+    spin_unlock_irqrestore(&g_usb_fifo_lock, flags);
+    return v;
 }
 
 static char apply_modifiers_letter(char lower, char upper)
@@ -215,6 +210,11 @@ static const uint8_t usb_hid_map[128][2] = {
 
 void keyboard_init()
 {
+    spinlock_init(&g_usb_fifo_lock);
+
+    g_usb_fifo_head = 0;
+    g_usb_fifo_tail = 0;
+    g_usb_fifo_drops = 0;
 
     g_shift = false;
     g_capslock = false;

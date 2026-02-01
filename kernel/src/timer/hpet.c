@@ -4,10 +4,13 @@
 #include "../apic/ioapic.h"
 #include "../memory/paging.h"
 #include "../memory/paging.h"
+#include "../core/spinlock.h"
 
 static uint64_t g_hpet_base = 0;
 static uint64_t g_clk_period_fs = 0;
 static int g_hpet_timer0_irq = -1;
+
+static spinlock_t g_hpet_lock;
 
 static int g_hpet_counter_is_64bit = 0;
 static uint32_t g_hpet_last_low = 0;
@@ -23,6 +26,8 @@ static inline uint64_t hpet_read_main_counter_64(void)
     {
         return mmio_read64((void *)(g_hpet_base + HPET_REG_MAIN_COUNTER));
     }
+
+    irq_flags_t flags = spin_lock_irqsave(&g_hpet_lock);
 
     uint32_t low = mmio_read32((void *)(g_hpet_base + HPET_REG_MAIN_COUNTER));
 
@@ -41,7 +46,10 @@ static inline uint64_t hpet_read_main_counter_64(void)
         g_hpet_last_low = low;
     }
 
-    return g_hpet_high | (uint64_t)low;
+    uint64_t ret = g_hpet_high | (uint64_t)low;
+
+    spin_unlock_irqrestore(&g_hpet_lock, flags);
+    return ret;
 }
 
 static uint64_t hpet_read(uint64_t offset)
@@ -56,6 +64,8 @@ static void hpet_write(uint64_t offset, uint64_t val)
 
 void init_hpet()
 {
+    spinlock_init(&g_hpet_lock);
+
     HpetTable *hpet = (HpetTable *)acpi_find_table(ACPI_SIG_HPET);
     if (!hpet)
         return;
@@ -139,7 +149,11 @@ void hpet_configure_timer0_irq(uint8_t vector, uint8_t apic_id)
         return;
     }
 
-    g_hpet_timer0_irq = irq;
+    {
+        irq_flags_t flags = spin_lock_irqsave(&g_hpet_lock);
+        g_hpet_timer0_irq = irq;
+        spin_unlock_irqrestore(&g_hpet_lock, flags);
+    }
 
     t0 &= ~(0x1FULL << 9);
     t0 |= ((uint64_t)(irq & 0x1F) << 9);
@@ -180,7 +194,15 @@ void hpet_set_timer(uint64_t milliseconds)
     if (!g_hpet_base || g_clk_period_fs == 0)
         return;
 
-    if (g_hpet_timer0_irq < 0)
+    int need_config = 0;
+
+    {
+        irq_flags_t flags = spin_lock_irqsave(&g_hpet_lock);
+        need_config = (g_hpet_timer0_irq < 0);
+        spin_unlock_irqrestore(&g_hpet_lock, flags);
+    }
+
+    if (need_config)
     {
         hpet_configure_timer0_irq(32, 0);
     }

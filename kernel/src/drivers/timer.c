@@ -8,14 +8,14 @@
 
 extern void xhci_poll_events(void);
 
-static uint64_t g_ticks = 0;
+static volatile uint64_t g_ticks = 0;
 
 static const uint64_t TICK_MS = 1;
 
-static int g_xhci_poll_counter = 0;
+static volatile int g_xhci_poll_counter = 0;
 static const int XHCI_POLL_THRESHOLD = 1;
 
-static int g_shell_tick_counter = 0;
+static volatile int g_shell_tick_counter = 0;
 static const int SHELL_TICK_DIVIDER = 10;
 
 void timer_init(void)

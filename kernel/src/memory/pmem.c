@@ -1,12 +1,15 @@
 #include "pmem.h"
 #include "../utils/bitmap.h"
 #include "../libc/memory.h"
+#include "../core/spinlock.h"
 
 static Bitmap g_bitmap;
 static uint64_t g_total_frames = 0;
 static uint64_t g_free_frames = 0;
 static uint64_t g_bitmap_size = 0;
 static void *g_bitmap_buffer = NULL;
+
+static spinlock_t g_pmm_lock;
 
 static uint64_t get_total_memory_size(MemoryMap *map)
 {
@@ -46,6 +49,8 @@ static void *find_largest_free_segment(MemoryMap *map, size_t size_needed)
 
 void init_pmm(MemoryMap *map)
 {
+    spinlock_init(&g_pmm_lock);
+
     uint64_t mem_size = get_total_memory_size(map);
     g_total_frames = mem_size / PAGE_SIZE;
     g_bitmap_size = (g_total_frames / 8) + 1;
@@ -96,15 +101,21 @@ void init_pmm(MemoryMap *map)
 
 void *pmm_alloc_frame()
 {
+    irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
+
     for (uint64_t i = 0; i < g_total_frames; i++)
     {
         if (!bitmap_get(&g_bitmap, i))
         {
             bitmap_set(&g_bitmap, i, true);
             g_free_frames--;
+
+            spin_unlock_irqrestore(&g_pmm_lock, flags);
             return (void *)(i * PAGE_SIZE);
         }
     }
+
+    spin_unlock_irqrestore(&g_pmm_lock, flags);
     return NULL;
 }
 
@@ -113,6 +124,8 @@ void *pmm_alloc_contiguous_frames(size_t count)
     if (count == 0)
         return NULL;
 
+    irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
+
     uint64_t run_start = 0;
     uint64_t run_length = 0;
 
@@ -120,45 +133,52 @@ void *pmm_alloc_contiguous_frames(size_t count)
     {
         if (!bitmap_get(&g_bitmap, i))
         {
-
             if (run_length == 0)
                 run_start = i;
             run_length++;
 
             if (run_length == count)
             {
-
                 for (uint64_t j = 0; j < count; j++)
                 {
                     bitmap_set(&g_bitmap, run_start + j, true);
                 }
                 g_free_frames -= count;
+
+                spin_unlock_irqrestore(&g_pmm_lock, flags);
                 return (void *)(run_start * PAGE_SIZE);
             }
         }
         else
         {
-
             run_length = 0;
         }
     }
 
+    spin_unlock_irqrestore(&g_pmm_lock, flags);
     return NULL;
 }
 
 void pmm_free_frame(void *paddr)
 {
+    irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
+
     uint64_t frame = (uint64_t)paddr / PAGE_SIZE;
     if (bitmap_get(&g_bitmap, frame))
     {
         bitmap_set(&g_bitmap, frame, false);
         g_free_frames++;
     }
+
+    spin_unlock_irqrestore(&g_pmm_lock, flags);
 }
 
 uint64_t pmm_get_free_memory()
 {
-    return g_free_frames * PAGE_SIZE;
+    irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
+    uint64_t mem = g_free_frames * PAGE_SIZE;
+    spin_unlock_irqrestore(&g_pmm_lock, flags);
+    return mem;
 }
 
 uint64_t pmm_get_total_memory()

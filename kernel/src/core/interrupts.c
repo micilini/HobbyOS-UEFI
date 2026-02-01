@@ -55,8 +55,6 @@ static const char *g_exc_names[32] = {
         kpanic_exception_ex(g_exc_names[(vec)], (uint8_t)(vec), (void *)frame, error_code, 1, 0, 0); \
     } while (0)
 
-extern void lapic_send_eoi(void);
-
 extern void xhci_handle_interrupt(void);
 
 __attribute__((interrupt)) void exc_divide_by_zero(InterruptFrame *frame)

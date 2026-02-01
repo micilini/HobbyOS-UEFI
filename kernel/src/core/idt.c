@@ -87,15 +87,13 @@ void init_idt()
 
 void enable_interrupts()
 {
-    __asm__ volatile("sti");
+    __asm__ volatile("sti\n\t" ::: "memory");
 }
 
 void disable_interrupts()
 {
-    __asm__ volatile("cli");
+    __asm__ volatile("cli\n\t" ::: "memory");
 }
-
-
 
 irq_flags_t irq_save(void)
 {
