@@ -5,7 +5,7 @@
 #include "src/graphics/terminal.h"
 #include "src/graphics/graphics.h"
 #include "src/graphics/splash.h"
-#include "src/drivers/usb/xhci/xhci.h"
+#include "src/core/dpc.h"
 #include "src/drivers/keyboard.h"
 #include "src/drivers/timer.h"
 #include "src/core/timers.h"
@@ -52,7 +52,7 @@ static void kernel_main(BootInfo *boot_info)
     {
         timers_poll();
         timer_run_deferred();
-        xhci_bottom_half();
+        dpc_run();
 
         __asm__ volatile("hlt");
     }

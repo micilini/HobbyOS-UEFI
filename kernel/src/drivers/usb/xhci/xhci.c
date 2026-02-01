@@ -11,6 +11,7 @@
 #include "../../../memory/pmem.h"
 #include "../../../core/idt.h"
 #include "../../../core/spinlock.h"
+#include "../../../core/dpc.h"
 
 static volatile uint64_t g_cmd_last_ptr = 0;
 static volatile uint32_t g_cmd_last_cc = 0;
@@ -105,6 +106,7 @@ void xhci_parse_config(void *config_buffer, uint16_t len, usb_device_info_t *inf
 int xhci_set_configuration(uint8_t slot_id, uint8_t config_value);
 int xhci_set_protocol(uint8_t slot_id, uint8_t interface_num, uint8_t protocol);
 int xhci_configure_endpoint_irq(uint8_t slot_id, int port_id, int speed_id, uint8_t ep_addr, uint16_t mps, uint8_t interval);
+void xhci_configure_device(int port_id, int speed_id);
 void xhci_queue_kbd_request(uint8_t slot_id);
 void xhci_poll_keyboard_test(uint8_t slot_id);
 void xhci_process_events();
@@ -899,14 +901,9 @@ void xhci_hotplug_enumerate_port(uint8_t port_0based)
     }
 }
 
-extern volatile int g_xhci_need_bh;
-
-void xhci_bottom_half(void)
+void xhci_dpc_handler(void *ctx)
 {
-    if (!g_xhci_need_bh)
-        return;
-
-    g_xhci_need_bh = 0;
+    (void)ctx; 
 
     xhci_process_events();
 
@@ -2156,7 +2153,6 @@ void xhci_process_events(void)
 {
     if (!spin_trylock(&g_xhci_event_lock))
     {
-        g_xhci_need_bh = 1;
         return;
     }
 
@@ -2424,9 +2420,7 @@ void xhci_handle_interrupt(void)
 
     if (have_work)
     {
-        g_xhci_need_bh = 1;
-
-        xhci_process_events();
+        dpc_enqueue(xhci_dpc_handler, NULL);
 
         iman_val = xhci_read32(iman);
 
@@ -2701,8 +2695,6 @@ void xhci_kbd_repeat_poll(void)
     }
 }
 
-volatile int g_xhci_need_bh = 0;
-
 void xhci_poll_events(void)
 {
     if (!xhci_driver_ready)
@@ -2710,9 +2702,6 @@ void xhci_poll_events(void)
     if (!xhci_driver.op_regs || !xhci_driver.run_regs)
         return;
     if (!xhci_driver.event_ring)
-        return;
-
-    if (g_xhci_need_bh)
         return;
 
     if (!spin_trylock(&g_xhci_event_lock))
@@ -2724,12 +2713,11 @@ void xhci_poll_events(void)
 
     if (evt_cycle == xhci_driver.event_ring_cycle_bit)
     {
-        g_xhci_need_bh = 1;
+        dpc_enqueue(xhci_dpc_handler, NULL);
     }
 
     spin_unlock(&g_xhci_event_lock);
 }
-
 
 void xhci_reset_controller()
 {
@@ -3030,8 +3018,7 @@ uint8_t xhci_send_command_wait(uint32_t type, uint64_t param, uint32_t control_b
         return 0;
     }
 
-    /* Só 1 comando por vez. Não usamos irqsave aqui porque precisamos de IRQs
-       para receber o Command Completion Event. */
+   
     spin_lock(&g_xhci_cmd_lock);
 
     uint8_t ret = 0;

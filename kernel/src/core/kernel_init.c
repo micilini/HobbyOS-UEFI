@@ -19,6 +19,7 @@
 #include "../drivers/watchdog/acpi_wdrt.h"
 #include "panic.h"
 #include "timers.h"
+#include "dpc.h"
 
 #include "list.h"
 #include "queue.h"
@@ -171,6 +172,7 @@ void init_system_core(BootInfo *boot_info)
     keyboard_init();
     timer_init();
     timers_init();
+    dpc_init();
 
     // Agendar testes (100ms, 200ms, 300ms)
     console_write_debug("[INIT] Scheduling generic timers...\n");
