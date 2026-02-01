@@ -8,6 +8,7 @@
 #include "src/drivers/usb/xhci/xhci.h"
 #include "src/drivers/keyboard.h"
 #include "src/drivers/timer.h"
+#include "src/core/timers.h"
 
 #define KERNEL_STACK_SIZE (1024 * 1024)
 
@@ -49,6 +50,7 @@ static void kernel_main(BootInfo *boot_info)
 
     for (;;)
     {
+        timers_poll();
         timer_run_deferred();
         xhci_bottom_half();
 

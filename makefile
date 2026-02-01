@@ -116,7 +116,8 @@ KERNEL_SRCS = $(KERNEL_DIR)/kernel.c \
 			  $(KERNEL_DIR)/src/drivers/usb/xhci/xhci.c \
 			  $(KERNEL_DIR)/src/drivers/usb/xhci/usb_hub.c \
 			  $(KERNEL_DIR)/src/drivers/usb/xhci/usb_hotplug.c \
-			  $(KERNEL_DIR)/src/core/spinlock.c
+			  $(KERNEL_DIR)/src/core/spinlock.c \
+			  $(KERNEL_DIR)/src/core/timers.c
 
 # Transforma .c em .o
 KERNEL_OBJS = $(KERNEL_SRCS:.c=.o)

@@ -18,6 +18,7 @@
 #include "../drivers/watchdog/acpi_wddt.h"
 #include "../drivers/watchdog/acpi_wdrt.h"
 #include "panic.h"
+#include "timers.h"
 
 #include "list.h"
 #include "queue.h"
@@ -113,6 +114,17 @@ static void list_queue_selftest(void)
     console_write_debug("[LIST] self-test end\n\n");
 }
 
+// Callback de teste para validar a FASE 1
+static void timer_selftest_cb(void *ctx)
+{
+    uint64_t id = (uint64_t)ctx;
+    console_write_debug("[TIMER_TEST] Callback executed! ID=");
+    console_print_dec_debug(id);
+    console_write_debug(" Tick=");
+    console_print_dec_debug(timer_get_uptime_ms());
+    console_write_debug("\n");
+}
+
 void init_system_core(BootInfo *boot_info)
 {
 
@@ -158,6 +170,13 @@ void init_system_core(BootInfo *boot_info)
 
     keyboard_init();
     timer_init();
+    timers_init();
+
+    // Agendar testes (100ms, 200ms, 300ms)
+    console_write_debug("[INIT] Scheduling generic timers...\n");
+    timers_add(100, timer_selftest_cb, (void*)100);
+    timers_add(200, timer_selftest_cb, (void*)200);
+    timers_add(300, timer_selftest_cb, (void*)300);
 
     ioapic_map_irq(1, 33, 0);
 
