@@ -95,13 +95,13 @@ KERNEL_SRCS = $(KERNEL_DIR)/kernel.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_version.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_mem.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_panic.c \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_cpu.o \
-		      $(KERNEL_DIR)/src/shell/commands/cmd_pci.o \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_acpi.o \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_irq.o \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_echo.o \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_usbdiag.o \
-			  $(KERNEL_DIR)/src/core/irq_stats.o \
+			  $(KERNEL_DIR)/src/shell/commands/cmd_cpu.c \
+		      $(KERNEL_DIR)/src/shell/commands/cmd_pci.c \
+			  $(KERNEL_DIR)/src/shell/commands/cmd_acpi.c \
+			  $(KERNEL_DIR)/src/shell/commands/cmd_irq.c \
+			  $(KERNEL_DIR)/src/shell/commands/cmd_echo.c \
+			  $(KERNEL_DIR)/src/shell/commands/cmd_usbdiag.c \
+			  $(KERNEL_DIR)/src/core/irq_stats.c \
 			  $(KERNEL_DIR)/src/power/power.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_power.c \
 			  $(KERNEL_DIR)/src/acpi/sleep.c \
@@ -118,14 +118,22 @@ KERNEL_SRCS = $(KERNEL_DIR)/kernel.c \
 			  $(KERNEL_DIR)/src/drivers/usb/xhci/usb_hotplug.c \
 			  $(KERNEL_DIR)/src/core/spinlock.c \
 			  $(KERNEL_DIR)/src/core/timers.c \
-			  $(KERNEL_DIR)/src/core/dpc.c
+			  $(KERNEL_DIR)/src/core/dpc.c \
+			  $(KERNEL_DIR)/src/core/switch.S
 
-# Transforma .c em .o
-KERNEL_OBJS = $(KERNEL_SRCS:.c=.o)
+# Separa quem é .c e quem é .S
+KERNEL_C_SRCS = $(filter %.c, $(KERNEL_SRCS))
+KERNEL_ASM_SRCS = $(filter %.S, $(KERNEL_SRCS))
 
-# Regra genérica para compilar qualquer .c do Kernel
-# Note o $(CFLAGS_KERNEL) que já configuramos antes
+# Define a lista de objetos finais (.o) combinando os dois tipos
+KERNEL_OBJS = $(KERNEL_C_SRCS:.c=.o) $(KERNEL_ASM_SRCS:.S=.o)
+
+# Regra para compilar .c
 $(KERNEL_DIR)/%.o: $(KERNEL_DIR)/%.c
+	$(CC) $(CFLAGS_KERNEL) -c $< -o $@
+
+# NOVA REGRA: Regra para compilar .S (Assembly)
+$(KERNEL_DIR)/%.o: $(KERNEL_DIR)/%.S
 	$(CC) $(CFLAGS_KERNEL) -c $< -o $@
 
 # Linkagem Final do Kernel
