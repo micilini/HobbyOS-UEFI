@@ -37,7 +37,7 @@ void swap_buffers()
     memcpy((void *)g_fb->BaseAddress, (void *)g_back_buffer, buffer_size);
 }
 
-put_pixel(uint32_t x, uint32_t y, uint32_t color)
+void put_pixel(uint32_t x, uint32_t y, uint32_t color)
 {
     if (!g_fb)
         return;

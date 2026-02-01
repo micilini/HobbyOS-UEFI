@@ -31,10 +31,22 @@ uint64_t get_ioapic_base()
 
     while (ptr < end)
     {
+        if ((end - ptr) < (int)sizeof(MadtEntryHeader))
+            break;
+
         MadtEntryHeader *entry = (MadtEntryHeader *)ptr;
+
+        if (entry->length < sizeof(MadtEntryHeader))
+            break;
+
+        if (ptr + entry->length > end)
+            break;
 
         if (entry->type == MADT_TYPE_IO_APIC)
         {
+            if (entry->length < sizeof(MadtIoApicEntry))
+                break;
+
             MadtIoApicEntry *ioapic = (MadtIoApicEntry *)ptr;
             return ioapic->ioapic_address;
         }

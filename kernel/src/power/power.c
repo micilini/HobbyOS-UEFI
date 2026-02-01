@@ -2,6 +2,7 @@
 #include "../acpi/sleep.h"
 #include "../acpi/acpi.h"
 #include "../core/io.h"
+#include "../core/idt.h"
 #include "../graphics/console.h"
 
 #include <stdint.h>
@@ -85,9 +86,11 @@ static void power_halt_forever(void)
     console_write("[POWER] CPU halted.\n");
     console_set_color(CONSOLE_COLOR_WHITE, CONSOLE_COLOR_HOBBYOS_BLUE);
 
+    disable_interrupts();
+
     for (;;)
     {
-        __asm__ volatile("cli; hlt");
+        __asm__ volatile("hlt");
     }
 }
 
@@ -297,8 +300,9 @@ static void power_triple_fault_reset(void)
 
     Idtr idtr = {.limit = 0, .base = 0};
 
+    disable_interrupts();
+
     __asm__ volatile(
-        "cli\n"
         "lidt %0\n"
         "int $3\n"
         :

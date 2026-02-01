@@ -1,8 +1,11 @@
 #include "paging.h"
 #include "../libc/memory.h"
 #include "../cpu/cpu.h"
+#include "../core/spinlock.h"
 
 static PageTable *g_kernel_pml4 = NULL;
+
+static spinlock_t g_paging_lock;
 
 #define PML4_INDEX(x) (((x) >> 39) & 0x1FF)
 #define PDPT_INDEX(x) (((x) >> 30) & 0x1FF)
@@ -21,45 +24,61 @@ static PageTable *alloc_table()
 
 uint64_t paging_get_physical_address(uint64_t vaddr)
 {
+    irq_flags_t flags = spin_lock_irqsave(&g_paging_lock);
+
+    uint64_t ret = 0;
+
     if (!g_kernel_pml4)
-        return 0;
+        goto out;
 
     uint64_t pml4_idx = PML4_INDEX(vaddr);
     if (!(g_kernel_pml4->entries[pml4_idx] & PAGE_PRESENT))
-        return 0;
+        goto out;
 
     PageTable *pdpt = (PageTable *)(g_kernel_pml4->entries[pml4_idx] & PAGE_ADDR_MASK);
     uint64_t pdpt_idx = PDPT_INDEX(vaddr);
     if (!(pdpt->entries[pdpt_idx] & PAGE_PRESENT))
-        return 0;
+        goto out;
 
     PageTable *pd = (PageTable *)(pdpt->entries[pdpt_idx] & PAGE_ADDR_MASK);
     uint64_t pd_idx = PD_INDEX(vaddr);
     if (!(pd->entries[pd_idx] & PAGE_PRESENT))
-        return 0;
+        goto out;
 
     PageTable *pt = (PageTable *)(pd->entries[pd_idx] & PAGE_ADDR_MASK);
     uint64_t pt_idx = PT_INDEX(vaddr);
     if (!(pt->entries[pt_idx] & PAGE_PRESENT))
-        return 0;
+        goto out;
 
     uint64_t frame = pt->entries[pt_idx] & PAGE_ADDR_MASK;
     uint64_t offset = vaddr & 0xFFF;
 
-    return frame + offset;
+    ret = frame + offset;
+
+out:
+    spin_unlock_irqrestore(&g_paging_lock, flags);
+    return ret;
 }
 
 void paging_map(uint64_t vaddr, uint64_t paddr, uint64_t flags)
 {
+    irq_flags_t irq_flags = spin_lock_irqsave(&g_paging_lock);
+
     if (!g_kernel_pml4)
+    {
+        spin_unlock_irqrestore(&g_paging_lock, irq_flags);
         return;
+    }
 
     uint64_t pml4_idx = PML4_INDEX(vaddr);
     if (!(g_kernel_pml4->entries[pml4_idx] & PAGE_PRESENT))
     {
         PageTable *new_pdpt = alloc_table();
         if (!new_pdpt)
+        {
+            spin_unlock_irqrestore(&g_paging_lock, irq_flags);
             return;
+        }
         g_kernel_pml4->entries[pml4_idx] = (uint64_t)new_pdpt | PAGE_PRESENT | PAGE_RW;
     }
 
@@ -70,7 +89,10 @@ void paging_map(uint64_t vaddr, uint64_t paddr, uint64_t flags)
     {
         PageTable *new_pd = alloc_table();
         if (!new_pd)
+        {
+            spin_unlock_irqrestore(&g_paging_lock, irq_flags);
             return;
+        }
         pdpt->entries[pdpt_idx] = (uint64_t)new_pd | PAGE_PRESENT | PAGE_RW;
     }
     PageTable *pd = (PageTable *)(pdpt->entries[pdpt_idx] & PAGE_ADDR_MASK);
@@ -80,7 +102,10 @@ void paging_map(uint64_t vaddr, uint64_t paddr, uint64_t flags)
     {
         PageTable *new_pt = alloc_table();
         if (!new_pt)
+        {
+            spin_unlock_irqrestore(&g_paging_lock, irq_flags);
             return;
+        }
         pd->entries[pd_idx] = (uint64_t)new_pt | PAGE_PRESENT | PAGE_RW;
     }
     PageTable *pt = (PageTable *)(pd->entries[pd_idx] & PAGE_ADDR_MASK);
@@ -89,6 +114,8 @@ void paging_map(uint64_t vaddr, uint64_t paddr, uint64_t flags)
     pt->entries[pt_idx] = (paddr & PAGE_ADDR_MASK) | flags;
 
     __asm__ volatile("invlpg (%0)" ::"r"(vaddr) : "memory");
+
+    spin_unlock_irqrestore(&g_paging_lock, irq_flags);
 }
 
 void paging_load_map(PageTable *pml4)
@@ -98,6 +125,7 @@ void paging_load_map(PageTable *pml4)
 
 void init_paging(uint64_t fb_base, uint64_t fb_size)
 {
+    spinlock_init(&g_paging_lock);
 
     uint64_t cr0;
     __asm__ volatile("mov %%cr0, %0" : "=r"(cr0));
