@@ -52,7 +52,6 @@ static void kernel_main(BootInfo *boot_info)
     {
         timers_poll();
         timer_run_deferred();
-        dpc_run();
 
         __asm__ volatile("hlt");
     }

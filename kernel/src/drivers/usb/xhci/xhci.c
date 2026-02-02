@@ -52,8 +52,6 @@ static volatile uint64_t xhci_last_successful_process_ms = 0;
 
 static volatile int xhci_driver_ready = 0;
 
-
-
 static inline int xhci_try_lock(void)
 {
     uint32_t old = 1;
@@ -903,7 +901,7 @@ void xhci_hotplug_enumerate_port(uint8_t port_0based)
 
 void xhci_dpc_handler(void *ctx)
 {
-    (void)ctx; 
+    (void)ctx;
 
     xhci_process_events();
 
@@ -3016,7 +3014,6 @@ uint8_t xhci_send_command_wait(uint32_t type, uint64_t param, uint32_t control_b
         return 0;
     }
 
-   
     spin_lock(&g_xhci_cmd_lock);
 
     uint8_t ret = 0;

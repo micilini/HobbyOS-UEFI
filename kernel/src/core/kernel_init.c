@@ -89,13 +89,12 @@ void init_system_core(BootInfo *boot_info)
     keyboard_init();
     timer_init();
     timers_init();
-    dpc_init();
 
     scheduler_init();
 
+    dpc_init();
 
     thread_create(input_thread_entry, NULL);
-
 
     ioapic_map_irq(1, 33, 0);
 

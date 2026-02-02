@@ -3,62 +3,32 @@
 #include "../core/spinlock.h"
 #include "../memory/heap.h"
 #include "../graphics/console.h"
-
+#include "semaphore.h"
+#include "scheduler.h"
 
 typedef struct dpc_job
 {
-    struct list_head node; 
+    struct list_head node;
     dpc_callback_t func;
     void *ctx;
 } dpc_job_t;
 
 static queue_head_t g_dpc_queue;
 static spinlock_t g_dpc_lock;
+static semaphore_t g_dpc_sem;
 
-void dpc_init(void)
+static void dpc_worker_thread(void *arg)
 {
-    spinlock_init(&g_dpc_lock);
-    queue_init(&g_dpc_queue);
-    console_write_debug("[CORE] DPC subsystem initialized.\n");
-}
+    (void)arg;
+    console_write_debug("[DPC] Worker thread started.\n");
 
-int dpc_enqueue(dpc_callback_t func, void *ctx)
-{
-    if (!func)
-        return -1;
-
-    
-    
-    
-    dpc_job_t *job = (dpc_job_t *)kmalloc(sizeof(dpc_job_t));
-    if (!job)
-    {
-        
-        return -1;
-    }
-
-    job->func = func;
-    job->ctx = ctx;
-    list_init(&job->node);
-
-    
-    irq_flags_t flags = spin_lock_irqsave(&g_dpc_lock);
-    queue_push(&g_dpc_queue, &job->node);
-    spin_unlock_irqrestore(&g_dpc_lock, flags);
-
-    return 0;
-}
-
-void dpc_run(void)
-{
-    
-    
-    
     while (1)
     {
+
+        sem_wait(&g_dpc_sem);
+
         dpc_job_t *job = NULL;
 
-        
         irq_flags_t flags = spin_lock_irqsave(&g_dpc_lock);
         if (!queue_empty(&g_dpc_queue))
         {
@@ -67,17 +37,49 @@ void dpc_run(void)
         }
         spin_unlock_irqrestore(&g_dpc_lock, flags);
 
-        
-        if (!job)
-            break;
-
-        
-        if (job->func)
+        if (job)
         {
-            job->func(job->ctx);
+            if (job->func)
+            {
+                job->func(job->ctx);
+            }
+            kfree(job);
         }
-
-        
-        kfree(job);
     }
+}
+
+void dpc_init(void)
+{
+    spinlock_init(&g_dpc_lock);
+    queue_init(&g_dpc_queue);
+
+    sem_init(&g_dpc_sem, 0);
+
+    thread_create(dpc_worker_thread, NULL);
+
+    console_write_debug("[CORE] DPC subsystem initialized (Worker Mode).\n");
+}
+
+int dpc_enqueue(dpc_callback_t func, void *ctx)
+{
+    if (!func)
+        return -1;
+
+    dpc_job_t *job = (dpc_job_t *)kmalloc(sizeof(dpc_job_t));
+    if (!job)
+    {
+        return -1;
+    }
+
+    job->func = func;
+    job->ctx = ctx;
+    list_init(&job->node);
+
+    irq_flags_t flags = spin_lock_irqsave(&g_dpc_lock);
+    queue_push(&g_dpc_queue, &job->node);
+    spin_unlock_irqrestore(&g_dpc_lock, flags);
+
+    sem_signal(&g_dpc_sem);
+
+    return 0;
 }

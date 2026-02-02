@@ -44,7 +44,6 @@ void *acpi_find_table(const char *signature)
         uint64_t bytes = (uint64_t)(g_xsdt->length - sizeof(AcpiSdtHeader));
         uint64_t entries64 = bytes / 8;
 
-        // garante que o array cabe dentro da tabela
         if (sizeof(AcpiSdtHeader) + entries64 * 8 > g_xsdt->length)
             return NULL;
 
@@ -75,7 +74,6 @@ void *acpi_find_table(const char *signature)
         uint64_t bytes = (uint64_t)(g_rsdt->length - sizeof(AcpiSdtHeader));
         uint64_t entries64 = bytes / 4;
 
-        // garante que o array cabe dentro da tabela
         if (sizeof(AcpiSdtHeader) + entries64 * 4 > g_rsdt->length)
             return NULL;
 

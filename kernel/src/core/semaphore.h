@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include "spinlock.h"
-#include "task.h" 
+#include "task.h"
 
 typedef struct
 {
@@ -12,12 +12,9 @@ typedef struct
     spinlock_t lock;
 } semaphore_t;
 
-
 void sem_init(semaphore_t *sem, int initial_count);
 
-
 void sem_wait(semaphore_t *sem);
-
 
 void sem_signal(semaphore_t *sem);
 

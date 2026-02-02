@@ -10,8 +10,7 @@ struct list_head
 
 #define LIST_HEAD_INIT(name) \
     {                        \
-        &(name), &(name)     \
-    }
+        &(name), &(name)}
 
 #define LIST_HEAD(name) \
     struct list_head name = LIST_HEAD_INIT(name)
@@ -61,7 +60,7 @@ static inline void list_del(struct list_head *entry)
 }
 
 #define container_of(ptr, type, member) \
-    ((type *)((char *)(ptr)-offsetof(type, member)))
+    ((type *)((char *)(ptr) - offsetof(type, member)))
 
 #define list_entry(ptr, type, member) \
     container_of(ptr, type, member)
@@ -72,6 +71,6 @@ static inline void list_del(struct list_head *entry)
 #define list_for_each(pos, head) \
     for ((pos) = (head)->next; (pos) != (head); (pos) = (pos)->next)
 
-#define list_for_each_safe(pos, n, head)                         \
+#define list_for_each_safe(pos, n, head)                           \
     for ((pos) = (head)->next, (n) = (pos)->next; (pos) != (head); \
          (pos) = (n), (n) = (pos)->next)

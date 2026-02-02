@@ -66,7 +66,7 @@ static void drain_keyboard_buffer(void)
         if (g_usb_fifo_tail == g_usb_fifo_head)
         {
             spin_unlock_irqrestore(&g_usb_fifo_lock, flags);
-            break; 
+            break;
         }
 
         ev = g_usb_fifo[g_usb_fifo_tail];
@@ -74,7 +74,6 @@ static void drain_keyboard_buffer(void)
 
         spin_unlock_irqrestore(&g_usb_fifo_lock, flags);
 
-        
         if (ev.is_special)
             shell_receive_special(ev.value);
         else
@@ -88,7 +87,7 @@ void input_thread_entry(void *arg)
     console_write_debug("[INPUT] Input Thread Started (Waiting for keys).\n");
 
     while (1)
-    {        
+    {
         sem_wait(&g_sem_kbd);
 
         drain_keyboard_buffer();
@@ -460,7 +459,7 @@ void keyboard_handle_interrupt()
     {
         uint8_t scancode = inb(0x60);
         char c = scancode_to_ascii(scancode);
-        
+
         if (c)
         {
             if ((uint8_t)c >= 0xF1 && (uint8_t)c <= 0xF4)

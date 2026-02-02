@@ -11,8 +11,7 @@
 #include <stdbool.h>
 
 #define HEAP_DEFAULT_GROW_BYTES (32ull * 1024ull * 1024ull)
-#define HEAP_ALIGN             16ull
-
+#define HEAP_ALIGN 16ull
 
 #define HEAP_MIN_SPLIT_PAYLOAD 16ull
 
@@ -22,17 +21,15 @@ typedef struct AlignedAllocHeader
 {
     uint32_t magic;
     uint32_t reserved;
-    void    *raw_ptr;   
+    void *raw_ptr;
 } AlignedAllocHeader;
-
-
 
 typedef struct HeapBlock
 {
-    size_t           size;   
-    bool             free;
-    uint8_t          _pad[7]; 
-    struct list_head link;   
+    size_t size;
+    bool free;
+    uint8_t _pad[7];
+    struct list_head link;
 } HeapBlock;
 
 static spinlock_t g_heap_lock;
@@ -42,7 +39,7 @@ static struct list_head g_heap_blocks;
 static int g_heap_initialized = 0;
 
 static uint64_t g_heap_total_bytes = 0;
-static uint64_t g_heap_used_bytes  = 0;
+static uint64_t g_heap_used_bytes = 0;
 
 static inline uint64_t align_up_u64(uint64_t v, uint64_t a)
 {
@@ -111,7 +108,7 @@ static void heap_blocks_init_once(void)
 
 static void heap_insert_after(HeapBlock *pos, HeapBlock *new_blk)
 {
-    
+
     list_init(&new_blk->link);
     list_add(&new_blk->link, &pos->link);
 }
@@ -136,7 +133,7 @@ static HeapBlock *heap_find_first_fit(size_t req_size)
 
 static void heap_try_split_block(HeapBlock *b, size_t req_size)
 {
-    
+
     if (!b)
         return;
 
@@ -163,7 +160,6 @@ static void heap_coalesce(HeapBlock *b)
     if (!b || !b->free)
         return;
 
-    
     while (1)
     {
         HeapBlock *n = next_block(b);
@@ -177,8 +173,6 @@ static void heap_coalesce(HeapBlock *b)
         list_del(&n->link);
     }
 
-    
-    
     while (1)
     {
         HeapBlock *p = prev_block(b);
@@ -192,7 +186,6 @@ static void heap_coalesce(HeapBlock *b)
         list_del(&b->link);
         b = p;
 
-        
         while (1)
         {
             HeapBlock *n = next_block(b);
@@ -223,7 +216,6 @@ static int heap_expand_locked(uint64_t grow_bytes)
         return 0;
     }
 
-    
     HeapBlock *new_blk = (HeapBlock *)(uintptr_t)phys;
     new_blk->free = true;
     new_blk->size = (size_t)(bytes_needed - sizeof(HeapBlock));
@@ -234,7 +226,6 @@ static int heap_expand_locked(uint64_t grow_bytes)
     {
         HeapBlock *last = list_entry(g_heap_blocks.prev, HeapBlock, link);
 
-        
         if (last->free && blocks_contiguous(last, new_blk))
         {
             last->size += sizeof(HeapBlock) + new_blk->size;
@@ -268,7 +259,7 @@ void init_heap(void)
 
     if (g_heap_total_bytes == 0)
     {
-        
+
         (void)heap_expand_locked(HEAP_DEFAULT_GROW_BYTES);
     }
 
@@ -283,7 +274,6 @@ void *kmalloc(size_t size)
     if (!g_heap_lock_ready)
         init_heap();
 
-    
     size = align_up_size(size, (size_t)HEAP_ALIGN);
 
     irq_flags_t flags = spin_lock_irqsave(&g_heap_lock);
@@ -293,7 +283,7 @@ void *kmalloc(size_t size)
     HeapBlock *b = heap_find_first_fit(size);
     if (!b)
     {
-        
+
         uint64_t grow = size + sizeof(HeapBlock) + (64ull * 1024ull);
         if (!heap_expand_locked(grow))
         {
@@ -326,11 +316,10 @@ void *kmalloc_aligned(size_t size, size_t alignment)
 
     if (!is_pow2_u64((uint64_t)alignment) || alignment < HEAP_ALIGN)
     {
-        
+
         return NULL;
     }
 
-    
     size_t raw_size = size + alignment + sizeof(AlignedAllocHeader);
 
     void *raw = kmalloc(raw_size);
@@ -356,11 +345,10 @@ void kfree(void *ptr)
     if (!g_heap_lock_ready)
         return;
 
-    
     AlignedAllocHeader *ah = (AlignedAllocHeader *)((uint8_t *)ptr - sizeof(AlignedAllocHeader));
     if (ah->magic == ALIGNED_MAGIC && ah->raw_ptr)
     {
-        
+
         ptr = ah->raw_ptr;
     }
 
@@ -368,7 +356,6 @@ void kfree(void *ptr)
 
     HeapBlock *b = block_from_payload(ptr);
 
-    
     if (!b->free)
     {
         b->free = true;
@@ -378,7 +365,6 @@ void kfree(void *ptr)
             g_heap_used_bytes = 0;
     }
 
-    
     heap_coalesce(b);
 
     spin_unlock_irqrestore(&g_heap_lock, flags);
@@ -396,11 +382,11 @@ bool heap_get_stats(HeapStats *out_stats)
 
     HeapStats st;
     st.total_bytes = g_heap_total_bytes;
-    st.used_bytes  = g_heap_used_bytes;
-    st.free_bytes  = (g_heap_total_bytes >= g_heap_used_bytes) ? (g_heap_total_bytes - g_heap_used_bytes) : 0;
+    st.used_bytes = g_heap_used_bytes;
+    st.free_bytes = (g_heap_total_bytes >= g_heap_used_bytes) ? (g_heap_total_bytes - g_heap_used_bytes) : 0;
 
     st.blocks_total = 0;
-    st.blocks_free  = 0;
+    st.blocks_free = 0;
     st.largest_free_bytes = 0;
 
     if (g_heap_initialized)

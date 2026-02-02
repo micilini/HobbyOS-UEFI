@@ -1,7 +1,7 @@
 #include "timers.h"
 #include "spinlock.h"
-#include "../drivers/timer.h" 
-#include "../memory/heap.h"   
+#include "../drivers/timer.h"
+#include "../memory/heap.h"
 #include "../graphics/console.h"
 
 static struct list_head g_timer_list;
@@ -16,7 +16,7 @@ void timers_init(void)
 
 int timers_add(uint64_t delay_ms, timer_callback_t cb, void *ctx)
 {
-    
+
     timer_node_t *t = (timer_node_t *)kmalloc(sizeof(timer_node_t));
     if (!t)
     {
@@ -24,22 +24,17 @@ int timers_add(uint64_t delay_ms, timer_callback_t cb, void *ctx)
         return -1;
     }
 
-    
     uint64_t now = timer_get_uptime_ms();
     t->deadline_ms = now + delay_ms;
     t->callback = cb;
     t->ctx = ctx;
-    
-    
-    list_init(&t->node); 
 
-    
+    list_init(&t->node);
+
     irq_flags_t flags = spin_lock_irqsave(&g_timer_lock);
-    
-    
-    
+
     list_add_tail(&t->node, &g_timer_list);
-    
+
     spin_unlock_irqrestore(&g_timer_lock, flags);
 
     return 0;
@@ -52,12 +47,9 @@ void timers_poll(void)
 
     uint64_t now = timer_get_uptime_ms();
 
-    
     struct list_head expired_list;
     list_init(&expired_list);
 
-    
-    
     irq_flags_t flags = spin_lock_irqsave(&g_timer_lock);
 
     struct list_head *pos, *n;
@@ -67,7 +59,7 @@ void timers_poll(void)
 
         if (now >= t->deadline_ms)
         {
-            
+
             list_del(&t->node);
             list_add_tail(&t->node, &expired_list);
         }
@@ -75,8 +67,6 @@ void timers_poll(void)
 
     spin_unlock_irqrestore(&g_timer_lock, flags);
 
-    
-    
     list_for_each_safe(pos, n, &expired_list)
     {
         timer_node_t *t = list_entry(pos, timer_node_t, node);
@@ -86,7 +76,6 @@ void timers_poll(void)
             t->callback(t->ctx);
         }
 
-        
         kfree(t);
     }
 }
