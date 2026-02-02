@@ -1,5 +1,6 @@
 .intel_syntax noprefix
 .global switch_context
+.global thread_wrapper
 
 switch_context:
     push rbx
@@ -10,7 +11,6 @@ switch_context:
     push r15
     
     mov [rdi], rsp
-
     mov rsp, [rsi]
 
     pop r15
@@ -19,7 +19,17 @@ switch_context:
     pop r12
     pop rbp
     pop rbx
-
     ret
 
-    .section .note.GNU-stack,"",@progbits
+thread_wrapper:
+    sti
+    
+    mov rdi, r13
+    
+    call r12
+    
+    cli
+    hlt
+    jmp .-2
+
+.section .note.GNU-stack,"",@progbits

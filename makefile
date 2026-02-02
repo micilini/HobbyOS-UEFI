@@ -119,7 +119,8 @@ KERNEL_SRCS = $(KERNEL_DIR)/kernel.c \
 			  $(KERNEL_DIR)/src/core/spinlock.c \
 			  $(KERNEL_DIR)/src/core/timers.c \
 			  $(KERNEL_DIR)/src/core/dpc.c \
-			  $(KERNEL_DIR)/src/core/switch.S
+			  $(KERNEL_DIR)/src/core/switch.S \
+			  $(KERNEL_DIR)/src/core/scheduler.c
 
 # Separa quem é .c e quem é .S
 KERNEL_C_SRCS = $(filter %.c, $(KERNEL_SRCS))
