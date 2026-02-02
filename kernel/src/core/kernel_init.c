@@ -45,6 +45,31 @@ static void delay_seconds_for_reading(uint32_t seconds)
     }
 }
 
+
+// --- FUNÇÃO DE TESTE DA FASE 4 ---
+static void test_sleeping_task(void *arg)
+{
+    (void)arg;
+    int counter = 0;
+    
+    console_write_debug("[TEST] Background thread started.\n");
+
+    while (1)
+    {
+        // 1. Faz algo útil (imprime)
+        // Usamos debug para não poluir o shell visualmente, 
+        // mas você verá no log do QEMU/Serial.
+        console_write_debug("[TEST] Tick Tock - Count: ");
+        console_print_dec_debug(counter++);
+        console_write_debug("\n");
+
+        // 2. Dorme por 2000ms (2 segundos)
+        // AGORA ISSO DEVE LIBERAR A CPU PARA O SHELL!
+        timer_sleep(2000); 
+    }
+}
+
+
 void init_system_core(BootInfo *boot_info)
 {
 
@@ -91,6 +116,13 @@ void init_system_core(BootInfo *boot_info)
     dpc_init();
 
     scheduler_init();
+
+
+    // --- ADICIONE ISSO AQUI ---
+    // Cria a thread que vai dormir em background
+    thread_create(test_sleeping_task, NULL);
+    // ---------------------------
+
 
     ioapic_map_irq(1, 33, 0);
 

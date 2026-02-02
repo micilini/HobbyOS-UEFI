@@ -4,6 +4,9 @@
 #include "../shell/shell.h"
 #include "../graphics/console.h"
 
+#include "../core/scheduler.h"
+#include "../core/timers.h"
+#include "../core/task.h"
 
 extern void xhci_poll_events(void);
 
@@ -21,7 +24,11 @@ static const int XHCI_POLL_THRESHOLD = 1;
 static int g_shell_tick_counter = 0;
 static const int SHELL_TICK_DIVIDER = 10; 
 
-
+static void timer_wakeup_cb(void *ctx)
+{
+    task_t *t = (task_t *)ctx;
+    thread_wake(t);
+}
 
 void timer_init(void)
 {
@@ -46,30 +53,31 @@ uint64_t timer_get_uptime_ms(void)
 
 void timer_sleep(uint64_t ms)
 {
-    uint64_t start_ticks = g_ticks;
-    uint64_t ticks_to_wait = (ms + TICK_MS - 1) / TICK_MS;
     
-    if (ticks_to_wait == 0 && ms > 0)
-        ticks_to_wait = 1;
-
-    uint64_t target_ticks = start_ticks + ticks_to_wait;
-
-    
-    while (g_ticks < target_ticks)
-    {
-        __asm__ volatile("hlt");
+    if (ms == 0) {
+        schedule();
+        return;
     }
+
+    task_t *current = get_current_task();
+
+    if (!current) {
+        
+        uint64_t start = timer_get_uptime_ms();
+        while (timer_get_uptime_ms() < start + ms) {
+            asm volatile("hlt");
+        }
+        return;
+    }
+
+    timers_add(ms, timer_wakeup_cb, current);
+
+    thread_block(NULL, TASK_SLEEPING);
 }
-
-
 
 void timer_handler(void)
 {
     g_ticks++;
-
-    
-    
-    
     
     hpet_set_timer(TICK_MS);
 }

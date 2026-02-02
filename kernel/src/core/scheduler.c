@@ -13,7 +13,6 @@ static struct list_head g_ready_queue;
 static task_t *g_current_task = NULL;
 static int g_next_tid = 1;
 
-
 typedef struct {
     
     uint64_t r15;
@@ -30,8 +29,6 @@ typedef struct {
     
     
 } switch_stack_t;
-
-
 
 void scheduler_init(void)
 {
@@ -139,31 +136,83 @@ task_t *thread_create(void (*entry_point)(void *), void *arg)
     return t;
 }
 
+void thread_block(wait_queue_t *wq, task_state_t state)
+{
+    task_t *current = g_current_task;
+
+    current->state = state;
+
+    list_del(&current->list);
+
+    if (wq) {
+        list_add_tail(&current->list, &wq->head);
+    } else {
+        list_init(&current->list);
+    }
+
+    schedule();
+}
+
+void thread_wake(task_t *t)
+{
+    if (!t) return;
+
+    if (t->state == TASK_READY || t->state == TASK_RUNNING) return;
+
+    list_del(&t->list);
+
+    t->state = TASK_READY;
+
+    list_add_tail(&t->list, &g_ready_queue);
+}
+
+int thread_wake_one(wait_queue_t *wq)
+{
+    if (list_empty(&wq->head)) return 0;
+
+    struct list_head *node = wq->head.next;
+    task_t *t = list_entry(node, task_t, list);
+
+    thread_wake(t);
+    return 1;
+}
+
 void schedule(void)
 {
     
     if (list_empty(&g_ready_queue)) return;
 
     task_t *prev = g_current_task;
+    struct list_head *next_node;
+
     
-    struct list_head *next_node = prev->list.next;
+    
+    
+    
+    if (prev->state != TASK_RUNNING && prev->state != TASK_READY) {
+        next_node = g_ready_queue.next;
+    } 
+    else {
+        
+        next_node = prev->list.next;
+    }
 
     
     if (next_node == &g_ready_queue) {
         next_node = next_node->next;
     }
 
-    
-    
-    if (next_node == &prev->list) {
-        return; 
-    }
-
-    
     task_t *next = list_entry(next_node, task_t, list);
 
     
-    prev->state = TASK_READY;
+    if (next == prev) return;
+
+    
+    
+    if (prev->state == TASK_RUNNING) {
+        prev->state = TASK_READY;
+    }
+    
     next->state = TASK_RUNNING;
     g_current_task = next;
 
