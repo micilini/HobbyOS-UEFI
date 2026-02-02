@@ -381,7 +381,6 @@ int usb_hub_enumerate(
     uint16_t conf_len;
     void *conf_buf;
 
-    /* Vamos calcular tudo em variáveis locais e só “commit” no hub struct no fim. */
     uint8_t config_value = 0;
     uint8_t interface_num = 0;
     uint8_t parent_hub_idx = 0xFF;
@@ -409,7 +408,6 @@ int usb_hub_enumerate(
         return -1;
     }
 
-    /* Reserva índice sob lock (evita corrida) */
     {
         irq_flags_t flags = spin_lock_irqsave(&g_usb_hub_lock);
 
@@ -423,7 +421,6 @@ int usb_hub_enumerate(
 
         g_usb_hub_initializing[hub_idx] = 1;
 
-        /* Resolve parent_hub_idx aqui, com lista consistente */
         if (parent_hub_slot != 0)
         {
             for (int i = 0; i < USB_HUB_MAX_HUBS; i++)
@@ -439,7 +436,6 @@ int usb_hub_enumerate(
         spin_unlock_irqrestore(&g_usb_hub_lock, flags);
     }
 
-    /* Descobrir config/interface (xHCI calls SEM lock) */
     conf_buf = xhci_get_config_descriptor(slot_id, &conf_len);
     if (conf_buf && conf_len >= 9)
     {
@@ -482,7 +478,6 @@ int usb_hub_enumerate(
     {
         console_write_debug("[USB_HUB] Failed to set configuration!\n");
 
-        /* Libera reserva */
         irq_flags_t flags = spin_lock_irqsave(&g_usb_hub_lock);
         g_usb_hub_initializing[hub_idx] = 0;
         spin_unlock_irqrestore(&g_usb_hub_lock, flags);
@@ -498,7 +493,6 @@ int usb_hub_enumerate(
         }
     }
 
-    /* Ler descritor do hub */
     if (is_usb3_flag)
     {
         if (usb_hub_get_descriptor(slot_id, 1, &hub3_desc))
@@ -535,7 +529,6 @@ int usb_hub_enumerate(
         usb_hub_clear_port_feature(slot_id, port, HUB_C_PORT_CONNECTION);
     }
 
-    /* COMMIT final no hub struct (rápido, sob lock) */
     {
         irq_flags_t flags = spin_lock_irqsave(&g_usb_hub_lock);
 

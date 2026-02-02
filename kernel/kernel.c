@@ -5,8 +5,10 @@
 #include "src/graphics/terminal.h"
 #include "src/graphics/graphics.h"
 #include "src/graphics/splash.h"
-#include "src/drivers/usb/xhci/xhci.h"
+#include "src/core/dpc.h"
 #include "src/drivers/keyboard.h"
+#include "src/drivers/timer.h"
+#include "src/core/timers.h"
 
 #define KERNEL_STACK_SIZE (1024 * 1024)
 
@@ -48,8 +50,8 @@ static void kernel_main(BootInfo *boot_info)
 
     for (;;)
     {
-
-        xhci_bottom_half();
+        timers_poll();
+        timer_run_deferred();
 
         __asm__ volatile("hlt");
     }

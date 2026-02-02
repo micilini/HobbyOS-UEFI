@@ -1,17 +1,9 @@
 #ifndef HEAP_H
 #define HEAP_H
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdbool.h>
-
-typedef struct BlockHeader
-{
-    size_t size;
-    bool is_free;
-    struct BlockHeader *next;
-    struct BlockHeader *prev;
-} BlockHeader;
 
 typedef struct HeapStats
 {
@@ -19,13 +11,13 @@ typedef struct HeapStats
     uint64_t used_bytes;
     uint64_t free_bytes;
 
-    uint64_t blocks_total;
-    uint64_t blocks_free;
+    uint32_t blocks_total;
+    uint32_t blocks_free;
 
     uint64_t largest_free_bytes;
 } HeapStats;
 
-void init_heap();
+void init_heap(void);
 
 void *kmalloc(size_t size);
 

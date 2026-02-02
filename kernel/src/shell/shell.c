@@ -430,10 +430,6 @@ void shell_on_tick()
     if (!g_shell_active)
         return;
 
-    xhci_kbd_repeat_poll();
-
-    keyboard_usb_pump_to_shell(64);
-
     static int tick = 0;
     tick++;
     if ((tick % 40) == 0)
@@ -502,8 +498,7 @@ void shell_receive_char(char c)
 
         g_hist_nav = -1;
 
-       
-        g_shell_active = false;
+               g_shell_active = false;
 
         spin_unlock_irqrestore(&g_shell_lock, flags);
 

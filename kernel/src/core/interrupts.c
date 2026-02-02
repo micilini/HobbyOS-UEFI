@@ -130,8 +130,9 @@ __attribute__((interrupt)) void irq_timer_handler(InterruptFrame *frame)
 {
     (void)frame;
     irq_stats_record(INT_VECTOR_TIMER);
-    timer_handler();
     lapic_eoi();
+    timer_handler();
+    schedule();
 }
 
 __attribute__((interrupt)) void irq_xhci_handler(InterruptFrame *frame)

@@ -18,6 +18,13 @@
 #include "../drivers/watchdog/acpi_wddt.h"
 #include "../drivers/watchdog/acpi_wdrt.h"
 #include "panic.h"
+#include "timers.h"
+#include "dpc.h"
+#include "scheduler.h"
+#include "semaphore.h"
+
+#include "list.h"
+#include "queue.h"
 
 static void busy_hlt_delay(uint64_t loops)
 {
@@ -81,6 +88,13 @@ void init_system_core(BootInfo *boot_info)
 
     keyboard_init();
     timer_init();
+    timers_init();
+
+    scheduler_init();
+
+    dpc_init();
+
+    thread_create(input_thread_entry, NULL);
 
     ioapic_map_irq(1, 33, 0);
 
@@ -91,4 +105,7 @@ void init_system_core(BootInfo *boot_info)
     pci_init();
 
     console_end_batch();
+
+    console_write_debug("[INIT] Waiting for devices to settle...\n");
+    timer_sleep(500);
 }
