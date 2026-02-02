@@ -430,9 +430,7 @@ void shell_on_tick()
     if (!g_shell_active)
         return;
 
-    xhci_kbd_repeat_poll();
-
-    keyboard_usb_pump_to_shell(64);
+    //xhci_kbd_repeat_poll();
 
     static int tick = 0;
     tick++;

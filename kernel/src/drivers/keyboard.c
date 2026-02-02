@@ -4,12 +4,15 @@
 #include "../shell/shell.h"
 #include "../core/io.h"
 #include "../core/spinlock.h"
+#include "../core/semaphore.h"
 
 static bool g_shift = false;
 static bool g_capslock = false;
 static bool g_ctrl = false;
 static bool g_alt = false;
 static bool g_e0_prefix = false;
+
+static semaphore_t g_sem_kbd;
 
 static bool g_stop_repeating = false;
 
@@ -49,25 +52,21 @@ static inline void usb_fifo_push(uint8_t value, uint8_t is_special)
     g_usb_fifo_head = next;
 
     spin_unlock_irqrestore(&g_usb_fifo_lock, flags);
+
+    sem_signal(&g_sem_kbd);
 }
 
-void keyboard_usb_pump_to_shell(uint32_t budget)
+static void drain_keyboard_buffer(void)
 {
-    if (budget == 0)
-        return;
-
-    uint32_t count = 0;
-
-    while (count < budget)
+    while (1)
     {
         kbd_evt_t ev;
-
         irq_flags_t flags = spin_lock_irqsave(&g_usb_fifo_lock);
 
         if (g_usb_fifo_tail == g_usb_fifo_head)
         {
             spin_unlock_irqrestore(&g_usb_fifo_lock, flags);
-            break;
+            break; 
         }
 
         ev = g_usb_fifo[g_usb_fifo_tail];
@@ -75,12 +74,24 @@ void keyboard_usb_pump_to_shell(uint32_t budget)
 
         spin_unlock_irqrestore(&g_usb_fifo_lock, flags);
 
+        
         if (ev.is_special)
             shell_receive_special(ev.value);
         else
             shell_receive_char((char)ev.value);
+    }
+}
 
-        count++;
+void input_thread_entry(void *arg)
+{
+    (void)arg;
+    console_write_debug("[INPUT] Input Thread Started (Waiting for keys).\n");
+
+    while (1)
+    {        
+        sem_wait(&g_sem_kbd);
+
+        drain_keyboard_buffer();
     }
 }
 
@@ -211,6 +222,8 @@ static const uint8_t usb_hid_map[128][2] = {
 void keyboard_init()
 {
     spinlock_init(&g_usb_fifo_lock);
+
+    sem_init(&g_sem_kbd, 0);
 
     g_usb_fifo_head = 0;
     g_usb_fifo_tail = 0;
@@ -443,22 +456,17 @@ static char scancode_to_ascii(uint8_t code)
 
 void keyboard_handle_interrupt()
 {
-
     while (inb(0x64) & 1)
     {
         uint8_t scancode = inb(0x60);
-
         char c = scancode_to_ascii(scancode);
-        if (!c)
-            continue;
-
-        if ((uint8_t)c >= 0xF1 && (uint8_t)c <= 0xF4)
+        
+        if (c)
         {
-            shell_receive_special((uint8_t)c);
-        }
-        else
-        {
-            shell_receive_char(c);
+            if ((uint8_t)c >= 0xF1 && (uint8_t)c <= 0xF4)
+                usb_fifo_push((uint8_t)c, 1);
+            else
+                usb_fifo_push((uint8_t)c, 0);
         }
     }
 }

@@ -908,8 +908,6 @@ void xhci_dpc_handler(void *ctx)
     xhci_process_events();
 
     usb_hotplug_process_pending();
-
-    keyboard_usb_pump_to_shell(256);
 }
 
 static void xhci_queue_kbd_request_buf(uint8_t slot, uint8_t *buf)

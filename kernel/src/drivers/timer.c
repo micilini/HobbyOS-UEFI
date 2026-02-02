@@ -3,7 +3,7 @@
 #include "../apic/lapic.h"
 #include "../shell/shell.h"
 #include "../graphics/console.h"
-
+#include "../drivers/usb/xhci/xhci.h"
 #include "../core/scheduler.h"
 #include "../core/timers.h"
 #include "../core/task.h"
@@ -87,17 +87,14 @@ void timer_handler(void)
 void timer_run_deferred(void)
 {
     
-    
     if (g_ticks <= g_last_processed_tick)
     {
         return;
     }
 
-    
     uint64_t delta = g_ticks - g_last_processed_tick;
     g_last_processed_tick = g_ticks;
 
-    
     
     g_shell_tick_counter += delta;
     if (g_shell_tick_counter >= SHELL_TICK_DIVIDER)
@@ -106,13 +103,14 @@ void timer_run_deferred(void)
         g_shell_tick_counter = 0; 
     }
 
-    
-    
-    
     g_xhci_poll_counter += delta;
     if (g_xhci_poll_counter >= XHCI_POLL_THRESHOLD)
     {
+        
         xhci_poll_events();
+
+        xhci_kbd_repeat_poll();
+
         g_xhci_poll_counter = 0;
     }
 }
