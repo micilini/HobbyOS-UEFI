@@ -78,9 +78,14 @@ void *load_elf_kernel(EFI_FILE *kernel_file)
 
     Elf64_Phdr *phdr = (Elf64_Phdr *)ph_buffer;
 
+    Print(L"[DEBUG] Scanning ELF Segments...\n");
     for (int i = 0; i < header.e_phnum; i++)
     {
-        if (phdr->p_type == PT_LOAD && phdr->p_memsz > 0)
+        
+        Print(L"  Seg %d: Type=%x, PAddr=0x%lx, MemSz=0x%lx\n", 
+              i, phdr->p_type, phdr->p_paddr, phdr->p_memsz);
+
+        if (phdr->p_type == PT_LOAD && phdr->p_memsz > 0 && phdr->p_paddr >= 0x10000)
         {
             EFI_PHYSICAL_ADDRESS seg_start = align_down_4k((EFI_PHYSICAL_ADDRESS)phdr->p_paddr);
             EFI_PHYSICAL_ADDRESS seg_end = align_up_4k((EFI_PHYSICAL_ADDRESS)(phdr->p_paddr + phdr->p_memsz));
@@ -93,10 +98,11 @@ void *load_elf_kernel(EFI_FILE *kernel_file)
 
         phdr = (Elf64_Phdr *)((UINT8 *)phdr + header.e_phentsize);
     }
+    Print(L"[DEBUG] Analysis Done. MinStart=0x%lx\n", min_start);
 
     if (min_start == (EFI_PHYSICAL_ADDRESS)(~0ULL) || max_end <= min_start)
     {
-        Print(L"[-] Error: No PT_LOAD segments found in Kernel ELF\n");
+        Print(L"[-] Error: No valid PT_LOAD segments found in Kernel ELF (above 1MB)\n");
         uefi_call_wrapper(BS->FreePool, 1, ph_buffer);
         return NULL;
     }
@@ -114,13 +120,17 @@ void *load_elf_kernel(EFI_FILE *kernel_file)
         return NULL;
     }
 
+    
     uefi_call_wrapper(BS->SetMem, 3, (void *)min_start, (max_end - min_start), 0);
 
+    
     phdr = (Elf64_Phdr *)ph_buffer;
 
+    
     for (int i = 0; i < header.e_phnum; i++)
     {
-        if (phdr->p_type == PT_LOAD && phdr->p_filesz > 0)
+        
+        if (phdr->p_type == PT_LOAD && phdr->p_filesz > 0 && phdr->p_paddr >= 0x100000)
         {
             uefi_call_wrapper(kernel_file->SetPosition, 2, kernel_file, phdr->p_offset);
 
@@ -140,5 +150,7 @@ void *load_elf_kernel(EFI_FILE *kernel_file)
     }
 
     uefi_call_wrapper(BS->FreePool, 1, ph_buffer);
+    
+    
     return (void *)header.e_entry;
 }

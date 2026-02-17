@@ -3,6 +3,23 @@
 #include "../libc/memory.h"
 #include "../core/spinlock.h"
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 static Bitmap g_bitmap;
 static uint64_t g_total_frames = 0;
 static uint64_t g_free_frames = 0;
@@ -11,59 +28,122 @@ static void *g_bitmap_buffer = NULL;
 
 static spinlock_t g_pmm_lock;
 
-static uint64_t get_total_memory_size(MemoryMap *map)
+#ifndef PMM_BITMAP_MAX_PHYS
+#define PMM_BITMAP_MAX_PHYS 0x40000000ULL
+#endif
+
+static inline bool is_ram_type(uint32_t type)
+{
+    
+    
+    switch (type)
+    {
+    case EFI_LOADER_CODE:
+    case EFI_LOADER_DATA:
+    case EFI_BOOT_SERVICES_CODE:
+    case EFI_BOOT_SERVICES_DATA:
+    case EFI_RUNTIME_SERVICES_CODE:
+    case EFI_RUNTIME_SERVICES_DATA:
+    case EFI_CONVENTIONAL_MEMORY:
+    case EFI_ACPI_RECLAIM_MEMORY:
+    case EFI_ACPI_MEMORY_NVS:
+    case EFI_RESERVED_MEMORY_TYPE:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static uint64_t get_highest_ram_end(MemoryMap *map)
 {
     uint64_t highest_addr = 0;
     uint64_t entries = mmap_get_entry_count(map);
+
     for (uint64_t i = 0; i < entries; i++)
     {
         EfiMemoryDescriptor *desc = mmap_get_descriptor(map, i);
+
+        
+        if (!is_ram_type(desc->Type))
+            continue;
+        if (desc->Type == EFI_MEMORY_MAPPED_IO)
+            continue;
+
         uint64_t end_addr = desc->PhysicalStart + (desc->NumberOfPages * PAGE_SIZE);
         if (end_addr > highest_addr)
             highest_addr = end_addr;
     }
+
     return highest_addr;
 }
 
-static void *find_largest_free_segment(MemoryMap *map, size_t size_needed)
+static void *find_free_segment_for_bitmap(MemoryMap *map, size_t size_needed)
 {
     uint64_t entries = mmap_get_entry_count(map);
-    void *largest_addr = NULL;
-    uint64_t largest_size = 0;
+
+    void *best_addr = NULL;
+    uint64_t best_size = 0;
+
+    
+    
+    uint64_t max_phys = PMM_BITMAP_MAX_PHYS;
 
     for (uint64_t i = 0; i < entries; i++)
     {
         EfiMemoryDescriptor *desc = mmap_get_descriptor(map, i);
-        if (desc->Type == EFI_CONVENTIONAL_MEMORY)
+
+        if (desc->Type != EFI_CONVENTIONAL_MEMORY)
+            continue;
+
+        uint64_t seg_start = desc->PhysicalStart;
+        uint64_t seg_size = desc->NumberOfPages * PAGE_SIZE;
+
+        if (seg_size < size_needed)
+            continue;
+
+        
+        if (seg_start >= max_phys)
+            continue;
+
+        
+        if (seg_start + size_needed > max_phys)
+            continue;
+
+        
+        if (seg_size > best_size)
         {
-            uint64_t seg_size = desc->NumberOfPages * PAGE_SIZE;
-            if (seg_size > largest_size && seg_size >= size_needed)
-            {
-                largest_size = seg_size;
-                largest_addr = (void *)desc->PhysicalStart;
-            }
+            best_size = seg_size;
+            best_addr = (void *)seg_start;
         }
     }
-    return largest_addr;
+
+    return best_addr;
 }
 
 void init_pmm(MemoryMap *map)
 {
     spinlock_init(&g_pmm_lock);
 
-    uint64_t mem_size = get_total_memory_size(map);
-    g_total_frames = mem_size / PAGE_SIZE;
-    g_bitmap_size = (g_total_frames / 8) + 1;
+    
+    uint64_t highest_ram_end = get_highest_ram_end(map);
+    g_total_frames = highest_ram_end / PAGE_SIZE;
+    g_bitmap_size = (g_total_frames + 7) / 8;
 
-    g_bitmap_buffer = find_largest_free_segment(map, g_bitmap_size);
+    
+    g_bitmap_buffer = find_free_segment_for_bitmap(map, g_bitmap_size);
     if (g_bitmap_buffer == NULL)
+    {
+        
         while (1)
             ;
+    }
 
+    
     bitmap_init(&g_bitmap, g_bitmap_buffer, g_total_frames);
     memset(g_bitmap.buffer, 0xFF, g_bitmap.size);
     g_free_frames = 0;
 
+    
     uint64_t entries = mmap_get_entry_count(map);
     for (uint64_t i = 0; i < entries; i++)
     {
@@ -72,6 +152,7 @@ void init_pmm(MemoryMap *map)
         {
             uint64_t start_frame = desc->PhysicalStart / PAGE_SIZE;
             uint64_t num_frames = desc->NumberOfPages;
+
             for (uint64_t j = 0; j < num_frames; j++)
             {
                 bitmap_set(&g_bitmap, start_frame + j, false);
@@ -80,8 +161,9 @@ void init_pmm(MemoryMap *map)
         }
     }
 
+    
     uint64_t bitmap_start_frame = (uint64_t)g_bitmap_buffer / PAGE_SIZE;
-    uint64_t bitmap_pages = (g_bitmap_size / PAGE_SIZE) + 1;
+    uint64_t bitmap_pages = (g_bitmap_size + PAGE_SIZE - 1) / PAGE_SIZE;
 
     for (uint64_t i = 0; i < bitmap_pages; i++)
     {
@@ -92,6 +174,7 @@ void init_pmm(MemoryMap *map)
         }
     }
 
+    
     if (!bitmap_get(&g_bitmap, 0))
     {
         bitmap_set(&g_bitmap, 0, true);
