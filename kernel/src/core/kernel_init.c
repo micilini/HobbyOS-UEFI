@@ -24,6 +24,7 @@
 #include "scheduler.h"
 #include "semaphore.h"
 #include "../smp/smp_topology.h"
+#include "../smp/smp_boot.h"
 #include "list.h"
 #include "queue.h"
 
@@ -116,23 +117,29 @@ void init_system_core(BootInfo *boot_info)
     init_lapic();
     init_ioapic();
 
+    //
+    
     kinit_debug("[CORE] Init SMP Topoly...\n");
     smp_topology_init();
     smp_prepare_cpu_structures();
     
     for (uint32_t i = 0; i < g_cpu_count; i++) {
         if (!g_cpus[i].is_bsp) {
-            // Achamos um AP! Vamos mandar um IPI de teste para ele.
-            // O vetor 0xFE é usado apenas para não interferir com outras interrupções.
-            // Se o computador não travar após essa linha, a função lapic_send_ipi funciona.
+            
+            
+            
             lapic_send_ipi(g_cpus[i].apic_id, 0xFE);
             
             kinit_debug("[SMP] Test IPI sent to AP (If system runs, Phase 3 is OK)\n");
-            break; // Manda para um e para
+            break; 
         }
     }
 
-    //timer_sleep(50000000000000);
+    smp_boot_aps();
+
+    //
+
+    
 
     kinit_debug("[CORE] Init Drivers & Scheduler...\n");
     keyboard_init();
