@@ -47,6 +47,10 @@ typedef struct
     TssDesc64 tss;
 } __attribute__((packed, aligned(0x1000))) GdtTable;
 
-void init_gdt();
+void init_gdt(); 
+
+
+
+GdtTable* gdt_create_per_cpu(void *tss_ptr);
 
 #endif

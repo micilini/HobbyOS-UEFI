@@ -2,6 +2,9 @@
 #include "../acpi/madt.h"
 #include "../drivers/serial.h" 
 #include "../apic/lapic.h"
+#include "../memory/heap.h"
+#include "../cpu/tss.h"
+#include "../memory/gdt.h"
 
 
 CpuInfo g_cpus[MAX_CPUS];
@@ -11,58 +14,51 @@ uint8_t g_bsp_apic_id = 0;
 
 static void serial_print_dec(uint32_t n)
 {
-    if (n == 0)
-    {
-        serial_write_all("0");
-        return;
-    }
-
+    if (n == 0) { serial_write_all("0"); return; }
     char buffer[32];
     int i = 0;
-    while (n > 0)
-    {
-        buffer[i++] = '0' + (n % 10);
-        n /= 10;
-    }
+    while (n > 0) { buffer[i++] = '0' + (n % 10); n /= 10; }
+    for (int j = i - 1; j >= 0; j--) { serial_putc_all(buffer[j]); }
+}
 
-    for (int j = i - 1; j >= 0; j--)
+
+static void serial_print_hex(uint64_t n)
+{
+    serial_write_all("0x");
+    for (int i = 60; i >= 0; i -= 4)
     {
-        serial_putc_all(buffer[j]);
+        uint8_t nibble = (n >> i) & 0xF;
+        char c = (nibble < 10) ? ('0' + nibble) : ('A' + (nibble - 10));
+        serial_putc_all(c);
     }
 }
 
 void smp_topology_init()
 {
-    
     g_bsp_apic_id = (uint8_t)lapic_get_id(); 
 
     serial_write_all("[SMP] Topology: BSP APIC ID detected = ");
     serial_print_dec(g_bsp_apic_id);
     serial_write_all("\n");
 
-    
     uint32_t madt_count = madt_get_cpu_count();
     
     if (madt_count > MAX_CPUS) {
-        serial_write_all("[SMP] Warning: More CPUs detected than supported. Limiting the ");
+        serial_write_all("[SMP] Warning: More CPUs detected than supported. Limiting to ");
         serial_print_dec(MAX_CPUS);
         serial_write_all("\n");
         madt_count = MAX_CPUS;
     }
 
-    
     uint8_t apic_ids[MAX_CPUS];
     uint32_t found = madt_get_cpu_apic_ids(apic_ids, MAX_CPUS);
-
-    
     g_cpu_count = found;
     
-    serial_write_all("[SMP] Checking CPUs...\n");
+    serial_write_all("[SMP] Scanning CPUs...\n");
     for (uint32_t i = 0; i < g_cpu_count; i++)
     {
         g_cpus[i].apic_id = apic_ids[i];
         g_cpus[i].is_online = false;
-        
         
         if (g_cpus[i].apic_id == g_bsp_apic_id) {
             g_cpus[i].is_bsp = true;
@@ -75,7 +71,7 @@ void smp_topology_init()
         serial_print_dec(i);
         serial_write_all(" | APIC ID: ");
         serial_print_dec(g_cpus[i].apic_id);
-        serial_write_all(" | Tipo: ");
+        serial_write_all(" | Type: ");
         
         if (g_cpus[i].is_bsp) {
             serial_write_all("BSP (Online)\n");
@@ -84,7 +80,70 @@ void smp_topology_init()
         }
     }
 
-    serial_write_all("[SMP] Total of CPUs found: ");
+    serial_write_all("[SMP] Total CPUs found: ");
     serial_print_dec(g_cpu_count);
     serial_write_all("\n");
+}
+
+void smp_prepare_cpu_structures()
+{
+    serial_write_all("[SMP] Phase 2: Allocating Per-CPU Structures...\n");
+
+    
+    uint32_t stack_size = 16 * 1024; 
+
+    for (uint32_t i = 0; i < g_cpu_count; i++)
+    {
+        
+        
+        if (g_cpus[i].is_bsp) {
+            serial_write_all("      -> Skipping BSP (Index ");
+            serial_print_dec(i);
+            serial_write_all(")\n");
+            continue; 
+        }
+
+        
+        void *stack = kmalloc(stack_size);
+        if (!stack) {
+            serial_write_all("CRITICAL: Failed to alloc stack for CPU Index ");
+            serial_print_dec(i);
+            serial_write_all("\n");
+            continue;
+        }
+        
+        g_cpus[i].stack_top = (uint64_t)stack + stack_size;
+
+        
+        Tss64 *tss = tss_create_per_cpu();
+        if (!tss) {
+            serial_write_all("CRITICAL: Failed to alloc TSS for CPU Index ");
+            serial_print_dec(i);
+            serial_write_all("\n");
+            continue;
+        }
+        
+        tss->rsp0 = g_cpus[i].stack_top;
+        g_cpus[i].tss_ptr = tss;
+
+        
+        GdtTable *gdt = gdt_create_per_cpu(tss);
+        if (!gdt) {
+            serial_write_all("CRITICAL: Failed to alloc GDT for CPU Index ");
+            serial_print_dec(i);
+            serial_write_all("\n");
+            continue;
+        }
+        g_cpus[i].gdt_ptr = gdt;
+
+        serial_write_all("      -> CPU ");
+        serial_print_dec(i);
+        serial_write_all(" Ready: Stack=");
+        serial_print_hex(g_cpus[i].stack_top);
+        serial_write_all(" TSS=");
+        serial_print_hex((uint64_t)tss);
+        serial_write_all("\n");
+    }
+
+    serial_write_all("[SMP] Phase 2 Complete. Structures allocated.\n");
 }

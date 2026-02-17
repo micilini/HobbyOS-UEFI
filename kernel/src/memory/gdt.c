@@ -1,6 +1,8 @@
 #include "gdt.h"
 #include "../cpu/tss.h"
 #include "../graphics/console.h"
+#include "../libc/memory.h"
+#include "../memory/heap.h"
 
 static GdtTable g_gdt;
 static GdtPtr g_gdtr;
@@ -20,11 +22,10 @@ static void gdt_set_gate(GdtEntry *entry, uint32_t base, uint32_t limit, uint8_t
 
 static void gdt_set_tss(TssDesc64 *desc, uint64_t base, uint32_t limit)
 {
-
     desc->limit_low = (uint16_t)(limit & 0xFFFF);
     desc->base_low = (uint16_t)(base & 0xFFFF);
     desc->base_mid1 = (uint8_t)((base >> 16) & 0xFF);
-    desc->access = 0x89;
+    desc->access = 0x89; 
     desc->gran = (uint8_t)((limit >> 16) & 0x0F);
     desc->base_mid2 = (uint8_t)((base >> 24) & 0xFF);
     desc->base_high = (uint32_t)((base >> 32) & 0xFFFFFFFF);
@@ -39,13 +40,6 @@ static void tss_load(void)
         :
         : [sel] "i"(GDT_TSS_SEL)
         : "rax", "memory");
-}
-
-static inline uint16_t read_tr_selector(void)
-{
-    uint16_t sel = 0;
-    __asm__ volatile("str %0" : "=r"(sel));
-    return sel;
 }
 
 void gdt_flush(uint64_t gdtr_addr)
@@ -70,15 +64,10 @@ void gdt_flush(uint64_t gdtr_addr)
 
 void init_gdt()
 {
-
     gdt_set_gate(&g_gdt.null, 0, 0, 0, 0);
-
     gdt_set_gate(&g_gdt.kernel_code, 0, 0, 0x9A, 0xA0);
-
     gdt_set_gate(&g_gdt.kernel_data, 0, 0, 0x92, 0xA0);
-
     gdt_set_gate(&g_gdt.user_code, 0, 0, 0xFA, 0xA0);
-
     gdt_set_gate(&g_gdt.user_data, 0, 0, 0xF2, 0xA0);
 
     g_gdtr.size = sizeof(GdtTable) - 1;
@@ -90,6 +79,25 @@ void init_gdt()
     gdt_set_tss(&g_gdt.tss, tss_base, tss_limit);
 
     gdt_flush((uint64_t)&g_gdtr);
-
     tss_load();
+}
+
+
+
+GdtTable* gdt_create_per_cpu(void *tss_ptr)
+{
+    GdtTable *new_gdt = (GdtTable *)kmalloc(sizeof(GdtTable));
+    if (!new_gdt) return NULL;
+
+    
+    
+    memcpy(new_gdt, &g_gdt, sizeof(GdtTable));
+
+    
+    uint64_t tss_base = (uint64_t)tss_ptr;
+    uint32_t tss_limit = (uint32_t)(sizeof(Tss64) - 1);
+    
+    gdt_set_tss(&new_gdt->tss, tss_base, tss_limit);
+
+    return new_gdt;
 }

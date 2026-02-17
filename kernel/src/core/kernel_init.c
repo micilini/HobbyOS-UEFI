@@ -118,6 +118,7 @@ void init_system_core(BootInfo *boot_info)
 
     kinit_debug("[CORE] Init SMP Topoly...\n");
     smp_topology_init();
+    smp_prepare_cpu_structures();
 
     //timer_sleep(50000000000000);
 
