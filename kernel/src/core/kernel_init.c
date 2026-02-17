@@ -23,7 +23,7 @@
 #include "dpc.h"
 #include "scheduler.h"
 #include "semaphore.h"
-
+#include "../smp/smp_topology.h"
 #include "list.h"
 #include "queue.h"
 
@@ -115,6 +115,11 @@ void init_system_core(BootInfo *boot_info)
     init_hpet();
     init_lapic();
     init_ioapic();
+
+    kinit_debug("[CORE] Init SMP Topoly...\n");
+    smp_topology_init();
+
+    //timer_sleep(50000000000000);
 
     kinit_debug("[CORE] Init Drivers & Scheduler...\n");
     keyboard_init();

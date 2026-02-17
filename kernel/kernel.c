@@ -117,7 +117,7 @@ if ((uintptr_t)boot_info < 0x1000) {
     debug_serial("[KERNEL] Serial init OK (ports from BootInfo + fallback)\n");
 
     
-    debug_serial("\n\n[KERNEL] VIVO! Cheguei no Higher Half (0xFFFFFFFF82...)\n");
+    debug_serial("\n\n[KERNEL] Alive on Higher Half (0xFFFFFFFF82...)\n");
 
     debug_serial("[KERNEL] boot_info address: 0x");
     serial_write_hex64_all((uint64_t)boot_info);

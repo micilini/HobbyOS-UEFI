@@ -128,7 +128,8 @@ KERNEL_SRCS = $(KERNEL_DIR)/src/core/entry.S \
 			  $(KERNEL_DIR)/src/core/switch.S \
 			  $(KERNEL_DIR)/src/core/scheduler.c \
 			  $(KERNEL_DIR)/src/core/semaphore.c \
-			  $(KERNEL_DIR)/src/drivers/serial.c
+			  $(KERNEL_DIR)/src/drivers/serial.c \
+			  $(KERNEL_DIR)/src/smp/smp_topology.c
 
 # Separa quem é .c e quem é .S
 KERNEL_C_SRCS = $(filter %.c, $(KERNEL_SRCS))
