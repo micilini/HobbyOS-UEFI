@@ -3,7 +3,7 @@
 
 typedef void (*KernelStartFunc)(BootInfo *);
 
-void start_kernel(EFI_HANDLE ImageHandle, void *entry_point, Framebuffer *fb, Psf1_Font *font, void *logo, void *rsdp, MemoryMap *mem_map)
+void start_kernel(EFI_HANDLE ImageHandle, void *entry_point, BootInfo *prepared_boot_info)
 {
     EFI_STATUS status;
 
@@ -17,22 +17,42 @@ void start_kernel(EFI_HANDLE ImageHandle, void *entry_point, Framebuffer *fb, Ps
         Print(L"[*] UEFI Watchdog disabled.\n");
     }
 
-    BootInfo *boot_info;
+    if (prepared_boot_info == NULL)
+    {
+        Print(L"[-] Critical: prepared_boot_info is NULL.\n");
+        while (1) { }
+    }
+
+    
+    BootInfo *boot_info = NULL;
     status = uefi_call_wrapper(BS->AllocatePool, 3, EfiLoaderData, sizeof(BootInfo), (void **)&boot_info);
+    if (EFI_ERROR(status) || boot_info == NULL)
+    {
+        Print(L"[-] Critical: AllocatePool(BootInfo) failed. Status=%r\n", status);
+        while (1) { }
+    }
 
-    boot_info->framebuffer = fb;
-    boot_info->font = font;
-    boot_info->logo = (SimpleImage *)logo;
-    boot_info->rsdp = rsdp;
-    boot_info->memory_map = mem_map;
+    
+    ZeroMem(boot_info, sizeof(BootInfo));
+    CopyMem(boot_info, prepared_boot_info, sizeof(BootInfo));
 
-    UINTN map_key;
-    UINTN descriptor_size;
-    UINT32 descriptor_version;
+    
+    if (boot_info->serial.count > HOBBYOS_MAX_SERIAL_PORTS)
+    {
+        boot_info->serial.count = 0;
+    }
+
+    MemoryMap *mem_map = boot_info->memory_map;
+    if (mem_map == NULL)
+    {
+        Print(L"[-] Critical: boot_info->memory_map is NULL.\n");
+        while (1) { }
+    }
 
     int retry = 0;
     while (retry < 10)
     {
+        UINT32 descriptor_version;
 
         status = uefi_call_wrapper(BS->GetMemoryMap, 5,
                                    &mem_map->Size,
@@ -43,17 +63,14 @@ void start_kernel(EFI_HANDLE ImageHandle, void *entry_point, Framebuffer *fb, Ps
 
         if (!EFI_ERROR(status))
         {
-
             status = uefi_call_wrapper(BS->ExitBootServices, 2, ImageHandle, mem_map->MapKey);
 
             if (!EFI_ERROR(status))
             {
-
                 KernelStartFunc kernel = (KernelStartFunc)entry_point;
                 kernel(boot_info);
 
-                while (1)
-                    ;
+                while (1) { }
             }
         }
 
@@ -61,6 +78,5 @@ void start_kernel(EFI_HANDLE ImageHandle, void *entry_point, Framebuffer *fb, Ps
     }
 
     Print(L"[-] Critical: Failed to Exit Boot Services after retries.\n");
-    while (1)
-        ;
+    while (1) { }
 }

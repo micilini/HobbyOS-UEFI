@@ -27,8 +27,12 @@ CFLAGS_EFI = $(EFIINCS) -fno-stack-protector -fpic -fshort-wchar -mno-red-zone -
 LDFLAGS_EFI = -nostdlib -znocombreloc -shared -Bsymbolic -L $(EFILIB) -L /usr/lib -lgnuefi -lefi
 
 # Flags Kernel
-CFLAGS_KERNEL = -ffreestanding -mno-red-zone -mgeneral-regs-only -Wall
-LDFLAGS_KERNEL = -T $(KERNEL_DIR)/link.ld -static -Bsymbolic -nostdlib
+CFLAGS_KERNEL = -ffreestanding -mno-red-zone -mgeneral-regs-only -Wall -mcmodel=kernel -fno-pic
+LDFLAGS_KERNEL = -T $(KERNEL_DIR)/link.ld -static -Bsymbolic -nostdlib -z max-page-size=0x1000
+
+# Note used to able serial porta on KNUP PCI 0x4000
+CFLAGS_EFI += -DHOBBYOS_SERIAL_INCLUDE_KNUP_FALLBACK=1
+CFLAGS_KERNEL += -DHOBBYOS_KERNEL_SERIAL_DEV_PORTS=1
 
 all: hobbyos.img
 
@@ -36,6 +40,7 @@ all: hobbyos.img
 
 # Lista de Objetos do Bootloader (Main + Módulos da pasta src)
 BOOT_OBJS = $(BOOT_DIR)/main.o \
+			$(BOOT_DIR)/src/serial.o \
             $(BOOT_DIR)/src/utils.o \
             $(BOOT_DIR)/src/file.o \
             $(BOOT_DIR)/src/kernel_loader.o \
@@ -63,7 +68,8 @@ BOOTX64.EFI: bootx64.so
 	$(OBJCOPY) -j .text -j .sdata -j .data -j .dynamic -j .dynsym  -j .rel -j .rela -j .reloc --target=efi-app-$(ARCH) $< $@
 
 # --- Kernel ---
-KERNEL_SRCS = $(KERNEL_DIR)/kernel.c \
+KERNEL_SRCS = $(KERNEL_DIR)/src/core/entry.S \
+			  $(KERNEL_DIR)/kernel.c \
               $(KERNEL_DIR)/src/core/kernel_init.c \
               $(KERNEL_DIR)/src/core/panic.c \
               $(KERNEL_DIR)/src/graphics/splash.c \
@@ -121,7 +127,8 @@ KERNEL_SRCS = $(KERNEL_DIR)/kernel.c \
 			  $(KERNEL_DIR)/src/core/dpc.c \
 			  $(KERNEL_DIR)/src/core/switch.S \
 			  $(KERNEL_DIR)/src/core/scheduler.c \
-			  $(KERNEL_DIR)/src/core/semaphore.c
+			  $(KERNEL_DIR)/src/core/semaphore.c \
+			  $(KERNEL_DIR)/src/drivers/serial.c
 
 # Separa quem é .c e quem é .S
 KERNEL_C_SRCS = $(filter %.c, $(KERNEL_SRCS))
@@ -140,7 +147,7 @@ $(KERNEL_DIR)/%.o: $(KERNEL_DIR)/%.S
 
 # Linkagem Final do Kernel
 kernel.elf: $(KERNEL_OBJS)
-	$(LD) $(LDFLAGS_KERNEL) -o $@ $(KERNEL_OBJS)
+	$(LD) -T kernel/link.ld -static -Bsymbolic -nostdlib -z max-page-size=0x1000 -o $@ $(KERNEL_OBJS)
 
 # --- Imagem ---
 hobbyos.img: BOOTX64.EFI kernel.elf $(BOOT_DIR)/startup.nsh
@@ -176,7 +183,9 @@ run: hobbyos.img
 		-bios /usr/share/ovmf/OVMF.fd \
 		-net none \
 		-drive file=hobbyos.img,format=raw,cache=writeback \
-		-serial stdio \
+		-serial file:qemu-serial.log \
+		-debugcon file:qemu-debugcon.log -global isa-debugcon.iobase=0x402 \
+		-d guest_errors -D qemu-trace.log \
 		-device nec-usb-xhci,id=xhci,msi=on,msix=off -device usb-kbd,bus=xhci.0
 
 # Teste básico - hub simples
@@ -187,7 +196,7 @@ run-hub: hobbyos.img
 		-m 2G \
 		-bios /usr/share/ovmf/OVMF.fd \
 		-drive file=hobbyos.img,format=raw,cache=writeback \
-		-serial stdio \
+		-serial file:qemu-serial.log \
 		-device nec-usb-xhci,id=xhci \
 		-device usb-hub,bus=xhci.0,port=1 \
 		-device usb-kbd,bus=xhci.0,port=1.1
