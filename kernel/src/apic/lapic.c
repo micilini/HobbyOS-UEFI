@@ -212,3 +212,15 @@ void init_lapic_ap(void)
     lapic_write(LAPIC_TPR, 0);
     lapic_write(LAPIC_SPURIOUS, 0xFF | (1u << 8));
 }
+
+void lapic_timer_set_periodic(uint32_t vector, uint32_t ticks)
+{
+   
+    lapic_write(LAPIC_TDCR, 0x3);
+
+   
+    lapic_write(LAPIC_LVT_TIMER, APIC_TIMER_PERIODIC | vector);
+
+   
+    lapic_write(LAPIC_TICR, ticks);
+}

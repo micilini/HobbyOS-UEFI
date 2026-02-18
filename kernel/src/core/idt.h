@@ -33,6 +33,7 @@ typedef struct
 typedef uint64_t irq_flags_t;
 
 void init_idt();
+void idt_load();
 void enable_interrupts();
 void disable_interrupts();
 
@@ -55,5 +56,6 @@ static inline int irq_are_enabled(void)
     __asm__ volatile("pushfq; popq %0" : "=r"(f) : : "memory");
     return ((f & (1ULL << 9)) != 0);
 }
+ 
 
 #endif

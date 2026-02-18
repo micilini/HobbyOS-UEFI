@@ -50,13 +50,12 @@ void ap_kernel_entry() {
     serial_write_all("A"); 
 
     
-    
-    
     extern PageTable *g_kernel_pml4;
     paging_load_map(g_kernel_pml4);
     
     
-    init_idt();
+    
+    idt_load(); 
     serial_write_all("I"); 
 
     uint32_t my_apic_id = lapic_get_id();
@@ -87,13 +86,20 @@ void ap_kernel_entry() {
     __asm__ volatile("mov $0x28, %%ax; ltr %%ax" ::: "ax");
     serial_write_all("T"); 
 
+    
     init_lapic_ap();
     serial_write_all("L"); 
+
+    
+    
+    lapic_timer_set_periodic(32, 10000000);
+    serial_write_all("C"); 
 
     __asm__ volatile("mfence" ::: "memory");
     me->state = CPU_STATE_ONLINE;
     serial_write_all("!"); 
 
+    
     while (1) {
         __asm__ volatile("sti; hlt");
     }

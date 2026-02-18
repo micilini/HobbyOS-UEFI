@@ -8,6 +8,7 @@
 #include "../drivers/keyboard.h"
 #include "../drivers/timer.h"
 #include "../apic/lapic.h"
+#include "../drivers/serial.h"
 
 static const char *g_exc_names[32] = {
     "0  #DE Divide Error",
@@ -129,6 +130,19 @@ __attribute__((interrupt)) void irq_keyboard_handler(InterruptFrame *frame)
 __attribute__((interrupt)) void irq_timer_handler(InterruptFrame *frame)
 {
     (void)frame;
+
+    uint32_t id = lapic_get_id();
+
+    // Se for AP (ID diferente de 0), apenas sinalize e saia.
+    // Isso evita que o AP tente reprogramar o HPET ou mexa no scheduler global agora.
+    if (id != 0)
+    {
+        serial_write_all("."); // O "Sinal de Vida"
+        lapic_eoi();
+        return;
+    }
+
+    // Comportamento normal do BSP (mantém o sistema rodando)
     irq_stats_record(INT_VECTOR_TIMER);
     lapic_eoi();
     timer_handler();

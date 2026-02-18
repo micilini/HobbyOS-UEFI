@@ -49,6 +49,16 @@
 #define APIC_DEST_SHORTHAND_ALL_BUT_SELF 0x000C0000
 
 
+#define LAPIC_LVT_TIMER      0x320
+#define LAPIC_TICR           0x380 
+#define LAPIC_TCCR           0x390 
+#define LAPIC_TDCR           0x3E0 
+
+
+#define APIC_TIMER_PERIODIC  0x00020000
+#define APIC_TIMER_ONE_SHOT  0x00000000
+
+
 void init_lapic();
 void lapic_write(uint32_t reg, uint32_t value);
 uint32_t lapic_read(uint32_t reg);
@@ -61,5 +71,7 @@ void lapic_send_init(uint32_t apic_id);
 void lapic_send_sipi(uint32_t apic_id, uint32_t trampoline_page);
 
 void init_lapic_ap(void);
+
+void lapic_timer_set_periodic(uint32_t vector, uint32_t ticks);
 
 #endif

@@ -85,6 +85,11 @@ void init_idt()
     __asm__ volatile("lidt %0" : : "m"(g_idtr));
 }
 
+void idt_load()
+{
+    __asm__ volatile("lidt %0" : : "m"(g_idtr));
+}
+
 void enable_interrupts()
 {
     __asm__ volatile("sti\n\t" ::: "memory");
