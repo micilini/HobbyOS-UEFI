@@ -6,44 +6,88 @@
 #include "../libc/string.h"
 #include "../libc/memory.h"
 #include "timers.h"
+#include "../apic/lapic.h" 
 
 #define STACK_SIZE (16 * 1024)
+#define MAX_CPUS 256
 
 extern void thread_wrapper(void);
 
+
 static struct list_head g_ready_queue;
-static task_t *g_current_task = NULL;
-static int g_next_tid = 1;
 static spinlock_t g_scheduler_lock;
+
+
+static task_t *g_current_task_map[MAX_CPUS] = {0};
+
+
+static task_t *g_idle_task_map[MAX_CPUS] = {0};
+
+static int g_next_tid = 1;
+
+
+static task_t* create_idle_task(void) {
+    task_t *idle = (task_t *)kmalloc(sizeof(task_t));
+    if (!idle) return NULL;
+    
+    memset(idle, 0, sizeof(task_t));
+    idle->id = 0; 
+    strcpy(idle->name, "Idle");
+    idle->state = TASK_RUNNING;
+    idle->stack_base = NULL; 
+    idle->rsp = 0;
+    
+    list_init(&idle->list);
+    return idle;
+}
+
 
 void scheduler_init(void)
 {
     spinlock_init(&g_scheduler_lock);
     list_init(&g_ready_queue);
+    
+    
+    memset(g_current_task_map, 0, sizeof(g_current_task_map));
+    memset(g_idle_task_map, 0, sizeof(g_idle_task_map));
 
-    task_t *idle = (task_t *)kmalloc(sizeof(task_t));
-    if (!idle)
-        return;
+    
+    uint32_t bsp_id = lapic_get_id();
+    
+    task_t *idle = create_idle_task();
+    if (!idle) {
+        kpanic("SCHED: Failed to create BSP Idle Task");
+    }
 
-    memset(idle, 0, sizeof(task_t));
-    idle->id = 0;
-    strcpy(idle->name, "Kernel_Main");
-    idle->state = TASK_RUNNING;
-    idle->stack_base = NULL;
-    idle->rsp = 0;
+    g_idle_task_map[bsp_id] = idle;
+    g_current_task_map[bsp_id] = idle;
 
-    list_init(&idle->list);
+    console_write_debug("[SCHED] SMP Scheduler initialized (Global Queue).\n");
+}
 
-    list_add_tail(&idle->list, &g_ready_queue);
 
-    g_current_task = idle;
+void scheduler_init_ap(void)
+{
+    uint32_t id = lapic_get_id();
+    
+    task_t *idle = create_idle_task();
+    if (!idle) {
+        
+        while(1) __asm__ volatile("cli; hlt"); 
+    }
 
-    console_write_debug("[SCHED] Scheduler initialized with Lock.\n");
+    g_idle_task_map[id] = idle;
+    g_current_task_map[id] = idle;
+    
+    
+    
+    
 }
 
 task_t *get_current_task(void)
 {
-    return g_current_task;
+    uint32_t id = lapic_get_id();
+    return g_current_task_map[id];
 }
 
 task_t *thread_create(void (*entry_point)(void *), void *arg)
@@ -61,7 +105,11 @@ task_t *thread_create(void (*entry_point)(void *), void *arg)
     }
     memset(t->stack_base, 0, STACK_SIZE);
 
+    
+    irq_flags_t flags = spin_lock_irqsave(&g_scheduler_lock);
     t->id = g_next_tid++;
+    spin_unlock_irqrestore(&g_scheduler_lock, flags);
+
     t->state = TASK_READY;
     t->cr3 = 0;
 
@@ -70,23 +118,24 @@ task_t *thread_create(void (*entry_point)(void *), void *arg)
     sp--;
     *sp = (uint64_t)thread_wrapper;
     sp--;
-    *sp = 0;
+    *sp = 0; 
     sp--;
-    *sp = 0;
+    *sp = 0; 
     sp--;
-    *sp = (uint64_t)entry_point;
+    *sp = (uint64_t)entry_point; 
     sp--;
-    *sp = (uint64_t)arg;
+    *sp = (uint64_t)arg; 
     sp--;
-    *sp = 0;
+    *sp = 0; 
     sp--;
-    *sp = 0;
+    *sp = 0; 
 
     t->rsp = (uint64_t)sp;
 
     list_init(&t->list);
 
-    irq_flags_t flags = spin_lock_irqsave(&g_scheduler_lock);
+    
+    flags = spin_lock_irqsave(&g_scheduler_lock);
     list_add_tail(&t->list, &g_ready_queue);
     spin_unlock_irqrestore(&g_scheduler_lock, flags);
 
@@ -99,13 +148,23 @@ task_t *thread_create(void (*entry_point)(void *), void *arg)
 
 void thread_block(wait_queue_t *wq, task_state_t state)
 {
-
+    
     irq_flags_t flags = spin_lock_irqsave(&g_scheduler_lock);
 
-    task_t *current = g_current_task;
+    task_t *current = get_current_task();
+    
+    
+    if (current == g_idle_task_map[lapic_get_id()]) {
+        spin_unlock_irqrestore(&g_scheduler_lock, flags);
+        return; 
+    }
+
     current->state = state;
 
-    list_del(&current->list);
+    
+    if (current->list.next != NULL && current->list.prev != NULL) {
+        list_del(&current->list);
+    }
 
     if (wq)
     {
@@ -123,8 +182,7 @@ void thread_block(wait_queue_t *wq, task_state_t state)
 
 void thread_wake(task_t *t)
 {
-    if (!t)
-        return;
+    if (!t) return;
 
     irq_flags_t flags = spin_lock_irqsave(&g_scheduler_lock);
 
@@ -134,10 +192,12 @@ void thread_wake(task_t *t)
         return;
     }
 
-    list_del(&t->list);
+    
+    if (t->list.next != NULL && t->list.prev != NULL) {
+        list_del(&t->list);
+    }
 
     t->state = TASK_READY;
-
     list_add_tail(&t->list, &g_ready_queue);
 
     spin_unlock_irqrestore(&g_scheduler_lock, flags);
@@ -157,9 +217,7 @@ int thread_wake_one(wait_queue_t *wq)
     task_t *t = list_entry(node, task_t, list);
 
     list_del(&t->list);
-
     t->state = TASK_READY;
-
     list_add_tail(&t->list, &g_ready_queue);
 
     spin_unlock_irqrestore(&g_scheduler_lock, flags);
@@ -168,63 +226,53 @@ int thread_wake_one(wait_queue_t *wq)
 
 void schedule(void)
 {
+    uint32_t my_id = lapic_get_id();
+    task_t *prev = g_current_task_map[my_id];
+    task_t *next = NULL;
+    task_t *my_idle = g_idle_task_map[my_id];
 
     irq_flags_t flags = spin_lock_irqsave(&g_scheduler_lock);
 
-    while (list_empty(&g_ready_queue))
+    
+    if (!list_empty(&g_ready_queue))
     {
-        task_t *curr = g_current_task;
-
-        if (curr->state == TASK_RUNNING)
-        {
-            break;
-        }
-
-        spin_unlock_irqrestore(&g_scheduler_lock, flags);
-
-        timers_poll();
-
-        __asm__ volatile("sti; hlt");
-
-        flags = spin_lock_irqsave(&g_scheduler_lock);
-    }
-
-    task_t *prev = g_current_task;
-    struct list_head *next_node;
-
-    if (prev->state != TASK_RUNNING && prev->state != TASK_READY)
-    {
-
-        next_node = g_ready_queue.next;
+        struct list_head *next_node = g_ready_queue.next;
+        next = list_entry(next_node, task_t, list);
+        list_del(&next->list); 
     }
     else
     {
-
-        next_node = prev->list.next;
+        
+        next = my_idle;
     }
 
-    if (next_node == &g_ready_queue)
+    
+    if (prev != next)
     {
-        next_node = next_node->next;
+        
+        
+        if (prev->state == TASK_RUNNING && prev != my_idle)
+        {
+            prev->state = TASK_READY;
+            list_add_tail(&prev->list, &g_ready_queue);
+        }
+        else if (prev == my_idle)
+        {
+            
+            
+            prev->state = TASK_READY;
+        }
+
+        
+        next->state = TASK_RUNNING;
+        g_current_task_map[my_id] = next;
     }
-
-    task_t *next = list_entry(next_node, task_t, list);
-
-    if (next == prev)
-    {
-        spin_unlock_irqrestore(&g_scheduler_lock, flags);
-        return;
-    }
-
-    if (prev->state == TASK_RUNNING)
-    {
-        prev->state = TASK_READY;
-    }
-
-    next->state = TASK_RUNNING;
-    g_current_task = next;
 
     spin_unlock_irqrestore(&g_scheduler_lock, flags);
 
-    switch_context(prev, next);
+    
+    if (prev != next)
+    {
+        switch_context(prev, next);
+    }
 }

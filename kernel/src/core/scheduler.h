@@ -3,7 +3,11 @@
 
 #include "task.h"
 
+
 void scheduler_init(void);
+
+
+void scheduler_init_ap(void);
 
 task_t *thread_create(void (*entry_point)(void *), void *arg);
 

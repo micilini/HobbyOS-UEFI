@@ -31,10 +31,19 @@
 #include <stdint.h>
 #include <stddef.h>
 
+static void test_smp_task(void *arg)
+{
+    uint64_t id = (uint64_t)arg;
 
-
-
-
+    while (1) {
+        console_write_debug(" [Task ");
+        console_print_dec_debug((int)id);
+        console_write_debug(" on CPU ");
+        console_print_dec_debug((int)lapic_get_id());
+        console_write_debug("] ");
+        timer_sleep(1000);
+    }
+}
 
 static void kinit_debug(const char *msg)
 {
@@ -147,6 +156,11 @@ void init_system_core(BootInfo *boot_info)
     timers_init();
 
     scheduler_init();
+
+    
+    thread_create(test_smp_task, (void*)1);
+    thread_create(test_smp_task, (void*)2);
+    thread_create(test_smp_task, (void*)3);
 
     dpc_init();
 

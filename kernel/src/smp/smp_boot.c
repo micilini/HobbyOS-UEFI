@@ -46,7 +46,7 @@ static void smp_print_hex(uint64_t n) {
     }
 }
 
-void ap_kernel_entry() {
+ap_kernel_entry() {
     serial_write_all("A"); 
 
     
@@ -94,6 +94,13 @@ void ap_kernel_entry() {
     
     lapic_timer_set_periodic(32, 10000000);
     serial_write_all("C"); 
+
+    
+    
+    
+    
+    scheduler_init_ap();
+    serial_write_all("S"); 
 
     __asm__ volatile("mfence" ::: "memory");
     me->state = CPU_STATE_ONLINE;
