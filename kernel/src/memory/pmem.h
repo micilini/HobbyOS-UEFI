@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 #include "../../../shared/mem_map.h"
 
 #define PAGE_SIZE 4096
@@ -14,6 +15,10 @@ void *pmm_alloc_frame();
 void *pmm_alloc_contiguous_frames(size_t count);
 
 void pmm_free_frame(void *paddr);
+
+
+bool pmm_is_frame_free(uint64_t physical_address);
+void pmm_mark_frame_used(uint64_t physical_address);
 
 uint64_t pmm_get_free_memory();
 uint64_t pmm_get_total_memory();

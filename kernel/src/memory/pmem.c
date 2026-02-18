@@ -2,23 +2,7 @@
 #include "../utils/bitmap.h"
 #include "../libc/memory.h"
 #include "../core/spinlock.h"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#include "../drivers/serial.h"
 
 static Bitmap g_bitmap;
 static uint64_t g_total_frames = 0;
@@ -32,10 +16,18 @@ static spinlock_t g_pmm_lock;
 #define PMM_BITMAP_MAX_PHYS 0x40000000ULL
 #endif
 
+
+static void pmem_print_hex(uint64_t n) {
+    serial_write_all("0x");
+    for (int i = 60; i >= 0; i -= 4) {
+        uint8_t nibble = (n >> i) & 0xF;
+        char c = (nibble < 10) ? ('0' + nibble) : ('A' + (nibble - 10));
+        serial_putc_all(c);
+    }
+}
+
 static inline bool is_ram_type(uint32_t type)
 {
-    
-    
     switch (type)
     {
     case EFI_LOADER_CODE:
@@ -63,7 +55,6 @@ static uint64_t get_highest_ram_end(MemoryMap *map)
     {
         EfiMemoryDescriptor *desc = mmap_get_descriptor(map, i);
 
-        
         if (!is_ram_type(desc->Type))
             continue;
         if (desc->Type == EFI_MEMORY_MAPPED_IO)
@@ -80,12 +71,8 @@ static uint64_t get_highest_ram_end(MemoryMap *map)
 static void *find_free_segment_for_bitmap(MemoryMap *map, size_t size_needed)
 {
     uint64_t entries = mmap_get_entry_count(map);
-
     void *best_addr = NULL;
     uint64_t best_size = 0;
-
-    
-    
     uint64_t max_phys = PMM_BITMAP_MAX_PHYS;
 
     for (uint64_t i = 0; i < entries; i++)
@@ -100,16 +87,11 @@ static void *find_free_segment_for_bitmap(MemoryMap *map, size_t size_needed)
 
         if (seg_size < size_needed)
             continue;
-
-        
         if (seg_start >= max_phys)
             continue;
-
-        
         if (seg_start + size_needed > max_phys)
             continue;
 
-        
         if (seg_size > best_size)
         {
             best_size = seg_size;
@@ -122,28 +104,30 @@ static void *find_free_segment_for_bitmap(MemoryMap *map, size_t size_needed)
 
 void init_pmm(MemoryMap *map)
 {
+    serial_write_all("[PMM] Initializing...\n");
     spinlock_init(&g_pmm_lock);
 
-    
     uint64_t highest_ram_end = get_highest_ram_end(map);
     g_total_frames = highest_ram_end / PAGE_SIZE;
     g_bitmap_size = (g_total_frames + 7) / 8;
 
-    
+    serial_write_all("[PMM] Highest RAM: ");
+    pmem_print_hex(highest_ram_end);
+    serial_write_all(" | Total Frames: ");
+    pmem_print_hex(g_total_frames);
+    serial_write_all("\n");
+
     g_bitmap_buffer = find_free_segment_for_bitmap(map, g_bitmap_size);
     if (g_bitmap_buffer == NULL)
     {
-        
-        while (1)
-            ;
+        serial_write_all("[PMM] CRITICAL: Failed to allocate bitmap buffer!\n");
+        while (1);
     }
 
-    
     bitmap_init(&g_bitmap, g_bitmap_buffer, g_total_frames);
     memset(g_bitmap.buffer, 0xFF, g_bitmap.size);
     g_free_frames = 0;
 
-    
     uint64_t entries = mmap_get_entry_count(map);
     for (uint64_t i = 0; i < entries; i++)
     {
@@ -161,7 +145,6 @@ void init_pmm(MemoryMap *map)
         }
     }
 
-    
     uint64_t bitmap_start_frame = (uint64_t)g_bitmap_buffer / PAGE_SIZE;
     uint64_t bitmap_pages = (g_bitmap_size + PAGE_SIZE - 1) / PAGE_SIZE;
 
@@ -174,12 +157,15 @@ void init_pmm(MemoryMap *map)
         }
     }
 
-    
     if (!bitmap_get(&g_bitmap, 0))
     {
         bitmap_set(&g_bitmap, 0, true);
         g_free_frames--;
     }
+
+    serial_write_all("[PMM] Init Done. Free Frames: ");
+    pmem_print_hex(g_free_frames);
+    serial_write_all("\n");
 }
 
 void *pmm_alloc_frame()
@@ -199,6 +185,7 @@ void *pmm_alloc_frame()
     }
 
     spin_unlock_irqrestore(&g_pmm_lock, flags);
+    serial_write_all("[PMM] ERROR: Out of Memory (alloc_frame)!\n");
     return NULL;
 }
 
@@ -239,6 +226,7 @@ void *pmm_alloc_contiguous_frames(size_t count)
     }
 
     spin_unlock_irqrestore(&g_pmm_lock, flags);
+    serial_write_all("[PMM] ERROR: Out of Contiguous Memory!\n");
     return NULL;
 }
 
@@ -253,6 +241,52 @@ void pmm_free_frame(void *paddr)
         g_free_frames++;
     }
 
+    spin_unlock_irqrestore(&g_pmm_lock, flags);
+}
+
+
+
+bool pmm_is_frame_free(uint64_t physical_address)
+{
+    irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
+    
+    uint64_t frame = physical_address / PAGE_SIZE;
+    
+    
+    if (frame >= g_total_frames) {
+        spin_unlock_irqrestore(&g_pmm_lock, flags);
+        return false;
+    }
+
+    
+    bool is_free = !bitmap_get(&g_bitmap, frame);
+    
+    spin_unlock_irqrestore(&g_pmm_lock, flags);
+    return is_free;
+}
+
+void pmm_mark_frame_used(uint64_t physical_address)
+{
+    irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
+    
+    uint64_t frame = physical_address / PAGE_SIZE;
+    
+    if (frame < g_total_frames) {
+        
+        if (!bitmap_get(&g_bitmap, frame)) {
+            bitmap_set(&g_bitmap, frame, true);
+            g_free_frames--;
+            
+            serial_write_all("[PMM] Explicitly marked frame used: ");
+            pmem_print_hex(physical_address);
+            serial_write_all("\n");
+        } else {
+            serial_write_all("[PMM] Warning: Frame already used: ");
+            pmem_print_hex(physical_address);
+            serial_write_all("\n");
+        }
+    }
+    
     spin_unlock_irqrestore(&g_pmm_lock, flags);
 }
 

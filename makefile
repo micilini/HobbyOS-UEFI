@@ -221,3 +221,5 @@ run-hub-multi: hobbyos.img
 # TO Reconize Pen Drive in Linux: udisksctl mount -b /dev/sda1
 
 # liga watch do XHCI de dump: xhci_set_debug_flags(XHCI_DBG_WATCH | XHCI_DBG_DUMP);
+
+# to use SERIAL PORT (KNUP): sudo picocom -b 115200 /dev/ttyUSB0

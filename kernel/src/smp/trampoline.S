@@ -1,30 +1,47 @@
 .intel_syntax noprefix
-/* Mudamos o nome da seção para ser único */
 .section .smp_trampoline_blob, "ax"
 .code16
 .global smp_trampoline_entry
+.global _trampoline_start
+.global _trampoline_end
+
+_trampoline_start:
 
 smp_trampoline_entry:
-    .byte 0xFA          /* CLI */
-    .byte 0x31, 0xC0    /* XOR AX, AX */
-    .byte 0x8E, 0xD8    /* MOV DS, AX */
-    .byte 0x8E, 0xC0    /* MOV ES, AX */
-    .byte 0x8E, 0xD0    /* MOV SS, AX */
-
-    /* DEBUG: 'R' */
-    .byte 0xBA, 0xF8, 0x03, 0xB0, 0x52, 0xEE
+    cli
+    cld             
     
-    /* Load GDT */
-    .byte 0x67, 0x0F, 0x01, 0x15
-    .long (gdtr_phys - smp_trampoline_entry + 0x8000)
+    mov ax, cs
+    mov ds, ax
+    mov es, ax
+    mov ss, ax  
+    
+    mov sp, 0x1000 
+
+    mov dx, 0x3F8
+    mov al, 'R'
+    out dx, al
+
+    wbinvd
+
+    mov di, (smp_trampoline_gdtr - smp_trampoline_entry)
+    lgdt [di]
 
     mov eax, cr0
     or eax, 1
     mov cr0, eax
 
-    .byte 0x66, 0xEA
-    .long (trampoline_32 - smp_trampoline_entry + 0x8000)
-    .word 0x08
+    mov ax, cs
+    movzx eax, ax
+    shl eax, 4
+    add eax, (trampoline_32 - smp_trampoline_entry)
+    
+    push 0x00       
+    push 0x08       
+    push eax        
+    
+    .byte 0x66
+    retf
 
 .code32
 trampoline_32:
@@ -32,79 +49,151 @@ trampoline_32:
     mov ds, ax
     mov es, ax
     mov ss, ax
+    mov fs, ax
+    mov gs, ax
     
-    /* DEBUG: 'P' */
+    /* Calcular Base Address (EBP) de forma segura em 32-bit */
+    call .get_eip
+.get_eip:
+    pop ebp
+    sub ebp, (.get_eip - smp_trampoline_entry)
+    
+    mov esp, ebp
+    add esp, 0x1000
+
     mov dx, 0x3F8
     mov al, 'P'
     out dx, al
 
-    mov eax, cr4
-    or eax, (1 << 5)
+    /* Carregar CR3/CR4/EFER usando EBP como base */
+    mov eax, [ebp + (smp_trampoline_cr4 - smp_trampoline_entry)]
     mov cr4, eax
 
-    mov edi, 0x8000
-    add edi, offset (smp_trampoline_cr3 - smp_trampoline_entry)
-    mov eax, [edi]
+    mov eax, [ebp + (smp_trampoline_cr3 - smp_trampoline_entry)]
     mov cr3, eax
 
     mov ecx, 0xC0000080
-    rdmsr
-    or eax, (1 << 8) 
+    mov eax, [ebp + (smp_trampoline_efer - smp_trampoline_entry)]
+    mov edx, [ebp + (smp_trampoline_efer - smp_trampoline_entry) + 4]
     wrmsr
 
     mov eax, cr0
     or eax, (1 << 31)
     mov cr0, eax
 
-    .byte 0xEA
-    .long (trampoline_64 - smp_trampoline_entry + 0x8000)
-    .word 0x18
+    mov eax, ebp
+    add eax, (trampoline_64 - smp_trampoline_entry)
+    
+    push 0x18
+    push eax
+    retf
 
 .code64
 trampoline_64:
-    xor rax, rax
+    /* Nota: RBP aqui contém o valor de EBP de 32-bit (Endereço Físico Base) */
+    /* NÃO RECALCULAR RBP COM LEA! Confiar no valor herdado. */
+    
+    mov ax, 0x10
     mov ds, ax
     mov es, ax
     mov ss, ax
-    
-    /* DEBUG: 'L' */
+    xor ax, ax
+    mov fs, ax
+    mov gs, ax
+
     mov dx, 0x3F8
     mov al, 'L'
     out dx, al
 
-    mov rbx, 0x8000
-    mov rax, offset (smp_trampoline_stack - smp_trampoline_entry)
-    add rax, rbx
-    mov rsp, [rax]
+    /* Agora usamos RBP (que é físico) para ler as variáveis */
+
+    mov eax, dword ptr [rbp + (smp_trampoline_x2apic_flag - smp_trampoline_entry)]
+    test eax, eax
+    jz .skip_x2apic
+
+    mov ecx, 0x1B
+    rdmsr
+    or eax, (1 << 11) | (1 << 10)
+    wrmsr
+
+.skip_x2apic:
+    /* Carregar Stack */
+    mov rsp, qword ptr [rbp + (smp_trampoline_stack - smp_trampoline_entry)]
     
-    mov rax, offset (smp_trampoline_entry_ptr - smp_trampoline_entry)
-    add rax, rbx
-    mov rax, [rax]
+    test rsp, rsp
+    jz .bad_stack
+
+    and rsp, -16
+
+    /* Carregar Ponteiro da Função C */
+    mov rax, qword ptr [rbp + (smp_trampoline_entry_ptr - smp_trampoline_entry)]
     
-    call rax
+    test rax, rax
+    jz .bad_entry
+
+    /* Verificação de Sanidade: O endereço é Higher Half? (> 0xFFFFFFFF80000000) */
+    mov rbx, 0xFFFFFFFF80000000
+    cmp rax, rbx
+    jb .bad_kernel_ptr
+
+    /* Se passou, tenta o pulo direto sem empilhar nada */
+    xor rbp, rbp
+    jmp rax
 
 hang:
     cli
     hlt
     jmp hang
 
+.bad_stack:
+    mov dx, 0x3F8
+    mov al, 'S'     
+    out dx, al
+    jmp hang
+
+.bad_entry:
+    mov dx, 0x3F8
+    mov al, 'Z'     
+    out dx, al
+    jmp hang
+
+.bad_kernel_ptr:
+    mov dx, 0x3F8
+    mov al, 'K'     /* K = Kernel Pointer Invalid (Low Memory?) */
+    out dx, al
+    jmp hang
+
 .align 16
-gdt_start:
+.global smp_trampoline_gdt_start
+smp_trampoline_gdt_start:
     .quad 0x0000000000000000
     .quad 0x00CF9A000000FFFF 
     .quad 0x00CF92000000FFFF 
     .quad 0x00AF9A000000FFFF 
-gdt_end:
+smp_trampoline_gdt_end:
 
-gdtr_phys:
-    .word gdt_end - gdt_start - 1
-    .long (0x8000 + (gdt_start - smp_trampoline_entry))
+.global smp_trampoline_gdtr
+smp_trampoline_gdtr:
+    .word smp_trampoline_gdt_end - smp_trampoline_gdt_start - 1
+    .long 0   
 
 .global smp_trampoline_cr3
+.global smp_trampoline_cr4
+.global smp_trampoline_efer
 .global smp_trampoline_stack
 .global smp_trampoline_entry_ptr
+.global smp_trampoline_x2apic_flag
+.global smp_trampoline_base
 
 .align 8
-smp_trampoline_cr3:       .quad 0
-smp_trampoline_stack:     .quad 0
-smp_trampoline_entry_ptr: .quad 0
+smp_trampoline_cr3:           .quad 0
+smp_trampoline_cr4:           .quad 0
+smp_trampoline_efer:          .quad 0
+smp_trampoline_stack:         .quad 0
+smp_trampoline_entry_ptr:     .quad 0
+smp_trampoline_x2apic_flag:   .long 0
+smp_trampoline_base:          .long 0
+
+_trampoline_end:
+
+.section .note.GNU-stack,"",@progbits

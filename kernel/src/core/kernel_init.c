@@ -117,7 +117,7 @@ void init_system_core(BootInfo *boot_info)
     init_lapic();
     init_ioapic();
 
-    //
+    
     
     kinit_debug("[CORE] Init SMP Topoly...\n");
     smp_topology_init();
@@ -137,7 +137,7 @@ void init_system_core(BootInfo *boot_info)
 
     smp_boot_aps();
 
-    //
+    
 
     
 

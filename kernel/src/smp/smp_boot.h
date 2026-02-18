@@ -3,11 +3,15 @@
 
 #include <stdint.h>
 
-// Endereço fixo na memória baixa onde o trampoline vai morar
-// 0x8000 é seguro na maioria dos PCs (fica acima do boot sector real mode 0x7C00)
-#define TRAMPOLINE_ADDR 0x8000
 
-// Inicia o processo de acordar todos os APs
+enum {
+    CPU_STATE_DEAD = 0,
+    CPU_STATE_PREPARE, 
+    CPU_STATE_STARTING,
+    CPU_STATE_ONLINE,  
+    CPU_STATE_FAILED   
+};
+
 void smp_boot_aps();
 
 #endif

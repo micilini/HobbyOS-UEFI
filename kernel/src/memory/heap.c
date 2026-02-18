@@ -5,6 +5,7 @@
 #include "../core/list.h"
 #include "../core/spinlock.h"
 #include "../graphics/console.h"
+#include "../drivers/serial.h"
 
 #include <stdint.h>
 #include <stddef.h>
@@ -16,6 +17,24 @@
 #define HEAP_MIN_SPLIT_PAYLOAD 16ull
 
 #define ALIGNED_MAGIC 0xA11A6EADu
+
+
+static void heap_print_hex(uint64_t n) {
+    serial_write_all("0x");
+    for (int i = 60; i >= 0; i -= 4) {
+        uint8_t nibble = (n >> i) & 0xF;
+        char c = (nibble < 10) ? ('0' + nibble) : ('A' + (nibble - 10));
+        serial_putc_all(c);
+    }
+}
+
+static void heap_print_dec(uint64_t n) {
+    if (n == 0) { serial_write_all("0"); return; }
+    char buffer[32];
+    int i = 0;
+    while (n > 0) { buffer[i++] = '0' + (n % 10); n /= 10; }
+    for (int j = i - 1; j >= 0; j--) { serial_putc_all(buffer[j]); }
+}
 
 typedef struct AlignedAllocHeader
 {
@@ -209,6 +228,11 @@ static int heap_expand_locked(uint64_t grow_bytes)
     uint64_t bytes_needed = align_up_u64(grow_bytes, PAGE_SIZE);
     uint64_t pages_needed = bytes_needed / PAGE_SIZE;
 
+    
+    
+    
+    
+
     uint64_t phys = pmm_alloc_contiguous_frames((uint32_t)pages_needed);
     if (!phys)
     {
@@ -216,6 +240,15 @@ static int heap_expand_locked(uint64_t grow_bytes)
         return 0;
     }
 
+    
+    
+    
+    
+
+    
+    
+    
+    
     HeapBlock *new_blk = (HeapBlock *)(uintptr_t)phys;
     new_blk->free = true;
     new_blk->size = (size_t)(bytes_needed - sizeof(HeapBlock));
@@ -305,6 +338,10 @@ void *kmalloc(size_t size)
     g_heap_used_bytes += (uint64_t)b->size;
 
     void *ret = payload_from_block(b);
+    
+    
+   
+
     spin_unlock_irqrestore(&g_heap_lock, flags);
     return ret;
 }

@@ -3,9 +3,30 @@
 #include "../graphics/console.h"
 #include "../libc/memory.h"
 #include "../memory/heap.h"
+#include "../drivers/serial.h" 
 
-static GdtTable g_gdt;
+GdtTable g_gdt;
 static GdtPtr g_gdtr;
+
+#define HHDM_OFFSET 0xFFFFFFFF80000000ULL
+
+static void* to_higher_half(void* ptr) {
+    uint64_t addr = (uint64_t)ptr;
+    
+    if (addr < 0x100000000ULL && addr > 0) {
+        return (void*)(addr | HHDM_OFFSET);
+    }
+    return ptr;
+}
+
+static void serial_print_hex(uint64_t n) {
+    serial_write_all("0x");
+    for (int i = 60; i >= 0; i -= 4) {
+        uint8_t nibble = (n >> i) & 0xF;
+        char c = (nibble < 10) ? ('0' + nibble) : ('A' + (nibble - 10));
+        serial_putc_all(c);
+    }
+}
 
 static void gdt_set_gate(GdtEntry *entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t gran)
 {
@@ -82,22 +103,33 @@ void init_gdt()
     tss_load();
 }
 
-
-
 GdtTable* gdt_create_per_cpu(void *tss_ptr)
 {
-    GdtTable *new_gdt = (GdtTable *)kmalloc(sizeof(GdtTable));
-    if (!new_gdt) return NULL;
+    serial_write_all("      [GDT] Allocating... ");
+    
+    
+    void *phys_ptr = kmalloc(sizeof(GdtTable));
+    if (!phys_ptr) { 
+        serial_write_all("FAIL (kmalloc)\n"); 
+        return NULL; 
+    }
 
+    
+    GdtTable *new_gdt = (GdtTable *)to_higher_half(phys_ptr);
+    
+    serial_write_all("OK. Copying from global... ");
     
     
     memcpy(new_gdt, &g_gdt, sizeof(GdtTable));
-
     
+    serial_write_all("OK. Setting TSS... ");
+
     uint64_t tss_base = (uint64_t)tss_ptr;
     uint32_t tss_limit = (uint32_t)(sizeof(Tss64) - 1);
     
     gdt_set_tss(&new_gdt->tss, tss_base, tss_limit);
+    
+    serial_write_all("Done.\n");
 
     return new_gdt;
 }

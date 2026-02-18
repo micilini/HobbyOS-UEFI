@@ -4,6 +4,7 @@
 #include "../acpi/madt.h"
 #include "../memory/paging.h"
 #include "../graphics/console.h" 
+#include "../drivers/serial.h"
 
 static uint64_t g_lapic_base = 0;
 static uint8_t g_x2apic = 0; 
@@ -63,38 +64,48 @@ void init_lapic()
     g_lapic_base = get_lapic_base();
 
     uint64_t apic_msr = cpu_read_msr(IA32_APIC_BASE_MSR);
-    
-    
+
     if (!g_lapic_base)
         g_lapic_base = apic_msr & 0xFFFFF000ULL;
 
     
+    uint32_t eax, ebx, ecx, edx;
+    cpu_get_cpuid(1, &eax, &ebx, &ecx, &edx);
+    uint8_t x2apic_supported = (ecx >> 21) & 1;
+
+    
     apic_msr |= (1ULL << 11);
+
+    
+    
+    
+    if (x2apic_supported)
+    {
+        apic_msr |= (1ULL << 10);
+    }
+
     cpu_write_msr(IA32_APIC_BASE_MSR, apic_msr);
 
     
+    apic_msr = cpu_read_msr(IA32_APIC_BASE_MSR);
     g_x2apic = (apic_msr & (1ULL << 10)) ? 1 : 0;
+
+    if (g_x2apic)
+        serial_write_all("[LAPIC] System using X2APIC\n");
+    else
+        serial_write_all("[LAPIC] System using XAPIC\n");
 
     if (!g_x2apic && g_lapic_base)
     {
-        
         uint64_t base_page = g_lapic_base & ~0xFFFULL;
         paging_map(base_page, base_page, PAGE_PRESENT | PAGE_RW | PAGE_PCD | PAGE_PWT);
-        
         paging_map(base_page + 0x1000, base_page + 0x1000, PAGE_PRESENT | PAGE_RW | PAGE_PCD | PAGE_PWT);
-
         __asm__ volatile("invlpg (%0)" ::"r"(base_page) : "memory");
     }
 
-    
     lapic_write(LAPIC_TPR, 0);
-
-    
-    
     lapic_write(LAPIC_SPURIOUS, 0xFF | (1u << 8));
 }
-
-
 
 static void lapic_wait_icr_idle()
 {
@@ -153,14 +164,51 @@ void lapic_send_ipi(uint32_t apic_id, uint8_t vector)
 void lapic_send_init(uint32_t apic_id)
 {
     
-    lapic_write_icr(apic_id, 0, APIC_DM_INIT | APIC_LEVEL_ASSERT | APIC_TRIGGER_EDGE);
+    lapic_write_icr(apic_id, 0, APIC_DM_INIT | APIC_LEVEL_ASSERT | APIC_TRIGGER_LEVEL);
+
+    
+    for (volatile int i = 0; i < 10000; i++)
+        __asm__ volatile("outb %%al, $0x80" : : "a"(0));
+
+    
+    if (!g_x2apic)
+    {
+        lapic_write_icr(apic_id, 0, APIC_DM_INIT | APIC_LEVEL_DEASSERT | APIC_TRIGGER_LEVEL);
+    }
+
+    
+    for (volatile int i = 0; i < 10000; i++)
+        __asm__ volatile("outb %%al, $0x80" : : "a"(0));
 }
 
 void lapic_send_sipi(uint32_t apic_id, uint32_t trampoline_page)
 {
     
     
-    
     uint8_t vector = (uint8_t)(trampoline_page & 0xFF);
     lapic_write_icr(apic_id, vector, APIC_DM_SIPI | APIC_LEVEL_ASSERT | APIC_TRIGGER_EDGE);
+
+    
+    for (volatile int i = 0; i < 200; i++)
+        __asm__ volatile("outb %%al, $0x80" : : "a"(0));
+}
+
+void init_lapic_ap(void)
+{
+    
+    
+
+    uint64_t apic_msr = cpu_read_msr(IA32_APIC_BASE_MSR);
+    apic_msr |= (1ULL << 11); 
+
+    
+    if (g_x2apic)
+    {
+        apic_msr |= (1ULL << 10);
+    }
+
+    cpu_write_msr(IA32_APIC_BASE_MSR, apic_msr);
+
+    lapic_write(LAPIC_TPR, 0);
+    lapic_write(LAPIC_SPURIOUS, 0xFF | (1u << 8));
 }

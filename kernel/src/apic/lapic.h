@@ -60,4 +60,6 @@ void lapic_send_ipi(uint32_t apic_id, uint8_t vector);
 void lapic_send_init(uint32_t apic_id);
 void lapic_send_sipi(uint32_t apic_id, uint32_t trampoline_page);
 
+void init_lapic_ap(void);
+
 #endif
