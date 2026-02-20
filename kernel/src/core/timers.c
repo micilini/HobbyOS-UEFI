@@ -3,6 +3,8 @@
 #include "../drivers/timer.h"
 #include "../memory/heap.h"
 #include "../graphics/console.h"
+#include "../apic/lapic.h"
+#include "../smp/smp_topology.h"
 
 static struct list_head g_timer_list;
 static spinlock_t g_timer_lock;
@@ -44,7 +46,7 @@ void timers_poll(void)
 {
     // Apenas o BSP processa a expiração de timers globais
     // para evitar contenção excessiva de lock em cada tick.
-    if (lapic_get_id() != 0) return;
+    if (lapic_get_id() != g_bsp_apic_id) return;
 
     if (list_empty(&g_timer_list))
         return;

@@ -76,6 +76,10 @@ static void serial_print_dec(uint32_t n) {
 void smp_topology_init() {
     serial_write_all("[SMP] Init Topology...\n");
     g_bsp_apic_id = (uint8_t)lapic_get_id(); 
+
+    serial_write_all("[SMP] BSP APIC ID = ");
+    serial_print_dec((uint32_t)g_bsp_apic_id);
+    serial_write_all("\n");
     
     uint32_t madt_count = madt_get_cpu_count();
     if (madt_count > MAX_CPUS) {

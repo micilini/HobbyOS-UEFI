@@ -9,6 +9,7 @@
 #include "../drivers/timer.h"
 #include "../apic/lapic.h"
 #include "../drivers/serial.h"
+#include "../smp/smp_topology.h"
 
 static volatile uint8_t g_need_resched = 0;
 
@@ -162,8 +163,8 @@ __attribute__((interrupt)) void irq_timer_handler(InterruptFrame *frame)
     // EOI cedo
     lapic_eoi();
 
-    // O "timer_handler()" você ainda pode manter só no BSP, como já faz.
-    if (id == 0)
+    // timer_handler() só roda no BSP real (não assume APIC ID 0)
+    if (id == g_bsp_apic_id)
         timer_handler();
 
     // CRÍTICO: NUNCA chame schedule() aqui.

@@ -224,6 +224,9 @@
 │       │   │   ├── cmd_power.c
 │       │   │   ├── cmd_power.h
 │       │   │   ├── cmd_power.o
+│       │   │   ├── cmd_smpstress.c
+│       │   │   ├── cmd_smpstress.h
+│       │   │   ├── cmd_smpstress.o
 │       │   │   ├── cmd_usbdiag.c
 │       │   │   ├── cmd_usbdiag.h
 │       │   │   ├── cmd_usbdiag.o
@@ -258,6 +261,7 @@
 │           ├── utils.h
 │           └── utils.o
 ├── kernel.elf
+├── kernel.zip
 ├── list.txt
 ├── main_old.efi
 ├── makefile
@@ -269,4 +273,4 @@
     ├── mem_map.h
     └── protocol.h
 
-25 directories, 245 files
+25 directories, 249 files
