@@ -135,10 +135,21 @@ void panic_config(PanicAction action, uint32_t timeout_seconds)
 
 volatile int g_panic_in_progress = 0;
 
-void kpanic(char *message)
+static void panic_enter_owner_or_halt(void)
 {
     irq_disable();
-    g_panic_in_progress = 1; 
+
+    // Só o primeiro core que entrar no panic continua.
+    if (!__sync_bool_compare_and_swap(&g_panic_in_progress, 0, 1))
+    {
+        __asm__ volatile("cli");
+        while (1) __asm__ volatile("hlt");
+    }
+}
+
+void kpanic(char *message)
+{
+    panic_enter_owner_or_halt();
 
     // ORDEM DE PARADA: Silenciar todos os outros núcleos para eles não 
     // tocarem mais no Framebuffer ou nas estruturas do Kernel.
@@ -169,7 +180,7 @@ void kpanic_exception_ex(const char *title, uint8_t vector, void *frame,
                          uint64_t error_code, int has_error_code,
                          uint64_t cr2, int has_cr2)
 {
-    irq_disable();
+    panic_enter_owner_or_halt();
 
     typedef struct
     {

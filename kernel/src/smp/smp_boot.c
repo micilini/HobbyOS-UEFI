@@ -9,7 +9,11 @@
 #include "../core/idt.h"
 #include "../memory/paging.h"
 #include "../memory/pmem.h"
-#include "../cpu/cpu.h" 
+#include "../cpu/cpu.h"
+#include "../core/interrupts.h"
+#include "../core/scheduler.h"
+
+volatile int g_system_ready_for_scheduling = 0;
 
 extern uint64_t smp_trampoline_cr4;
 extern uint64_t smp_trampoline_efer;
@@ -46,7 +50,7 @@ static void smp_print_hex(uint64_t n) {
     }
 }
 
-ap_kernel_entry() {
+void ap_kernel_entry(void) {
     serial_write_all("A"); 
 
     
@@ -107,8 +111,17 @@ ap_kernel_entry() {
     serial_write_all("!"); 
 
     
-    while (1) {
+    while (1)
+    {
+        // Dorme até IRQ (timer/teclado/xhci)
         __asm__ volatile("sti; hlt");
+
+        // Ponto SEGURO: se um IRQ pediu resched, fazemos schedule() aqui.
+        if (g_system_ready_for_scheduling && interrupts_consume_reschedule())
+        {
+            __asm__ volatile("cli");
+            schedule();
+        }
     }
 }
 

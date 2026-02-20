@@ -5,6 +5,8 @@ static Framebuffer *g_fb = NULL;
 static uint32_t *g_back_buffer = NULL;
 static bool g_buffering_enabled = false;
 
+extern volatile int g_panic_in_progress;
+
 void init_graphics(Framebuffer *fb, void *back_buffer)
 {
     g_fb = fb;
@@ -30,6 +32,14 @@ void *get_draw_buffer()
 
 void swap_buffers()
 {
+    // Durante PANIC ou quando o buffering está desligado, NÃO copie o backbuffer para o hardware,
+    // senão você pode "apagar" a BSOD com lixo antigo do backbuffer (tela azul fantasma).
+    if (g_panic_in_progress)
+        return;
+
+    if (!g_buffering_enabled)
+        return;
+
     if (!g_fb || !g_back_buffer)
         return;
 
@@ -65,8 +75,6 @@ void put_pixel(uint32_t x, uint32_t y, uint32_t color)
 void clear_screen(uint32_t color)
 {
     if (!g_fb) return;
-
-    extern int g_panic_in_progress;
     
     // Se estivermos em pânico, escrevemos direto no hardware (BaseAddress)
     // para garantir que a tela azul apareça mesmo se o sistema travar depois.

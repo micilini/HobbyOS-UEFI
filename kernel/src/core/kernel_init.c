@@ -169,6 +169,9 @@ void init_system_core(BootInfo *boot_info)
     
     ioapic_map_irq(1, 33, 0);
 
+    extern volatile int g_system_ready_for_scheduling;
+    g_system_ready_for_scheduling = 1;
+
     irq_enable();
 
     console_begin_batch();

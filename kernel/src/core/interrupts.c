@@ -10,6 +10,23 @@
 #include "../apic/lapic.h"
 #include "../drivers/serial.h"
 
+static volatile uint8_t g_need_resched = 0;
+
+void interrupts_request_reschedule(void)
+{
+    g_need_resched = 1;
+}
+
+int interrupts_consume_reschedule(void)
+{
+    if (g_need_resched)
+    {
+        g_need_resched = 0;
+        return 1;
+    }
+    return 0;
+}
+
 static const char *g_exc_names[32] = {
     "0  #DE Divide Error",
     "1  #DB Debug",
@@ -130,8 +147,10 @@ __attribute__((interrupt)) void irq_keyboard_handler(InterruptFrame *frame)
 __attribute__((interrupt)) void irq_timer_handler(InterruptFrame *frame)
 {
     (void)frame;
+
     extern volatile int g_panic_in_progress;
-    if (g_panic_in_progress) {
+    if (g_panic_in_progress)
+    {
         lapic_eoi();
         __asm__ volatile("cli; hlt");
         return;
@@ -139,13 +158,17 @@ __attribute__((interrupt)) void irq_timer_handler(InterruptFrame *frame)
 
     uint32_t id = lapic_get_id();
     irq_stats_record(INT_VECTOR_TIMER);
+
+    // EOI cedo
     lapic_eoi();
 
-    if (id == 0) timer_handler();
+    // O "timer_handler()" você ainda pode manter só no BSP, como já faz.
+    if (id == 0)
+        timer_handler();
 
-    // AVISO: Se continuar reiniciando, comente a linha abaixo.
-    // O reboot é causado pelo conflito do atributo interrupt + switch_context.
-    schedule(); 
+    // CRÍTICO: NUNCA chame schedule() aqui.
+    // Apenas sinalize que precisa de reschedule.
+    interrupts_request_reschedule();
 }
 
 __attribute__((interrupt)) void irq_xhci_handler(InterruptFrame *frame)

@@ -30,6 +30,10 @@ LDFLAGS_EFI = -nostdlib -znocombreloc -shared -Bsymbolic -L $(EFILIB) -L /usr/li
 CFLAGS_KERNEL = -ffreestanding -mno-red-zone -mgeneral-regs-only -Wall -mcmodel=kernel -fno-pic
 LDFLAGS_KERNEL = -T $(KERNEL_DIR)/link.ld -static -Bsymbolic -nostdlib -z max-page-size=0x1000
 
+# Cores COnfiguration for SMP
+SMP ?= 4
+QEMU_SMP = $(SMP),sockets=1,cores=$(SMP),threads=1
+
 # Note used to able serial porta on KNUP PCI 0x4000
 CFLAGS_EFI += -DHOBBYOS_SERIAL_INCLUDE_KNUP_FALLBACK=1
 CFLAGS_KERNEL += -DHOBBYOS_KERNEL_SERIAL_DEV_PORTS=1
@@ -181,15 +185,14 @@ run: hobbyos.img
 	qemu-system-x86_64 \
 		-machine q35,accel=kvm \
 		-cpu host \
-		-smp 4,sockets=1,cores=4,threads=1 \
+		-smp $(QEMU_SMP) \
 		-m 2G \
 		-bios /usr/share/ovmf/OVMF.fd \
 		-net none \
 		-drive file=hobbyos.img,format=raw,cache=writeback \
 		-serial file:qemu-serial.log \
 		-debugcon file:qemu-debugcon.log -global isa-debugcon.iobase=0x402 \
-		-d guest_errors -D qemu-trace.log \
-		-device nec-usb-xhci,id=xhci,msi=on,msix=off -device usb-kbd,bus=xhci.0
+		-d guest_errors -D qemu-trace.log
 
 # Teste básico - hub simples
 run-hub: hobbyos.img
