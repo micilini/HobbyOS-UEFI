@@ -158,19 +158,17 @@ if ((uintptr_t)boot_info < 0x1000) {
     shell_init();
 
     debug_serial("[KERNEL] Entering Main Loop.\n");
+
     for (;;)
-{
-    timers_poll();
-    timer_run_deferred();
-
-    // dorme até algum IRQ acordar (timer/teclado/etc)
-    __asm__ volatile("sti; hlt");
-
-    // ponto SEGURO para schedule (fora do handler interrupt)
-    if (interrupts_consume_reschedule())
     {
-        __asm__ volatile("cli");
-        schedule();
+        timers_poll();
+        timer_run_deferred();
+
+        __asm__ volatile("sti; hlt");
+
+        if (interrupts_consume_reschedule())
+        {
+            schedule_voluntary();
+        }
     }
-}
 }

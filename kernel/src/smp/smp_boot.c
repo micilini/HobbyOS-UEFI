@@ -113,14 +113,11 @@ void ap_kernel_entry(void) {
     
     while (1)
     {
-        // Dorme até IRQ (timer/teclado/xhci)
         __asm__ volatile("sti; hlt");
 
-        // Ponto SEGURO: se um IRQ pediu resched, fazemos schedule() aqui.
         if (g_system_ready_for_scheduling && interrupts_consume_reschedule())
         {
-            __asm__ volatile("cli");
-            schedule();
+            schedule_voluntary();
         }
     }
 }

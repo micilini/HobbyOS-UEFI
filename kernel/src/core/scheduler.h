@@ -12,6 +12,7 @@ void scheduler_init_ap(void);
 task_t *thread_create(void (*entry_point)(void *), void *arg);
 
 void schedule(void);
+void schedule_voluntary(void);
 
 task_t *get_current_task(void);
 

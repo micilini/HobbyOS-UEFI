@@ -13,6 +13,8 @@ typedef enum
     TASK_ZOMBIE
 } task_state_t;
 
+#define DEFAULT_QUANTUM 20  /* ~20ms com tick de 1ms */
+
 typedef struct
 {
     uint64_t rsp;
@@ -21,6 +23,9 @@ typedef struct
     task_state_t state;
     uint64_t cr3;
     void *stack_base;
+
+    int quantum;            /* ticks restantes neste time slice */
+    int quantum_default;    /* valor de reset ao ser re-enfileirada */
 
     struct list_head list;
 } task_t;

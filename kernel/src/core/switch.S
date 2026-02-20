@@ -44,19 +44,11 @@ thread_wrapper:
 /*
  * irq_timer_entry - stub assembly para o vetor 32 (timer IRQ).
  *
- * Ao ser chamado pela CPU, a stack ja tem o interrupt frame:
- *   [rsp+32] SS
- *   [rsp+24] RSP (da task interrompida)
- *   [rsp+16] RFLAGS
- *   [rsp+8]  CS
- *   [rsp+0]  RIP
- *
- * Salvamos TODOS os registradores de proposito geral para permitir
- * preempcao: se schedule() trocar o contexto, quando esta task
- * for re-escalonada, voltamos aqui e fazemos iretq normalmente.
+ * Salva todos os registradores, chama o handler C, e retorna via iretq.
+ * NAO chama schedule() — a preempcao acontece no ponto seguro dos
+ * loops BSP/AP que consomem need_resched e chamam schedule_voluntary().
  */
 irq_timer_entry:
-    /* --- Salvar contexto completo --- */
     push rax
     push rcx
     push rdx
@@ -73,19 +65,8 @@ irq_timer_entry:
     push r14
     push r15
 
-    /* Chamar a logica C do timer (EOI, timer_handler, etc.) */
     call irq_timer_handler_inner
 
-    /* Checar se precisa preemptar este CPU */
-    call interrupts_consume_reschedule
-    test eax, eax
-    jz .Lno_preempt
-
-    /* Precisamos preemptar: chamar schedule() */
-    call schedule
-
-.Lno_preempt:
-    /* --- Restaurar contexto completo --- */
     pop r15
     pop r14
     pop r13

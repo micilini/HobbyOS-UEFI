@@ -173,8 +173,8 @@ void irq_timer_handler_inner(void)
     if (id == g_bsp_apic_id)
         timer_handler();
 
-    // Sinaliza que este CPU precisa de reschedule.
-    // O stub assembly (irq_timer_entry) vai consumir e chamar schedule() se necessário.
+    // Sinaliza resched a cada tick.
+    // O schedule() decide se realmente troca baseado no quantum.
     interrupts_request_reschedule();
 }
 

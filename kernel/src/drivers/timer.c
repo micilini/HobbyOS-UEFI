@@ -50,7 +50,7 @@ void timer_sleep(uint64_t ms)
 
     if (ms == 0)
     {
-        schedule();
+        schedule_voluntary();
         return;
     }
 

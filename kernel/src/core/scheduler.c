@@ -31,11 +31,14 @@ static task_t* create_idle_task(void) {
     if (!idle) return NULL;
     
     memset(idle, 0, sizeof(task_t));
+    
     idle->id = 0; 
     strcpy(idle->name, "Idle");
     idle->state = TASK_RUNNING;
     idle->stack_base = NULL; 
     idle->rsp = 0;
+    idle->quantum = DEFAULT_QUANTUM;
+    idle->quantum_default = DEFAULT_QUANTUM;
     
     list_init(&idle->list);
     return idle;
@@ -75,8 +78,6 @@ void scheduler_init_ap(void)
         while(1) __asm__ volatile("cli; hlt"); 
     }
 
-    // IMPORTANTE: Definimos o estado como RUNNING para que o primeiro 
-    // schedule() salve o contexto atual do AP (a stack de boot) nele.
     idle->state = TASK_RUNNING;
     g_idle_task_map[id] = idle;
     g_current_task_map[id] = idle;
@@ -110,6 +111,8 @@ task_t *thread_create(void (*entry_point)(void *), void *arg)
 
     t->state = TASK_READY;
     t->cr3 = 0;
+    t->quantum = DEFAULT_QUANTUM;
+    t->quantum_default = DEFAULT_QUANTUM;
 
     uint64_t *sp = (uint64_t *)((uint8_t *)t->stack_base + STACK_SIZE);
 
@@ -175,7 +178,7 @@ void thread_block(wait_queue_t *wq, task_state_t state)
 
     spin_unlock_irqrestore(&g_scheduler_lock, flags);
 
-    schedule();
+    schedule_voluntary();
 }
 
 void thread_wake(task_t *t)
@@ -222,7 +225,19 @@ int thread_wake_one(wait_queue_t *wq)
     return 1;
 }
 
-void schedule(void)
+/*
+ * schedule_impl — implementacao interna do scheduler.
+ *
+ * voluntary=0: chamado pelo loop BSP/AP (preempcao). Respeita quantum.
+ * voluntary=1: chamado por thread_block/timer_sleep/yield. Sempre troca.
+ *
+ * INVARIANTE CRITICO para SMP:
+ *   IRQs ficam DESABILITADAS durante todo o switch_context.
+ *   Usamos spin_unlock (sem irq_restore) antes do switch para liberar
+ *   o lock sem habilitar IRQs. Apos switch_context retornar no novo
+ *   contexto, fazemos sti explicitamente.
+ */
+static void schedule_impl(int voluntary)
 {
     uint32_t my_id = lapic_get_id();
     task_t *prev = g_current_task_map[my_id];
@@ -231,46 +246,79 @@ void schedule(void)
 
     irq_flags_t flags = spin_lock_irqsave(&g_scheduler_lock);
 
-    
+    /* Contabilidade de quantum — apenas para preempcao por timer */
+    if (!voluntary && prev && prev != my_idle && prev->state == TASK_RUNNING)
+    {
+        prev->quantum--;
+        if (prev->quantum > 0)
+        {
+            spin_unlock_irqrestore(&g_scheduler_lock, flags);
+            return;
+        }
+    }
+
     if (!list_empty(&g_ready_queue))
     {
         struct list_head *next_node = g_ready_queue.next;
         next = list_entry(next_node, task_t, list);
-        list_del(&next->list); 
+        list_del(&next->list);
     }
     else
     {
-        
         next = my_idle;
     }
 
-    
     if (prev != next)
     {
-        
-        
         if (prev->state == TASK_RUNNING && prev != my_idle)
         {
             prev->state = TASK_READY;
+            prev->quantum = prev->quantum_default;
             list_add_tail(&prev->list, &g_ready_queue);
         }
         else if (prev == my_idle)
         {
-            
-            
             prev->state = TASK_READY;
         }
 
-        
         next->state = TASK_RUNNING;
+        if (next->quantum <= 0)
+            next->quantum = next->quantum_default;
         g_current_task_map[my_id] = next;
     }
 
-    spin_unlock_irqrestore(&g_scheduler_lock, flags);
-
-    
     if (prev != next)
     {
+        /*
+         * Libera o lock MAS mantem IRQs desabilitadas.
+         * spin_unlock so libera o lock, nao toca em RFLAGS.
+         * IRQs permanecem OFF (do cli feito por spin_lock_irqsave).
+         */
+        spin_unlock(&g_scheduler_lock);
+
+        /* switch_context com IRQs OFF — nenhum timer pode interromper */
         switch_context(prev, next);
+
+        /*
+         * Voltamos aqui quando 'prev' e re-escalonado por outro CPU.
+         * Agora estamos no contexto restaurado. Habilitamos IRQs.
+         */
+        __asm__ volatile("sti");
     }
+    else
+    {
+        spin_unlock_irqrestore(&g_scheduler_lock, flags);
+    }
+}
+
+/* Chamado pelo loop BSP/AP (preempcao via consume_reschedule) */
+void schedule(void)
+{
+    schedule_impl(0);
+}
+
+/* Chamado por thread_block, timer_sleep, yield (voluntario) */
+void schedule_voluntary(void)
+{
+    schedule_impl(1);
 }
