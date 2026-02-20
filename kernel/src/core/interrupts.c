@@ -11,18 +11,21 @@
 #include "../drivers/serial.h"
 #include "../smp/smp_topology.h"
 
-static volatile uint8_t g_need_resched = 0;
+static volatile uint8_t g_need_resched[MAX_CPUS] = {0};
 
 void interrupts_request_reschedule(void)
 {
-    g_need_resched = 1;
+    uint32_t id = lapic_get_id();
+    if (id < MAX_CPUS)
+        g_need_resched[id] = 1;
 }
 
 int interrupts_consume_reschedule(void)
 {
-    if (g_need_resched)
+    uint32_t id = lapic_get_id();
+    if (id < MAX_CPUS && g_need_resched[id])
     {
-        g_need_resched = 0;
+        g_need_resched[id] = 0;
         return 1;
     }
     return 0;
