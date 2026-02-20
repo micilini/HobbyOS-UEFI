@@ -220,8 +220,16 @@ static void smpstress_worker(void *arg)
             }
         }
 
-        // Yield real para deixar o shell vivo
-        timer_sleep(c->yield_ms);
+        // TESTE 7.3: sem yield — só preempção real salva o sistema
+        if (c->yield_ms == 0)
+        {
+            // CPU-bound puro: não dorme, não yield
+        }
+        else
+        {
+             if (c->yield_ms > 0)
+                timer_sleep(c->yield_ms);
+        }
     }
 }
 
@@ -255,7 +263,6 @@ int cmd_smpstress(int argc, char **argv)
 
     // evita serial spam e starvation
     if (period_ms < 50) period_ms = 50;
-    if (yield_ms < 1) yield_ms = 1;
     if (yield_ms > 20) yield_ms = 20;
     if (panic_check_ms < 50) panic_check_ms = 50;
 

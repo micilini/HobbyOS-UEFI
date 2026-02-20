@@ -22,8 +22,9 @@ void interrupts_request_reschedule(void)
 
 int interrupts_consume_reschedule(void)
 {
+    extern volatile int g_system_ready_for_scheduling;
     uint32_t id = lapic_get_id();
-    if (id < MAX_CPUS && g_need_resched[id])
+    if (g_system_ready_for_scheduling && id < MAX_CPUS && g_need_resched[id])
     {
         g_need_resched[id] = 0;
         return 1;
@@ -148,10 +149,12 @@ __attribute__((interrupt)) void irq_keyboard_handler(InterruptFrame *frame)
     lapic_eoi();
 }
 
-__attribute__((interrupt)) void irq_timer_handler(InterruptFrame *frame)
-{
-    (void)frame;
+/* Handler assembly (switch.S) — registrado na IDT para vetor 32 */
+extern void irq_timer_entry(void);
 
+/* Função C chamada pelo stub assembly irq_timer_entry */
+void irq_timer_handler_inner(void)
+{
     extern volatile int g_panic_in_progress;
     if (g_panic_in_progress)
     {
@@ -166,12 +169,12 @@ __attribute__((interrupt)) void irq_timer_handler(InterruptFrame *frame)
     // EOI cedo
     lapic_eoi();
 
-    // timer_handler() só roda no BSP real (não assume APIC ID 0)
+    // timer_handler() só roda no BSP real
     if (id == g_bsp_apic_id)
         timer_handler();
 
-    // CRÍTICO: NUNCA chame schedule() aqui.
-    // Apenas sinalize que precisa de reschedule.
+    // Sinaliza que este CPU precisa de reschedule.
+    // O stub assembly (irq_timer_entry) vai consumir e chamar schedule() se necessário.
     interrupts_request_reschedule();
 }
 

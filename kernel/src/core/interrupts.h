@@ -53,7 +53,10 @@ __attribute__((interrupt)) void exc_generic_handler(InterruptFrame *frame);
 __attribute__((interrupt)) void exc_generic_handler_err(InterruptFrame *frame, uint64_t error_code);
 
 __attribute__((interrupt)) void irq_keyboard_handler(InterruptFrame *frame);
-__attribute__((interrupt)) void irq_timer_handler(InterruptFrame *frame);
+
+extern void irq_timer_entry(void);
+void irq_timer_handler_inner(void);
+
 __attribute__((interrupt)) void irq_xhci_handler(InterruptFrame *frame);
 
 __attribute__((interrupt)) void irq_unhandled_handler(InterruptFrame *frame);

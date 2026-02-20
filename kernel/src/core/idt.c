@@ -73,7 +73,7 @@ void init_idt()
         set_idt_gate(v, irq_unhandled_handler, IDT_TA_INTERRUPT_GATE);
     }
 
-    set_idt_gate(INT_VECTOR_TIMER, irq_timer_handler, IDT_TA_INTERRUPT_GATE);
+    set_idt_gate(INT_VECTOR_TIMER, irq_timer_entry, IDT_TA_INTERRUPT_GATE);
     set_idt_gate(INT_VECTOR_KEYBOARD, irq_keyboard_handler, IDT_TA_INTERRUPT_GATE);
     set_idt_gate(INT_VECTOR_XHCI, irq_xhci_handler, IDT_TA_INTERRUPT_GATE);
 
