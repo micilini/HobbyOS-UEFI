@@ -31,16 +31,40 @@
 #include <stdint.h>
 #include <stddef.h>
 
+static void serial_write_dec_all(uint64_t v)
+{
+    char buf[32];
+    int i = 0;
+
+    if (v == 0)
+    {
+        serial_putc_all('0');
+        return;
+    }
+
+    while (v && i < (int)(sizeof(buf) - 1))
+    {
+        buf[i++] = (char)('0' + (v % 10));
+        v /= 10;
+    }
+
+    while (i--)
+        serial_putc_all(buf[i]);
+}
+
 static void test_smp_task(void *arg)
 {
     uint64_t id = (uint64_t)arg;
 
-    while (1) {
-        console_write_debug(" [Task ");
-        console_print_dec_debug((int)id);
-        console_write_debug(" on CPU ");
-        console_print_dec_debug((int)lapic_get_id());
-        console_write_debug("] ");
+    while (1)
+    {
+        // Vai pro SERIAL (não suja framebuffer/splash/shell)
+        serial_write_all("[SMPTEST] Task ");
+        serial_write_dec_all(id);
+        serial_write_all(" on CPU ");
+        serial_write_dec_all((uint64_t)lapic_get_id());
+        serial_write_all("\n");
+
         timer_sleep(1000);
     }
 }
@@ -157,10 +181,11 @@ void init_system_core(BootInfo *boot_info)
 
     scheduler_init();
 
+    //SMP TESTS
     
-    thread_create(test_smp_task, (void*)1);
-    thread_create(test_smp_task, (void*)2);
-    thread_create(test_smp_task, (void*)3);
+    //thread_create(test_smp_task, (void*)1);
+    //thread_create(test_smp_task, (void*)2);
+    //thread_create(test_smp_task, (void*)3);
 
     dpc_init();
 

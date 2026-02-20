@@ -111,6 +111,7 @@ KERNEL_SRCS = $(KERNEL_DIR)/src/core/entry.S \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_irq.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_echo.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_usbdiag.c \
+			  $(KERNEL_DIR)/src/shell/commands/cmd_smpstress.c \
 			  $(KERNEL_DIR)/src/core/irq_stats.c \
 			  $(KERNEL_DIR)/src/power/power.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_power.c \

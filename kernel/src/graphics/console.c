@@ -38,6 +38,20 @@ static void console_end_batch_internal()
         swap_buffers();
 }
 
+static volatile uint8_t g_console_render_suspended = 0;
+
+void console_set_render_suspended(uint8_t suspended)
+{
+    irq_flags_t flags = spin_lock_irqsave(&g_console_lock);
+    g_console_render_suspended = suspended ? 1 : 0;
+    spin_unlock_irqrestore(&g_console_lock, flags);
+}
+
+uint8_t console_is_render_suspended(void)
+{
+    return g_console_render_suspended;
+}
+
 void console_begin_batch()
 {
     irq_flags_t flags = spin_lock_irqsave(&g_console_lock);
@@ -94,6 +108,10 @@ static void compute_max_dimensions(void)
 
 static void draw_char_pixels_at(char c, uint32_t cx, uint32_t cy, uint32_t fg_color)
 {
+
+    if (g_console_render_suspended)
+    return;
+    
     if (!g_font)
         return;
 

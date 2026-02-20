@@ -5,6 +5,8 @@
 #include "../power/power.h"
 #include "io.h"
 #include "spinlock.h"
+#include "../drivers/serial.h"
+#include "../apic/lapic.h"
 
 static spinlock_t g_panic_lock = {0};
 
@@ -134,37 +136,73 @@ void panic_config(PanicAction action, uint32_t timeout_seconds)
 }
 
 volatile int g_panic_in_progress = 0;
+static volatile int32_t g_panic_owner_cpu = -1;
 
 static void panic_enter_owner_or_halt(void)
 {
     irq_disable();
 
-    // Só o primeiro core que entrar no panic continua.
-    if (!__sync_bool_compare_and_swap(&g_panic_in_progress, 0, 1))
+    uint32_t cpu = (uint32_t)lapic_get_id();
+
+    // Só o primeiro core que entrar no panic vira "owner".
+    if (__sync_bool_compare_and_swap(&g_panic_in_progress, 0, 1))
     {
-        __asm__ volatile("cli");
-        while (1) __asm__ volatile("hlt");
+        g_panic_owner_cpu = (int32_t)cpu;
+        return;
     }
+
+    // Core secundário: não tenta pegar locks nem desenhar nada.
+    serial_write_all("[PANIC] Secondary CPU entered panic. Halting. cpu=0x");
+    serial_write_hex64_all((uint64_t)cpu);
+    serial_write_all("\n");
+
+    __asm__ volatile("cli");
+    while (1) __asm__ volatile("hlt");
 }
 
-void kpanic(char *message)
+static void panic_draw_header(void)
 {
+    // fundo já está azul escuro via console_clear(0x000022)
+    console_set_color(0xFF5555, 0x000022);
+    console_write("============================================================\n");
+    console_write("                     HOBBYOS KERNEL PANIC                    \n");
+    console_write("============================================================\n");
+    console_set_color(0xFFFFFF, 0x000022);
+}
+
+void kpanic(const char *message)
+{
+    // Define owner ou para o core imediatamente (SMP-safe).
     panic_enter_owner_or_halt();
 
-    // ORDEM DE PARADA: Silenciar todos os outros núcleos para eles não 
-    // tocarem mais no Framebuffer ou nas estruturas do Kernel.
+    // Apenas o owner chega aqui.
+    serial_write_all("\n[PANIC] kpanic() owner entered. Stopping other CPUs...\n");
+
+    // "Stop-the-world" cedo para congelar os outros cores antes de tocar em console/graphics.
     lapic_send_broadcast_halt();
 
-    graphics_enable_buffering(false); 
+    // Evita flicker / buffer swap durante panic
+    graphics_enable_buffering(false);
+
+    // Serializa acesso ao console caso algum caminho ainda tente escrever antes do halt pegar.
+    irq_flags_t flags = spin_lock_irqsave(&g_panic_lock);
+
     console_clear(COLOR_BSOD_BG);
 
-    console_write("\n\n");
-    console_write("  :(  HobbyOS Kernel Panic\n");
-    console_write("  ========================\n\n");
+    panic_draw_header();
 
-    console_write("  Error: ");
+    console_write("KERNEL PANIC\n\n");
+    console_write("Message: ");
     console_write(message ? message : "(null)");
     console_write("\n\n");
+
+    console_write("CPU: ");
+    console_print_dec((uint64_t)lapic_get_id());
+    console_write("\n");
+
+    serial_write_all("[PANIC] Owner CPU is drawing BSOD and will execute action.\n");
+
+    spin_unlock_irqrestore(&g_panic_lock, flags);
 
     panic_countdown_and_act(g_panic_timeout_seconds);
 }
@@ -176,112 +214,69 @@ void kpanic_exception(const char *title, void *frame,
     kpanic_exception_ex(title, 0xFF, frame, error_code, has_error_code, cr2, has_cr2);
 }
 
-void kpanic_exception_ex(const char *title, uint8_t vector, void *frame,
-                         uint64_t error_code, int has_error_code,
-                         uint64_t cr2, int has_cr2)
+void kpanic_exception_ex(const char *title,
+                         uint8_t vector,
+                         void *frame,
+                         uint64_t error_code,
+                         int has_error_code,
+                         uint64_t cr2,
+                         int has_cr2)
 {
+    // Define owner ou para o core imediatamente (SMP-safe).
     panic_enter_owner_or_halt();
 
-    typedef struct
-    {
-        uint64_t rip;
-        uint64_t cs;
-        uint64_t rflags;
-        uint64_t rsp;
-        uint64_t ss;
-    } InterruptFrameLocal;
+    // Apenas o owner chega aqui.
+    serial_write_all("\n[PANIC] kpanic_exception_ex() owner entered. Stopping other CPUs...\n");
 
-    InterruptFrameLocal *f = (InterruptFrameLocal *)frame;
+    // "Stop-the-world" cedo.
+    lapic_send_broadcast_halt();
+
+    graphics_enable_buffering(false);
+
+    irq_flags_t flags = spin_lock_irqsave(&g_panic_lock);
 
     console_clear(COLOR_BSOD_BG);
-    console_set_color(COLOR_BSOD_FG, COLOR_BSOD_BG);
 
-    console_write("\n============================================================\n");
-    console_write("                HOBBYOS - KERNEL PANIC\n");
-    console_write("============================================================\n\n");
+    panic_draw_header();
 
-    console_write("EXCEPTION: ");
-    console_write(title ? title : "(null)");
-    console_write("\n\n");
+    console_write("EXCEPTION PANIC\n\n");
 
-    console_write("VECTOR: ");
+    if (title)
+    {
+        console_write("Title: ");
+        console_write(title);
+        console_write("\n");
+    }
+
+    console_write("Vector: ");
     console_print_dec((uint64_t)vector);
-    console_write(" (0x");
-    console_print_hex((uint64_t)vector);
-    console_write(")\n\n");
-
-    if (f)
-    {
-        console_write("RIP:    0x");
-        console_print_hex(f->rip);
-        console_write("\n");
-        console_write("CS:     0x");
-        console_print_hex(f->cs);
-        console_write("\n");
-        console_write("RFLAGS: 0x");
-        console_print_hex(f->rflags);
-        console_write("\n");
-        console_write("RSP:    0x");
-        console_print_hex(f->rsp);
-        console_write("\n");
-        console_write("SS:     0x");
-        console_print_hex(f->ss);
-        console_write("\n");
-    }
-    else
-    {
-        console_write("Frame: (null)\n");
-    }
+    console_write("\n");
 
     if (has_error_code)
     {
-        console_write("\nERROR CODE: 0x");
+        console_write("Error Code: 0x");
         console_print_hex(error_code);
-        console_write(" (");
-        console_print_dec((uint64_t)error_code);
-        console_write(")\n");
+        console_write("\n");
     }
-
-    console_write("CR2:    0x");
-    console_print_hex(cr2);
-    console_write("\n");
 
     if (has_cr2)
     {
-        console_write("\n#PF DETAILS:\n");
-        console_write("  P   (bit0)  = ");
-        console_print_dec((error_code >> 0) & 1);
-        console_write("  (0=not-present, 1=protection)\n");
-        console_write("  W/R (bit1)  = ");
-        console_print_dec((error_code >> 1) & 1);
-        console_write("  (0=read, 1=write)\n");
-        console_write("  U/S (bit2)  = ");
-        console_print_dec((error_code >> 2) & 1);
-        console_write("  (0=supervisor, 1=user)\n");
-        console_write("  RSVD(bit3)  = ");
-        console_print_dec((error_code >> 3) & 1);
-        console_write("  (1=reserved bit violation)\n");
-        console_write("  I/D (bit4)  = ");
-        console_print_dec((error_code >> 4) & 1);
-        console_write("  (1=instruction fetch)\n");
+        console_write("CR2: 0x");
+        console_print_hex(cr2);
+        console_write("\n");
     }
 
-    if (g_last_mmio_addr != 0)
-    {
-        console_write("\nLAST MMIO:\n");
-        console_write("  addr:  0x");
-        console_print_hex(g_last_mmio_addr);
-        console_write("\n");
-        console_write("  op:    ");
-        console_write(g_last_mmio_is_write ? "WRITE" : "READ");
-        console_write("\n");
-        console_write("  size:  ");
-        console_print_dec((uint64_t)g_last_mmio_size);
-        console_write(" bytes\n");
-        console_write("  value: 0x");
-        console_print_hex(g_last_mmio_value);
-        console_write("\n");
-    }
+    console_write("Frame: 0x");
+    console_print_hex((uint64_t)frame);
+    console_write("\n");
+
+    console_write("CPU: ");
+    console_print_dec((uint64_t)lapic_get_id());
+    console_write("\n");
+
+    serial_write_all("[PANIC] Owner CPU is drawing BSOD and will execute action.\n");
+
+    spin_unlock_irqrestore(&g_panic_lock, flags);
 
     panic_countdown_and_act(g_panic_timeout_seconds);
 }

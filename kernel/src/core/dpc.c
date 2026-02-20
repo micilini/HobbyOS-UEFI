@@ -20,10 +20,18 @@ static semaphore_t g_dpc_sem;
 static void dpc_worker_thread(void *arg)
 {
     (void)arg;
-    console_write_debug("[DPC] Worker thread started.\n");
+
+    // Evita "furar" a splash: só imprime quando o console não estiver com render suspenso.
+    int printed_banner = 0;
 
     while (1)
     {
+        // Imprime o banner uma única vez, assim que estiver seguro renderizar.
+        if (!printed_banner && !console_is_render_suspended())
+        {
+            console_write_debug("[DPC] Worker thread started.\n");
+            printed_banner = 1;
+        }
 
         sem_wait(&g_dpc_sem);
 

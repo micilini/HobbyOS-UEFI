@@ -12,7 +12,7 @@ typedef enum
 
 void panic_config(PanicAction action, uint32_t timeout_seconds);
 
-void kpanic(char *message);
+void kpanic(const char *message);
 
 void kpanic_exception_ex(const char *title,
                          uint8_t vector,
