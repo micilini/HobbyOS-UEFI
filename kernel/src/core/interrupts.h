@@ -59,4 +59,6 @@ __attribute__((interrupt)) void irq_xhci_handler(InterruptFrame *frame);
 __attribute__((interrupt)) void irq_unhandled_handler(InterruptFrame *frame);
 __attribute__((interrupt)) void irq_spurious_handler(InterruptFrame *frame);
 
+__attribute__((interrupt)) void irq_halt_handler(InterruptFrame *frame);
+
 #endif

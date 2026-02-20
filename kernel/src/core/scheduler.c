@@ -72,16 +72,14 @@ void scheduler_init_ap(void)
     
     task_t *idle = create_idle_task();
     if (!idle) {
-        
         while(1) __asm__ volatile("cli; hlt"); 
     }
 
+    // IMPORTANTE: Definimos o estado como RUNNING para que o primeiro 
+    // schedule() salve o contexto atual do AP (a stack de boot) nele.
+    idle->state = TASK_RUNNING;
     g_idle_task_map[id] = idle;
     g_current_task_map[id] = idle;
-    
-    
-    
-    
 }
 
 task_t *get_current_task(void)

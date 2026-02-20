@@ -42,6 +42,10 @@ int timers_add(uint64_t delay_ms, timer_callback_t cb, void *ctx)
 
 void timers_poll(void)
 {
+    // Apenas o BSP processa a expiração de timers globais
+    // para evitar contenção excessiva de lock em cada tick.
+    if (lapic_get_id() != 0) return;
+
     if (list_empty(&g_timer_list))
         return;
 

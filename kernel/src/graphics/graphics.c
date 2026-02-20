@@ -64,10 +64,13 @@ void put_pixel(uint32_t x, uint32_t y, uint32_t color)
 
 void clear_screen(uint32_t color)
 {
-    if (!g_fb)
-        return;
+    if (!g_fb) return;
 
-    if (g_back_buffer && g_buffering_enabled)
+    extern int g_panic_in_progress;
+    
+    // Se estivermos em pânico, escrevemos direto no hardware (BaseAddress)
+    // para garantir que a tela azul apareça mesmo se o sistema travar depois.
+    if (g_back_buffer && g_buffering_enabled && !g_panic_in_progress)
     {
         uint64_t total = g_fb->Height * g_fb->PixelsPerScanLine;
         for (uint64_t i = 0; i < total; i++)

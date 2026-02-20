@@ -4,6 +4,8 @@
 #include "../libc/memory.h"
 #include "../core/spinlock.h"
 
+extern volatile int g_panic_in_progress;
+
 static Framebuffer *g_fb = NULL;
 static Psf1_Font *g_font = NULL;
 
@@ -285,6 +287,11 @@ void console_clear(uint32_t bg_color)
 
 static void console_put_char_internal(char c)
 {
+    // Se estivermos em pânico, não queremos que outras threads 
+    // (como o Shell ou tarefas de teste) fiquem "sujando" a tela.
+    // Mas o core que está em pânico precisa desenhar, então checamos se 
+    // o lock está sendo ignorado ou se somos o core do pânico.
+    
     if (!g_font || !g_fb)
         return;
 
@@ -352,8 +359,12 @@ static void console_put_char_internal(char c)
 
 void console_put_char(char c)
 {
-    irq_flags_t flags = spin_lock_irqsave(&g_console_lock);
+    if (g_panic_in_progress) {
+        console_put_char_internal(c);
+        return;
+    }
 
+    irq_flags_t flags = spin_lock_irqsave(&g_console_lock);
     console_put_char_internal(c);
 
     if (g_cursor_y < g_max_rows)

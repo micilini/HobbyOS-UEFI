@@ -74,4 +74,6 @@ void init_lapic_ap(void);
 
 void lapic_timer_set_periodic(uint32_t vector, uint32_t ticks);
 
+void lapic_send_broadcast_halt();
+
 #endif

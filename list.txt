@@ -1,0 +1,272 @@
+.
+├── bootloader
+│   ├── fonts
+│   │   └── zap-light16.psf
+│   ├── images
+│   │   └── logo.bmp
+│   ├── main.c
+│   ├── main.o
+│   ├── src
+│   │   ├── acpi.c
+│   │   ├── acpi.h
+│   │   ├── acpi.o
+│   │   ├── bmp.c
+│   │   ├── bmp.h
+│   │   ├── bmp.o
+│   │   ├── boot.h
+│   │   ├── file.c
+│   │   ├── file.h
+│   │   ├── file.o
+│   │   ├── font.c
+│   │   ├── font.h
+│   │   ├── font.o
+│   │   ├── gop.c
+│   │   ├── gop.h
+│   │   ├── gop.o
+│   │   ├── kernel_loader.c
+│   │   ├── kernel_loader.h
+│   │   ├── kernel_loader.o
+│   │   ├── mem.c
+│   │   ├── mem.h
+│   │   ├── mem.o
+│   │   ├── serial.c
+│   │   ├── serial.h
+│   │   ├── serial.o
+│   │   ├── starter.c
+│   │   ├── starter.h
+│   │   ├── starter.o
+│   │   ├── utils.c
+│   │   ├── utils.h
+│   │   └── utils.o
+│   └── startup.nsh
+├── BOOTX64.EFI
+├── bootx64.so
+├── hobbyos.img
+├── kernel
+│   ├── kernel.c
+│   ├── kernel.o
+│   ├── link.ld
+│   └── src
+│       ├── acpi
+│       │   ├── acpi.c
+│       │   ├── acpi.h
+│       │   ├── acpi.o
+│       │   ├── madt.c
+│       │   ├── madt.h
+│       │   ├── madt.o
+│       │   ├── sleep.c
+│       │   ├── sleep.h
+│       │   └── sleep.o
+│       ├── apic
+│       │   ├── ioapic.c
+│       │   ├── ioapic.h
+│       │   ├── ioapic.o
+│       │   ├── lapic.c
+│       │   ├── lapic.h
+│       │   └── lapic.o
+│       ├── core
+│       │   ├── dpc.c
+│       │   ├── dpc.h
+│       │   ├── dpc.o
+│       │   ├── entry.o
+│       │   ├── entry.S
+│       │   ├── idt.c
+│       │   ├── idt.h
+│       │   ├── idt.o
+│       │   ├── interrupts.c
+│       │   ├── interrupts.h
+│       │   ├── interrupts.o
+│       │   ├── io.h
+│       │   ├── irq_stats.c
+│       │   ├── irq_stats.h
+│       │   ├── irq_stats.o
+│       │   ├── kernel_init.c
+│       │   ├── kernel_init.h
+│       │   ├── kernel_init.o
+│       │   ├── list.h
+│       │   ├── panic.c
+│       │   ├── panic.h
+│       │   ├── panic.o
+│       │   ├── queue.h
+│       │   ├── scheduler.c
+│       │   ├── scheduler.h
+│       │   ├── scheduler.o
+│       │   ├── semaphore.c
+│       │   ├── semaphore.h
+│       │   ├── semaphore.o
+│       │   ├── spinlock.c
+│       │   ├── spinlock.h
+│       │   ├── spinlock.o
+│       │   ├── switch.o
+│       │   ├── switch.S
+│       │   ├── task.h
+│       │   ├── timers.c
+│       │   ├── timers.h
+│       │   └── timers.o
+│       ├── cpu
+│       │   ├── cpu.c
+│       │   ├── cpu.h
+│       │   ├── cpu.o
+│       │   ├── mmio.h
+│       │   ├── tss.c
+│       │   ├── tss.h
+│       │   └── tss.o
+│       ├── drivers
+│       │   ├── keyboard.c
+│       │   ├── keyboard.h
+│       │   ├── keyboard.o
+│       │   ├── pci.c
+│       │   ├── pci_descriptors.c
+│       │   ├── pci_descriptors.h
+│       │   ├── pci_descriptors.o
+│       │   ├── pci.h
+│       │   ├── pci.o
+│       │   ├── ps2.c
+│       │   ├── ps2.h
+│       │   ├── ps2.o
+│       │   ├── serial.c
+│       │   ├── serial.h
+│       │   ├── serial.o
+│       │   ├── timer.c
+│       │   ├── timer.h
+│       │   ├── timer.o
+│       │   ├── usb
+│       │   │   └── xhci
+│       │   │       ├── usb_hotplug.c
+│       │   │       ├── usb_hotplug.h
+│       │   │       ├── usb_hotplug.o
+│       │   │       ├── usb_hub.c
+│       │   │       ├── usb_hub.h
+│       │   │       ├── usb_hub.o
+│       │   │       ├── xhci.c
+│       │   │       ├── xhci.h
+│       │   │       └── xhci.o
+│       │   └── watchdog
+│       │       ├── acpi_wdat.c
+│       │       ├── acpi_wdat.h
+│       │       ├── acpi_wdat.o
+│       │       ├── acpi_wddt.c
+│       │       ├── acpi_wddt.h
+│       │       ├── acpi_wddt.o
+│       │       ├── acpi_wdrt.c
+│       │       ├── acpi_wdrt.h
+│       │       ├── acpi_wdrt.o
+│       │       ├── intel_tco.c
+│       │       ├── intel_tco.h
+│       │       └── intel_tco.o
+│       ├── graphics
+│       │   ├── console.c
+│       │   ├── console.h
+│       │   ├── console.o
+│       │   ├── graphics.c
+│       │   ├── graphics.h
+│       │   ├── graphics.o
+│       │   ├── splash.c
+│       │   ├── splash.h
+│       │   ├── splash.o
+│       │   ├── terminal.c
+│       │   ├── terminal.h
+│       │   └── terminal.o
+│       ├── libc
+│       │   ├── memory.c
+│       │   ├── memory.h
+│       │   ├── memory.o
+│       │   ├── string.c
+│       │   ├── string.h
+│       │   └── string.o
+│       ├── memory
+│       │   ├── gdt.c
+│       │   ├── gdt.h
+│       │   ├── gdt.o
+│       │   ├── heap.c
+│       │   ├── heap.h
+│       │   ├── heap.o
+│       │   ├── paging.c
+│       │   ├── paging.h
+│       │   ├── paging.o
+│       │   ├── pmem.c
+│       │   ├── pmem.h
+│       │   └── pmem.o
+│       ├── power
+│       │   ├── power.c
+│       │   ├── power.h
+│       │   └── power.o
+│       ├── shell
+│       │   ├── command.h
+│       │   ├── commands
+│       │   │   ├── cmd_acpi.c
+│       │   │   ├── cmd_acpi.h
+│       │   │   ├── cmd_acpi.o
+│       │   │   ├── cmd_clear.c
+│       │   │   ├── cmd_clear.h
+│       │   │   ├── cmd_clear.o
+│       │   │   ├── cmd_cpu.c
+│       │   │   ├── cmd_cpu.h
+│       │   │   ├── cmd_cpu.o
+│       │   │   ├── cmd_echo.c
+│       │   │   ├── cmd_echo.h
+│       │   │   ├── cmd_echo.o
+│       │   │   ├── cmd_help.c
+│       │   │   ├── cmd_help.h
+│       │   │   ├── cmd_help.o
+│       │   │   ├── cmd_irq.c
+│       │   │   ├── cmd_irq.h
+│       │   │   ├── cmd_irq.o
+│       │   │   ├── cmd_mem.c
+│       │   │   ├── cmd_mem.h
+│       │   │   ├── cmd_mem.o
+│       │   │   ├── cmd_panic.c
+│       │   │   ├── cmd_panic.h
+│       │   │   ├── cmd_panic.o
+│       │   │   ├── cmd_pci.c
+│       │   │   ├── cmd_pci.h
+│       │   │   ├── cmd_pci.o
+│       │   │   ├── cmd_power.c
+│       │   │   ├── cmd_power.h
+│       │   │   ├── cmd_power.o
+│       │   │   ├── cmd_usbdiag.c
+│       │   │   ├── cmd_usbdiag.h
+│       │   │   ├── cmd_usbdiag.o
+│       │   │   ├── cmd_version.c
+│       │   │   ├── cmd_version.h
+│       │   │   ├── cmd_version.o
+│       │   │   ├── registry.c
+│       │   │   ├── registry.h
+│       │   │   └── registry.o
+│       │   ├── shell.c
+│       │   ├── shell.h
+│       │   └── shell.o
+│       ├── smp
+│       │   ├── smp_boot.c
+│       │   ├── smp_boot.h
+│       │   ├── smp_boot.o
+│       │   ├── smp_topology.c
+│       │   ├── smp_topology.h
+│       │   ├── smp_topology.o
+│       │   ├── trampoline.o
+│       │   └── trampoline.S
+│       ├── timer
+│       │   ├── hpet.c
+│       │   ├── hpet.h
+│       │   └── hpet.o
+│       └── utils
+│           ├── bitmap.c
+│           ├── bitmap.h
+│           ├── bitmap.o
+│           ├── bits.h
+│           ├── utils.c
+│           ├── utils.h
+│           └── utils.o
+├── kernel.elf
+├── list.txt
+├── main_old.efi
+├── makefile
+├── qemu-debugcon.log
+├── qemu-serial.log
+├── qemu-trace.log
+├── README.md
+└── shared
+    ├── mem_map.h
+    └── protocol.h
+
+25 directories, 245 files

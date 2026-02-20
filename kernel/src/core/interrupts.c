@@ -130,23 +130,22 @@ __attribute__((interrupt)) void irq_keyboard_handler(InterruptFrame *frame)
 __attribute__((interrupt)) void irq_timer_handler(InterruptFrame *frame)
 {
     (void)frame;
-
-    uint32_t id = lapic_get_id();
-
-    // Se for AP (ID diferente de 0), apenas sinalize e saia.
-    // Isso evita que o AP tente reprogramar o HPET ou mexa no scheduler global agora.
-    if (id != 0)
-    {
-        serial_write_all("."); // O "Sinal de Vida"
+    extern volatile int g_panic_in_progress;
+    if (g_panic_in_progress) {
         lapic_eoi();
+        __asm__ volatile("cli; hlt");
         return;
     }
 
-    // Comportamento normal do BSP (mantém o sistema rodando)
+    uint32_t id = lapic_get_id();
     irq_stats_record(INT_VECTOR_TIMER);
     lapic_eoi();
-    timer_handler();
-    schedule();
+
+    if (id == 0) timer_handler();
+
+    // AVISO: Se continuar reiniciando, comente a linha abaixo.
+    // O reboot é causado pelo conflito do atributo interrupt + switch_context.
+    schedule(); 
 }
 
 __attribute__((interrupt)) void irq_xhci_handler(InterruptFrame *frame)
@@ -205,3 +204,10 @@ __attribute__((interrupt)) void exc_isr29(InterruptFrame *frame, uint64_t error_
 __attribute__((interrupt)) void exc_isr30(InterruptFrame *frame, uint64_t error_code) { EXC_PANIC_ERR(30); }
 
 __attribute__((interrupt)) void exc_isr31(InterruptFrame *frame) { EXC_PANIC_NOERR(31); }
+
+__attribute__((interrupt)) void irq_halt_handler(InterruptFrame *frame) {
+    (void)frame;
+    lapic_eoi();
+    __asm__ volatile("cli");
+    while(1) __asm__ volatile("hlt"); // Para o core para sempre
+}

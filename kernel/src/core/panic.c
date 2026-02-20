@@ -4,6 +4,9 @@
 #include "../timer/hpet.h"
 #include "../power/power.h"
 #include "io.h"
+#include "spinlock.h"
+
+static spinlock_t g_panic_lock = {0};
 
 volatile uint64_t g_last_mmio_addr = 0;
 volatile uint64_t g_last_mmio_value = 0;
@@ -130,12 +133,19 @@ void panic_config(PanicAction action, uint32_t timeout_seconds)
         g_panic_timeout_seconds = 1;
 }
 
+volatile int g_panic_in_progress = 0;
+
 void kpanic(char *message)
 {
     irq_disable();
+    g_panic_in_progress = 1; 
 
+    // ORDEM DE PARADA: Silenciar todos os outros núcleos para eles não 
+    // tocarem mais no Framebuffer ou nas estruturas do Kernel.
+    lapic_send_broadcast_halt();
+
+    graphics_enable_buffering(false); 
     console_clear(COLOR_BSOD_BG);
-    console_set_color(COLOR_BSOD_FG, COLOR_BSOD_BG);
 
     console_write("\n\n");
     console_write("  :(  HobbyOS Kernel Panic\n");
