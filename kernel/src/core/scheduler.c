@@ -299,11 +299,15 @@ static void schedule_impl(int voluntary)
         /* switch_context com IRQs OFF — nenhum timer pode interromper */
         switch_context(prev, next);
 
-        /*
-         * Voltamos aqui quando 'prev' e re-escalonado por outro CPU.
-         * Agora estamos no contexto restaurado. Habilitamos IRQs.
+         /*
+         * Voltamos aqui quando 'prev' é re-escalonado por outro CPU.
+         * Restaura exatamente o estado de IF (e demais flags) que existia
+         * antes do spin_lock_irqsave() deste schedule_impl().
+         *
+         * Isso evita “ligar IRQ no susto” em caminhos onde o chamador estava
+         * com IRQs desabilitadas por motivo legítimo.
          */
-        __asm__ volatile("sti");
+        irq_restore(flags);
     }
     else
     {

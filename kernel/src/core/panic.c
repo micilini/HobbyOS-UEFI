@@ -7,6 +7,7 @@
 #include "spinlock.h"
 #include "../drivers/serial.h"
 #include "../apic/lapic.h"
+#include "interrupts.h"
 
 static spinlock_t g_panic_lock = {0};
 
@@ -91,14 +92,9 @@ static void panic_do_action(void)
 
 static void panic_countdown_and_act(uint32_t seconds)
 {
-
     console_write("\n\n");
     console_write("  The system will be restarted in ");
-
-    uint32_t num_x = 0, num_y = 0;
-    console_get_cursor(&num_x, &num_y);
-
-    console_print_dec(seconds);
+    console_print_dec((uint64_t)seconds);
     console_write(" seconds...\n");
 
     for (uint32_t s = seconds; s > 0; s--)
@@ -107,12 +103,10 @@ static void panic_countdown_and_act(uint32_t seconds)
 
         uint32_t next = s - 1;
 
-        console_set_cursor(num_x, num_y);
-        console_write("   ");
-        console_set_cursor(num_x, num_y);
+        console_write("  Restarting in ");
         console_print_dec((uint64_t)next);
-
         console_write(" ");
+
         if (next == 1)
         {
             console_write("second...");
@@ -121,6 +115,8 @@ static void panic_countdown_and_act(uint32_t seconds)
         {
             console_write("seconds...");
         }
+
+        console_write("\n");
     }
 
     panic_do_action();
@@ -269,6 +265,25 @@ void kpanic_exception_ex(const char *title,
     console_write("Frame: 0x");
     console_print_hex((uint64_t)frame);
     console_write("\n");
+
+        // Dump do frame (RIP/RSP/RFLAGS etc) — essencial pra caçar #UD real
+    if (frame)
+    {
+        InterruptFrame *f = (InterruptFrame *)frame;
+
+        console_write("RIP: 0x"); console_print_hex(f->rip); console_write("\n");
+        console_write("RSP: 0x"); console_print_hex(f->rsp); console_write("\n");
+        console_write("RFLAGS: 0x"); console_print_hex(f->rflags); console_write("\n");
+        console_write("CS: 0x"); console_print_hex(f->cs); console_write("\n");
+        console_write("SS: 0x"); console_print_hex(f->ss); console_write("\n");
+
+        serial_write_all("[PANIC] RIP=0x"); serial_write_hex64_all(f->rip);
+        serial_write_all(" RSP=0x"); serial_write_hex64_all(f->rsp);
+        serial_write_all(" RFLAGS=0x"); serial_write_hex64_all(f->rflags);
+        serial_write_all(" CS=0x"); serial_write_hex64_all(f->cs);
+        serial_write_all(" SS=0x"); serial_write_hex64_all(f->ss);
+        serial_write_all("\n");
+    }
 
     console_write("CPU: ");
     console_print_dec((uint64_t)lapic_get_id());

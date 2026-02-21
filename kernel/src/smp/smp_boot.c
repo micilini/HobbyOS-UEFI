@@ -91,20 +91,16 @@ void ap_kernel_entry(void) {
     serial_write_all("T"); 
 
     
-    init_lapic_ap();
-    serial_write_all("L"); 
+        init_lapic_ap();
+    serial_write_all("L");
 
-    
-    
-    lapic_timer_set_periodic(32, 10000000);
-    serial_write_all("C"); 
-
-    
-    
-    
-    
+    // Primeiro garante que o AP tem idle/current map setado
     scheduler_init_ap();
-    serial_write_all("S"); 
+    serial_write_all("S");
+
+    // Só depois liga o timer periódico do AP
+    lapic_timer_set_periodic(32, 10000000);
+    serial_write_all("C");
 
     __asm__ volatile("mfence" ::: "memory");
     me->state = CPU_STATE_ONLINE;

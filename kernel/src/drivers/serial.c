@@ -1,5 +1,6 @@
 #include "serial.h"
 #include <stddef.h>
+#include "../core/spinlock.h"
 
 #ifndef HOBBYOS_MAX_SERIAL_PORTS
 #define HOBBYOS_MAX_SERIAL_PORTS 32
@@ -15,6 +16,10 @@ static uint16_t g_serial_ports[HOBBYOS_MAX_SERIAL_PORTS];
 static uint32_t g_serial_count = 0;
 static int g_serial_inited = 0;
 
+extern volatile int g_panic_in_progress;
+
+static spinlock_t g_serial_lock;
+static int g_serial_lock_inited = 0;
 
 static uint8_t g_serial_dead[HOBBYOS_MAX_SERIAL_PORTS];
 static uint8_t g_serial_fail[HOBBYOS_MAX_SERIAL_PORTS];
@@ -150,6 +155,12 @@ static void add_port(uint16_t base)
 
 void serial_init_from_bootinfo(const BootInfo* boot_info)
 {
+    if (!g_serial_lock_inited)
+    {
+        spinlock_init(&g_serial_lock);
+        g_serial_lock_inited = 1;
+    }
+
     g_serial_count = 0;
     g_serial_inited = 0;
 
@@ -216,6 +227,16 @@ void serial_putc_all(char c)
 {
     if (!g_serial_inited) return;
 
+    if (!g_panic_in_progress)
+    {
+        irq_flags_t flags = spin_lock_irqsave(&g_serial_lock);
+        for (uint32_t i = 0; i < g_serial_count; i++)
+            uart_putc_idx(i, g_serial_ports[i], c);
+        spin_unlock_irqrestore(&g_serial_lock, flags);
+        return;
+    }
+
+    // Em panic: best-effort, sem lock (evita deadlock)
     for (uint32_t i = 0; i < g_serial_count; i++)
         uart_putc_idx(i, g_serial_ports[i], c);
 }
@@ -223,6 +244,15 @@ void serial_putc_all(char c)
 void serial_write_all(const char* s)
 {
     if (!g_serial_inited || !s) return;
+
+    if (!g_panic_in_progress)
+    {
+        irq_flags_t flags = spin_lock_irqsave(&g_serial_lock);
+        for (uint32_t i = 0; i < g_serial_count; i++)
+            uart_write_idx(i, g_serial_ports[i], s);
+        spin_unlock_irqrestore(&g_serial_lock, flags);
+        return;
+    }
 
     for (uint32_t i = 0; i < g_serial_count; i++)
         uart_write_idx(i, g_serial_ports[i], s);
@@ -232,6 +262,19 @@ void serial_write_hex64_all(uint64_t v)
 {
     if (!g_serial_inited) return;
 
+    // Fora de panic: serial é compartilhado em SMP, então precisa de lock
+    if (!g_panic_in_progress)
+    {
+        irq_flags_t flags = spin_lock_irqsave(&g_serial_lock);
+
+        for (uint32_t i = 0; i < g_serial_count; i++)
+            uart_write_hex64_idx(i, g_serial_ports[i], v);
+
+        spin_unlock_irqrestore(&g_serial_lock, flags);
+        return;
+    }
+
+    // Em panic: best-effort, sem lock (evita deadlock)
     for (uint32_t i = 0; i < g_serial_count; i++)
         uart_write_hex64_idx(i, g_serial_ports[i], v);
 }

@@ -12,6 +12,7 @@
 
 #define HHDM_OFFSET 0xFFFFFFFF80000000ULL
 #define PAGE_SIZE 4096
+#define IST_STACK_SIZE (32 * 1024)
 
 SmpCpuInfo g_cpus[MAX_CPUS];
 uint32_t g_cpu_count = 0;
@@ -148,6 +149,36 @@ void smp_prepare_cpu_structures() {
         
         tss_virt->rsp0 = g_cpus[i].stack_top;
         g_cpus[i].tss_ptr = tss_virt;
+
+
+
+        // --- IST stacks (obrigatório em SMP) ---
+        // IDT usa IST:
+        //  - #DF (8)  -> IST1
+        //  - #NMI (2) -> IST2
+        //  - #MC (18) -> IST3
+        serial_write_all("      [2.2] IST... ");
+
+        void *ist1 = kmalloc(IST_STACK_SIZE);
+        void *ist2 = kmalloc(IST_STACK_SIZE);
+        void *ist3 = kmalloc(IST_STACK_SIZE);
+
+        if (!ist1 || !ist2 || !ist3) {
+            serial_write_all("FAIL (kmalloc)\n");
+            continue;
+        }
+
+        // kmalloc já retorna VA no higher-half; map_and_convert vai short-circuit
+        void *ist1_v = map_and_convert(ist1, IST_STACK_SIZE);
+        void *ist2_v = map_and_convert(ist2, IST_STACK_SIZE);
+        void *ist3_v = map_and_convert(ist3, IST_STACK_SIZE);
+
+        tss_virt->ist1 = (uint64_t)ist1_v + IST_STACK_SIZE;
+        tss_virt->ist2 = (uint64_t)ist2_v + IST_STACK_SIZE;
+        tss_virt->ist3 = (uint64_t)ist3_v + IST_STACK_SIZE;
+
+        serial_write_all("OK\n");
+
 
         
         serial_write_all("      [3] GDT... ");
