@@ -11,8 +11,8 @@ extern void *xhci_get_config_descriptor(uint8_t slot_id, uint16_t *out_len);
 
 extern int xhci_configure_device_with_context(int port_id, int speed_id, usb_device_context_t *ctx);
 extern void console_write_debug(const char *str);
-extern void console_print_dec_debug(uint32_t val);
-extern void console_print_hex_debug(uint32_t val);
+extern void console_print_dec_debug(uint64_t val);
+extern void console_print_hex_debug(uint64_t val);
 extern void console_set_color_debug(uint32_t fg, uint32_t bg);
 extern void timer_sleep(uint32_t ms);
 extern void *kmalloc_aligned(size_t size, size_t align);

@@ -73,15 +73,22 @@ void init_idt()
         set_idt_gate(v, irq_unhandled_handler, IDT_TA_INTERRUPT_GATE);
     }
 
-    set_idt_gate(INT_VECTOR_TIMER, irq_timer_handler, IDT_TA_INTERRUPT_GATE);
+    set_idt_gate(INT_VECTOR_TIMER, irq_timer_entry, IDT_TA_INTERRUPT_GATE);
     set_idt_gate(INT_VECTOR_KEYBOARD, irq_keyboard_handler, IDT_TA_INTERRUPT_GATE);
     set_idt_gate(INT_VECTOR_XHCI, irq_xhci_handler, IDT_TA_INTERRUPT_GATE);
 
     set_idt_gate(0xFF, irq_spurious_handler, IDT_TA_INTERRUPT_GATE);
 
+        set_idt_gate(0xFD, irq_halt_handler, IDT_TA_INTERRUPT_GATE);
+
     g_idtr.limit = (sizeof(IdtEntry) * IDT_ENTRIES) - 1;
     g_idtr.base = (uint64_t)&g_idt;
 
+    __asm__ volatile("lidt %0" : : "m"(g_idtr));
+}
+
+void idt_load()
+{
     __asm__ volatile("lidt %0" : : "m"(g_idtr));
 }
 

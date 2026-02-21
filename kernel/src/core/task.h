@@ -13,6 +13,12 @@ typedef enum
     TASK_ZOMBIE
 } task_state_t;
 
+#define TASK_CLASS_INTERACTIVE 0
+#define TASK_CLASS_NORMAL 1
+
+#define DEFAULT_QUANTUM 20
+#define INTERACTIVE_QUANTUM 5
+
 typedef struct
 {
     uint64_t rsp;
@@ -21,6 +27,10 @@ typedef struct
     task_state_t state;
     uint64_t cr3;
     void *stack_base;
+
+    int quantum;
+    int quantum_default;
+    int task_class;
 
     struct list_head list;
 } task_t;

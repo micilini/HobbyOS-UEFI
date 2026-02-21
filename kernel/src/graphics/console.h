@@ -68,4 +68,7 @@ void console_set_cursor(uint32_t x, uint32_t y);
 uint32_t console_get_max_cols(void);
 uint32_t console_get_max_rows(void);
 
+void console_set_render_suspended(uint8_t suspended);
+uint8_t console_is_render_suspended(void);
+
 #endif

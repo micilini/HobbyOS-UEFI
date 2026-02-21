@@ -20,23 +20,24 @@ void start_kernel(EFI_HANDLE ImageHandle, void *entry_point, BootInfo *prepared_
     if (prepared_boot_info == NULL)
     {
         Print(L"[-] Critical: prepared_boot_info is NULL.\n");
-        while (1) { }
+        while (1)
+        {
+        }
     }
 
-    
     BootInfo *boot_info = NULL;
     status = uefi_call_wrapper(BS->AllocatePool, 3, EfiLoaderData, sizeof(BootInfo), (void **)&boot_info);
     if (EFI_ERROR(status) || boot_info == NULL)
     {
         Print(L"[-] Critical: AllocatePool(BootInfo) failed. Status=%r\n", status);
-        while (1) { }
+        while (1)
+        {
+        }
     }
 
-    
     ZeroMem(boot_info, sizeof(BootInfo));
     CopyMem(boot_info, prepared_boot_info, sizeof(BootInfo));
 
-    
     if (boot_info->serial.count > HOBBYOS_MAX_SERIAL_PORTS)
     {
         boot_info->serial.count = 0;
@@ -46,7 +47,9 @@ void start_kernel(EFI_HANDLE ImageHandle, void *entry_point, BootInfo *prepared_
     if (mem_map == NULL)
     {
         Print(L"[-] Critical: boot_info->memory_map is NULL.\n");
-        while (1) { }
+        while (1)
+        {
+        }
     }
 
     int retry = 0;
@@ -70,7 +73,9 @@ void start_kernel(EFI_HANDLE ImageHandle, void *entry_point, BootInfo *prepared_
                 KernelStartFunc kernel = (KernelStartFunc)entry_point;
                 kernel(boot_info);
 
-                while (1) { }
+                while (1)
+                {
+                }
             }
         }
 
@@ -78,5 +83,7 @@ void start_kernel(EFI_HANDLE ImageHandle, void *entry_point, BootInfo *prepared_
     }
 
     Print(L"[-] Critical: Failed to Exit Boot Services after retries.\n");
-    while (1) { }
+    while (1)
+    {
+    }
 }

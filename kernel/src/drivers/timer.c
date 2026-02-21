@@ -50,7 +50,7 @@ void timer_sleep(uint64_t ms)
 
     if (ms == 0)
     {
-        schedule();
+        schedule_voluntary();
         return;
     }
 
@@ -93,6 +93,7 @@ void timer_run_deferred(void)
     g_shell_tick_counter += delta;
     if (g_shell_tick_counter >= SHELL_TICK_DIVIDER)
     {
+
         shell_on_tick();
         g_shell_tick_counter = 0;
     }

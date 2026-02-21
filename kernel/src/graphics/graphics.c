@@ -5,6 +5,8 @@ static Framebuffer *g_fb = NULL;
 static uint32_t *g_back_buffer = NULL;
 static bool g_buffering_enabled = false;
 
+extern volatile int g_panic_in_progress;
+
 void init_graphics(Framebuffer *fb, void *back_buffer)
 {
     g_fb = fb;
@@ -30,6 +32,13 @@ void *get_draw_buffer()
 
 void swap_buffers()
 {
+
+    if (g_panic_in_progress)
+        return;
+
+    if (!g_buffering_enabled)
+        return;
+
     if (!g_fb || !g_back_buffer)
         return;
 
@@ -67,7 +76,7 @@ void clear_screen(uint32_t color)
     if (!g_fb)
         return;
 
-    if (g_back_buffer && g_buffering_enabled)
+    if (g_back_buffer && g_buffering_enabled && !g_panic_in_progress)
     {
         uint64_t total = g_fb->Height * g_fb->PixelsPerScanLine;
         for (uint64_t i = 0; i < total; i++)

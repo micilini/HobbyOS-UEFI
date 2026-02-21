@@ -30,6 +30,10 @@ LDFLAGS_EFI = -nostdlib -znocombreloc -shared -Bsymbolic -L $(EFILIB) -L /usr/li
 CFLAGS_KERNEL = -ffreestanding -mno-red-zone -mgeneral-regs-only -Wall -mcmodel=kernel -fno-pic
 LDFLAGS_KERNEL = -T $(KERNEL_DIR)/link.ld -static -Bsymbolic -nostdlib -z max-page-size=0x1000
 
+# Cores COnfiguration for SMP
+SMP ?= 4
+QEMU_SMP = $(SMP),sockets=1,cores=$(SMP),threads=1
+
 # Note used to able serial porta on KNUP PCI 0x4000
 CFLAGS_EFI += -DHOBBYOS_SERIAL_INCLUDE_KNUP_FALLBACK=1
 CFLAGS_KERNEL += -DHOBBYOS_KERNEL_SERIAL_DEV_PORTS=1
@@ -107,6 +111,7 @@ KERNEL_SRCS = $(KERNEL_DIR)/src/core/entry.S \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_irq.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_echo.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_usbdiag.c \
+			  $(KERNEL_DIR)/src/shell/commands/cmd_smpstress.c \
 			  $(KERNEL_DIR)/src/core/irq_stats.c \
 			  $(KERNEL_DIR)/src/power/power.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_power.c \
@@ -128,7 +133,10 @@ KERNEL_SRCS = $(KERNEL_DIR)/src/core/entry.S \
 			  $(KERNEL_DIR)/src/core/switch.S \
 			  $(KERNEL_DIR)/src/core/scheduler.c \
 			  $(KERNEL_DIR)/src/core/semaphore.c \
-			  $(KERNEL_DIR)/src/drivers/serial.c
+			  $(KERNEL_DIR)/src/drivers/serial.c \
+			  $(KERNEL_DIR)/src/smp/smp_boot.c \
+			  $(KERNEL_DIR)/src/smp/trampoline.S \
+			  $(KERNEL_DIR)/src/smp/smp_topology.c
 
 # Separa quem é .c e quem é .S
 KERNEL_C_SRCS = $(filter %.c, $(KERNEL_SRCS))
@@ -178,7 +186,7 @@ run: hobbyos.img
 	qemu-system-x86_64 \
 		-machine q35,accel=kvm \
 		-cpu host \
-		-smp 4,sockets=1,cores=4,threads=1 \
+		-smp $(QEMU_SMP) \
 		-m 2G \
 		-bios /usr/share/ovmf/OVMF.fd \
 		-net none \
@@ -218,3 +226,5 @@ run-hub-multi: hobbyos.img
 # TO Reconize Pen Drive in Linux: udisksctl mount -b /dev/sda1
 
 # liga watch do XHCI de dump: xhci_set_debug_flags(XHCI_DBG_WATCH | XHCI_DBG_DUMP);
+
+# to use SERIAL PORT (KNUP): sudo picocom -b 115200 /dev/ttyUSB0

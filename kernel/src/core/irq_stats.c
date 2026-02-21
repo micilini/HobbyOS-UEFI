@@ -2,24 +2,31 @@
 #include "../graphics/console.h"
 #include "idt.h"
 #include "interrupts.h"
+#include "spinlock.h"
 
 static volatile uint64_t g_vec_counts[256];
 static volatile uint64_t g_unhandled;
 static volatile uint64_t g_total;
 static volatile uint8_t g_last_vec;
 
+static spinlock_t g_stats_lock = {0};
+
 void irq_stats_record(uint8_t vector)
 {
+    irq_flags_t flags = spin_lock_irqsave(&g_stats_lock);
     g_total++;
     g_last_vec = vector;
     g_vec_counts[vector]++;
+    spin_unlock_irqrestore(&g_stats_lock, flags);
 }
 
 void irq_stats_record_unhandled(void)
 {
+    irq_flags_t flags = spin_lock_irqsave(&g_stats_lock);
     g_total++;
     g_last_vec = 0xFE;
     g_unhandled++;
+    spin_unlock_irqrestore(&g_stats_lock, flags);
 }
 
 void irq_stats_reset(void)

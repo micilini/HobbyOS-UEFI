@@ -4,6 +4,12 @@
 #include "../timer/hpet.h"
 #include "../power/power.h"
 #include "io.h"
+#include "spinlock.h"
+#include "../drivers/serial.h"
+#include "../apic/lapic.h"
+#include "interrupts.h"
+
+static spinlock_t g_panic_lock = {0};
 
 volatile uint64_t g_last_mmio_addr = 0;
 volatile uint64_t g_last_mmio_value = 0;
@@ -86,7 +92,6 @@ static void panic_do_action(void)
 
 static void panic_countdown_and_act(uint32_t seconds)
 {
-
     console_write("\n\n");
     console_write("  The system will be restarted in ");
 
@@ -130,20 +135,69 @@ void panic_config(PanicAction action, uint32_t timeout_seconds)
         g_panic_timeout_seconds = 1;
 }
 
-void kpanic(char *message)
+volatile int g_panic_in_progress = 0;
+static volatile int32_t g_panic_owner_cpu = -1;
+
+static void panic_enter_owner_or_halt(void)
 {
     irq_disable();
+
+    uint32_t cpu = (uint32_t)lapic_get_id();
+
+    if (__sync_bool_compare_and_swap(&g_panic_in_progress, 0, 1))
+    {
+        g_panic_owner_cpu = (int32_t)cpu;
+        return;
+    }
+
+    serial_write_all("[PANIC] Secondary CPU entered panic. Halting. cpu=0x");
+    serial_write_hex64_all((uint64_t)cpu);
+    serial_write_all("\n");
+
+    __asm__ volatile("cli");
+    while (1)
+        __asm__ volatile("hlt");
+}
+
+void kpanic(const char *message)
+{
+
+    panic_enter_owner_or_halt();
+
+    serial_write_all("\n[PANIC] kpanic() owner entered. Stopping other CPUs...\n");
+
+    serial_write_all("[PANIC] Message: ");
+    serial_write_all(message ? message : "(null)");
+    serial_write_all("\n");
+
+    lapic_send_broadcast_halt();
+
+    graphics_enable_buffering(false);
+
+    irq_flags_t flags = spin_lock_irqsave(&g_panic_lock);
 
     console_clear(COLOR_BSOD_BG);
     console_set_color(COLOR_BSOD_FG, COLOR_BSOD_BG);
 
     console_write("\n\n");
-    console_write("  :(  HobbyOS Kernel Panic\n");
-    console_write("  ========================\n\n");
+
+    console_write("================================================================\n");
+    console_write("                     :( HOBBYOS KERNEL PANIC                    \n");
+    console_write("================================================================\n");
+
+    console_write("\n\n");
 
     console_write("  Error: ");
     console_write(message ? message : "(null)");
     console_write("\n\n");
+
+    console_write("  CPU: ");
+    console_print_dec((uint64_t)lapic_get_id());
+    console_write("\n");
+
+    serial_write_all("[PANIC] Owner CPU is drawing BSOD and will execute action.\n");
+
+    spin_unlock_irqrestore(&g_panic_lock, flags);
 
     panic_countdown_and_act(g_panic_timeout_seconds);
 }
@@ -155,22 +209,30 @@ void kpanic_exception(const char *title, void *frame,
     kpanic_exception_ex(title, 0xFF, frame, error_code, has_error_code, cr2, has_cr2);
 }
 
-void kpanic_exception_ex(const char *title, uint8_t vector, void *frame,
-                         uint64_t error_code, int has_error_code,
-                         uint64_t cr2, int has_cr2)
+void kpanic_exception_ex(const char *title,
+                         uint8_t vector,
+                         void *frame,
+                         uint64_t error_code,
+                         int has_error_code,
+                         uint64_t cr2,
+                         int has_cr2)
 {
-    irq_disable();
 
-    typedef struct
-    {
-        uint64_t rip;
-        uint64_t cs;
-        uint64_t rflags;
-        uint64_t rsp;
-        uint64_t ss;
-    } InterruptFrameLocal;
+    panic_enter_owner_or_halt();
 
-    InterruptFrameLocal *f = (InterruptFrameLocal *)frame;
+    serial_write_all("\n[PANIC] kpanic_exception_ex() owner entered. Stopping other CPUs...\n");
+
+    serial_write_all("[PANIC] Exception Title: ");
+    serial_write_all(title ? title : "(null)");
+    serial_write_all(" Vector=0x");
+    serial_write_hex64_all((uint64_t)vector);
+    serial_write_all("\n");
+
+    lapic_send_broadcast_halt();
+
+    graphics_enable_buffering(false);
+
+    irq_flags_t flags = spin_lock_irqsave(&g_panic_lock);
 
     console_clear(COLOR_BSOD_BG);
     console_set_color(COLOR_BSOD_FG, COLOR_BSOD_BG);
@@ -189,8 +251,10 @@ void kpanic_exception_ex(const char *title, uint8_t vector, void *frame,
     console_print_hex((uint64_t)vector);
     console_write(")\n\n");
 
-    if (f)
+    if (frame)
     {
+        InterruptFrame *f = (InterruptFrame *)frame;
+
         console_write("RIP:    0x");
         console_print_hex(f->rip);
         console_write("\n");
@@ -206,6 +270,18 @@ void kpanic_exception_ex(const char *title, uint8_t vector, void *frame,
         console_write("SS:     0x");
         console_print_hex(f->ss);
         console_write("\n");
+
+        serial_write_all("[PANIC] RIP=0x");
+        serial_write_hex64_all(f->rip);
+        serial_write_all(" RSP=0x");
+        serial_write_hex64_all(f->rsp);
+        serial_write_all(" RFLAGS=0x");
+        serial_write_hex64_all(f->rflags);
+        serial_write_all(" CS=0x");
+        serial_write_hex64_all(f->cs);
+        serial_write_all(" SS=0x");
+        serial_write_hex64_all(f->ss);
+        serial_write_all("\n");
     }
     else
     {
@@ -261,6 +337,22 @@ void kpanic_exception_ex(const char *title, uint8_t vector, void *frame,
         console_print_hex(g_last_mmio_value);
         console_write("\n");
     }
+
+    {
+        uint64_t cr3;
+        __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+        serial_write_all("[PANIC] CR3=0x");
+        serial_write_hex64_all(cr3);
+        serial_write_all("\n");
+    }
+
+    console_write("\nCPU: ");
+    console_print_dec((uint64_t)lapic_get_id());
+    console_write("\n");
+
+    serial_write_all("[PANIC] Owner CPU is drawing BSOD and will execute action.\n");
+
+    spin_unlock_irqrestore(&g_panic_lock, flags);
 
     panic_countdown_and_act(g_panic_timeout_seconds);
 }

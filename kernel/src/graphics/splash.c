@@ -2,6 +2,7 @@
 #include "graphics.h"
 #include "../timer/hpet.h"
 #include "../memory/pmem.h"
+#include "console.h"
 
 #ifndef COLOR_BLACK
 #define COLOR_BLACK 0x00000000
@@ -9,6 +10,8 @@
 
 void play_splash_screen(BootInfo *boot_info)
 {
+    console_set_render_suspended(1);
+
     if (!boot_info->logo)
         return;
 
@@ -31,6 +34,9 @@ void play_splash_screen(BootInfo *boot_info)
         draw_overlay_image(logo, sx, sy, op);
         hpet_usleep(10000);
     }
+
+    console_set_render_suspended(0);
+    console_render_full();
 }
 
 void discard_splash_memory(BootInfo *boot_info)

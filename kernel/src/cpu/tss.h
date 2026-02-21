@@ -29,4 +29,6 @@ typedef struct __attribute__((packed))
 void tss_init(void);
 Tss64 *tss_get(void);
 
+Tss64 *tss_create_per_cpu(void);
+
 #endif

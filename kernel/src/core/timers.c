@@ -3,6 +3,8 @@
 #include "../drivers/timer.h"
 #include "../memory/heap.h"
 #include "../graphics/console.h"
+#include "../apic/lapic.h"
+#include "../smp/smp_topology.h"
 
 static struct list_head g_timer_list;
 static spinlock_t g_timer_lock;
@@ -42,6 +44,10 @@ int timers_add(uint64_t delay_ms, timer_callback_t cb, void *ctx)
 
 void timers_poll(void)
 {
+
+    if (lapic_get_id() != g_bsp_apic_id)
+        return;
+
     if (list_empty(&g_timer_list))
         return;
 

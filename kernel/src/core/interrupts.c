@@ -6,8 +6,32 @@
 #include "panic.h"
 #include "../graphics/console.h"
 #include "../drivers/keyboard.h"
-#include "../drivers/timer.h"
 #include "../apic/lapic.h"
+#include "../drivers/serial.h"
+#include "../smp/smp_topology.h"
+#include "../drivers/timer.h"
+#include "../core/timers.h"
+
+static volatile uint8_t g_need_resched[MAX_CPUS] = {0};
+
+void interrupts_request_reschedule(void)
+{
+    uint32_t id = lapic_get_id();
+    if (id < MAX_CPUS)
+        g_need_resched[id] = 1;
+}
+
+int interrupts_consume_reschedule(void)
+{
+    extern volatile int g_system_ready_for_scheduling;
+    uint32_t id = lapic_get_id();
+    if (g_system_ready_for_scheduling && id < MAX_CPUS && g_need_resched[id])
+    {
+        g_need_resched[id] = 0;
+        return 1;
+    }
+    return 0;
+}
 
 static const char *g_exc_names[32] = {
     "0  #DE Divide Error",
@@ -126,13 +150,32 @@ __attribute__((interrupt)) void irq_keyboard_handler(InterruptFrame *frame)
     lapic_eoi();
 }
 
-__attribute__((interrupt)) void irq_timer_handler(InterruptFrame *frame)
+extern void irq_timer_entry(void);
+
+void irq_timer_handler_inner(void)
 {
-    (void)frame;
+    extern volatile int g_panic_in_progress;
+    if (g_panic_in_progress)
+    {
+        lapic_eoi();
+        __asm__ volatile("cli; hlt");
+        return;
+    }
+
+    uint32_t id = lapic_get_id();
     irq_stats_record(INT_VECTOR_TIMER);
+
     lapic_eoi();
-    timer_handler();
-    schedule();
+
+    if (id == g_bsp_apic_id)
+    {
+        timer_handler();
+
+        timers_poll();
+        timer_run_deferred();
+    }
+
+    interrupts_request_reschedule();
 }
 
 __attribute__((interrupt)) void irq_xhci_handler(InterruptFrame *frame)
@@ -145,7 +188,23 @@ __attribute__((interrupt)) void irq_xhci_handler(InterruptFrame *frame)
 
 __attribute__((interrupt)) void exc_isr0(InterruptFrame *frame) { EXC_PANIC_NOERR(0); }
 __attribute__((interrupt)) void exc_isr1(InterruptFrame *frame) { EXC_PANIC_NOERR(1); }
-__attribute__((interrupt)) void exc_isr2(InterruptFrame *frame) { EXC_PANIC_NOERR(2); }
+
+__attribute__((interrupt)) void exc_isr2(InterruptFrame *frame)
+{
+    (void)frame;
+
+    extern volatile int g_panic_in_progress;
+
+    if (g_panic_in_progress)
+    {
+        __asm__ volatile("cli");
+        while (1)
+            __asm__ volatile("hlt");
+    }
+
+    EXC_PANIC_NOERR(2);
+}
+
 __attribute__((interrupt)) void exc_isr3(InterruptFrame *frame) { EXC_PANIC_NOERR(3); }
 __attribute__((interrupt)) void exc_isr4(InterruptFrame *frame) { EXC_PANIC_NOERR(4); }
 __attribute__((interrupt)) void exc_isr5(InterruptFrame *frame) { EXC_PANIC_NOERR(5); }
@@ -191,3 +250,12 @@ __attribute__((interrupt)) void exc_isr29(InterruptFrame *frame, uint64_t error_
 __attribute__((interrupt)) void exc_isr30(InterruptFrame *frame, uint64_t error_code) { EXC_PANIC_ERR(30); }
 
 __attribute__((interrupt)) void exc_isr31(InterruptFrame *frame) { EXC_PANIC_NOERR(31); }
+
+__attribute__((interrupt)) void irq_halt_handler(InterruptFrame *frame)
+{
+    (void)frame;
+    lapic_eoi();
+    __asm__ volatile("cli");
+    while (1)
+        __asm__ volatile("hlt");
+}

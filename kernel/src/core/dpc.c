@@ -5,6 +5,7 @@
 #include "../graphics/console.h"
 #include "semaphore.h"
 #include "scheduler.h"
+#include "task.h"
 
 typedef struct dpc_job
 {
@@ -20,10 +21,17 @@ static semaphore_t g_dpc_sem;
 static void dpc_worker_thread(void *arg)
 {
     (void)arg;
-    console_write_debug("[DPC] Worker thread started.\n");
+
+    int printed_banner = 0;
 
     while (1)
     {
+
+        if (!printed_banner && !console_is_render_suspended())
+        {
+            console_write_debug("[DPC] Worker thread started.\n");
+            printed_banner = 1;
+        }
 
         sem_wait(&g_dpc_sem);
 
@@ -55,7 +63,7 @@ void dpc_init(void)
 
     sem_init(&g_dpc_sem, 0);
 
-    thread_create(dpc_worker_thread, NULL);
+    thread_create_with_class(dpc_worker_thread, NULL, TASK_CLASS_INTERACTIVE);
 
     console_write_debug("[CORE] DPC subsystem initialized (Worker Mode).\n");
 }

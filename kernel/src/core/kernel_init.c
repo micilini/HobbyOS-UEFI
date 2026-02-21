@@ -23,17 +23,52 @@
 #include "dpc.h"
 #include "scheduler.h"
 #include "semaphore.h"
-
+#include "../smp/smp_topology.h"
+#include "../smp/smp_boot.h"
 #include "list.h"
 #include "queue.h"
+#include "task.h"
 
 #include <stdint.h>
 #include <stddef.h>
 
+static void serial_write_dec_all(uint64_t v)
+{
+    char buf[32];
+    int i = 0;
 
+    if (v == 0)
+    {
+        serial_putc_all('0');
+        return;
+    }
 
+    while (v && i < (int)(sizeof(buf) - 1))
+    {
+        buf[i++] = (char)('0' + (v % 10));
+        v /= 10;
+    }
 
+    while (i--)
+        serial_putc_all(buf[i]);
+}
 
+static void test_smp_task(void *arg)
+{
+    uint64_t id = (uint64_t)arg;
+
+    while (1)
+    {
+
+        serial_write_all("[SMPTEST] Task ");
+        serial_write_dec_all(id);
+        serial_write_all(" on CPU ");
+        serial_write_dec_all((uint64_t)lapic_get_id());
+        serial_write_all("\n");
+
+        timer_sleep(1000);
+    }
+}
 
 static void kinit_debug(const char *msg)
 {
@@ -61,12 +96,10 @@ static void delay_seconds_for_reading(uint32_t seconds)
 
 void init_system_core(BootInfo *boot_info)
 {
-    
-    
+
     serial_init_from_bootinfo(boot_info);
     kinit_debug("[CORE] Serial init OK (dynamic ports from BootInfo)\n");
 
-    
     kinit_debug("[CORE] Init GDT...\n");
     init_gdt();
 
@@ -77,11 +110,10 @@ void init_system_core(BootInfo *boot_info)
     init_pmm(boot_info->memory_map);
 
     kinit_debug("[CORE] Init Paging...\n");
-    
+
     init_paging((uint64_t)boot_info->framebuffer->BaseAddress,
                 (uint64_t)boot_info->framebuffer->BufferSize);
 
-    
     kinit_debug("[CORE] Paging OK! Switched CR3.\n");
 
     kinit_debug("[CORE] Init Heap...\n");
@@ -92,7 +124,6 @@ void init_system_core(BootInfo *boot_info)
     console_clear(CONSOLE_COLOR_BLACK);
     console_set_debug_enabled(1);
 
-    
     void *test_heap = kmalloc(16);
     if (!test_heap)
         kpanic("CRITICAL: Heap Failed.");
@@ -104,7 +135,6 @@ void init_system_core(BootInfo *boot_info)
     acpi_list_tables_debug();
     acpi_enable_mode();
 
-    
     intel_tco_disable();
     acpi_wdat_disable();
     acpi_wddt_disable();
@@ -116,6 +146,24 @@ void init_system_core(BootInfo *boot_info)
     init_lapic();
     init_ioapic();
 
+    kinit_debug("[CORE] Init SMP Topoly...\n");
+    smp_topology_init();
+    smp_prepare_cpu_structures();
+
+    for (uint32_t i = 0; i < g_cpu_count; i++)
+    {
+        if (!g_cpus[i].is_bsp)
+        {
+
+            lapic_send_ipi(g_cpus[i].apic_id, 0xFE);
+
+            kinit_debug("[SMP] Test IPI sent to AP (If system runs, Phase 3 is OK)\n");
+            break;
+        }
+    }
+
+    smp_boot_aps();
+
     kinit_debug("[CORE] Init Drivers & Scheduler...\n");
     keyboard_init();
     timer_init();
@@ -125,10 +173,12 @@ void init_system_core(BootInfo *boot_info)
 
     dpc_init();
 
-    thread_create(input_thread_entry, NULL);
+    thread_create_with_class(input_thread_entry, NULL, TASK_CLASS_INTERACTIVE);
 
-    
     ioapic_map_irq(1, 33, 0);
+
+    extern volatile int g_system_ready_for_scheduling;
+    g_system_ready_for_scheduling = 1;
 
     irq_enable();
 

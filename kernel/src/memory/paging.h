@@ -32,4 +32,6 @@ void paging_load_map(PageTable *pml4);
 
 uint64_t paging_get_physical_address(uint64_t vaddr);
 
+PageTable *paging_create_bootstrap_table();
+
 #endif
