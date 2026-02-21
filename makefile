@@ -193,7 +193,8 @@ run: hobbyos.img
 		-drive file=hobbyos.img,format=raw,cache=writeback \
 		-serial file:qemu-serial.log \
 		-debugcon file:qemu-debugcon.log -global isa-debugcon.iobase=0x402 \
-		-d guest_errors -D qemu-trace.log
+		-d guest_errors -D qemu-trace.log \
+		-device nec-usb-xhci,id=xhci,msi=on,msix=off -device usb-kbd,bus=xhci.0
 
 # Teste básico - hub simples
 run-hub: hobbyos.img

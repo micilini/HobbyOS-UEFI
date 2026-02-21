@@ -52,7 +52,6 @@ trampoline_32:
     mov fs, ax
     mov gs, ax
     
-    /* Calcular Base Address (EBP) de forma segura em 32-bit */
     call .get_eip
 .get_eip:
     pop ebp
@@ -65,7 +64,6 @@ trampoline_32:
     mov al, 'P'
     out dx, al
 
-    /* Carregar CR3/CR4/EFER usando EBP como base */
     mov eax, [ebp + (smp_trampoline_cr4 - smp_trampoline_entry)]
     mov cr4, eax
 
@@ -90,8 +88,6 @@ trampoline_32:
 
 .code64
 trampoline_64:
-    /* Nota: RBP aqui contém o valor de EBP de 32-bit (Endereço Físico Base) */
-    /* NÃO RECALCULAR RBP COM LEA! Confiar no valor herdado. */
     
     mov ax, 0x10
     mov ds, ax
@@ -105,8 +101,6 @@ trampoline_64:
     mov al, 'L'
     out dx, al
 
-    /* Agora usamos RBP (que é físico) para ler as variáveis */
-
     mov eax, dword ptr [rbp + (smp_trampoline_x2apic_flag - smp_trampoline_entry)]
     test eax, eax
     jz .skip_x2apic
@@ -117,7 +111,6 @@ trampoline_64:
     wrmsr
 
 .skip_x2apic:
-    /* Carregar Stack */
     mov rsp, qword ptr [rbp + (smp_trampoline_stack - smp_trampoline_entry)]
     
     test rsp, rsp
@@ -125,18 +118,15 @@ trampoline_64:
 
     and rsp, -16
 
-    /* Carregar Ponteiro da Função C */
     mov rax, qword ptr [rbp + (smp_trampoline_entry_ptr - smp_trampoline_entry)]
     
     test rax, rax
     jz .bad_entry
 
-    /* Verificação de Sanidade: O endereço é Higher Half? (> 0xFFFFFFFF80000000) */
     mov rbx, 0xFFFFFFFF80000000
     cmp rax, rbx
     jb .bad_kernel_ptr
 
-    /* Se passou, tenta o pulo direto sem empilhar nada */
     xor rbp, rbp
     jmp rax
 
@@ -159,7 +149,7 @@ hang:
 
 .bad_kernel_ptr:
     mov dx, 0x3F8
-    mov al, 'K'     /* K = Kernel Pointer Invalid (Low Memory?) */
+    mov al, 'K'
     out dx, al
     jmp hang
 

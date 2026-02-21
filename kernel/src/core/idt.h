@@ -56,6 +56,5 @@ static inline int irq_are_enabled(void)
     __asm__ volatile("pushfq; popq %0" : "=r"(f) : : "memory");
     return ((f & (1ULL << 9)) != 0);
 }
- 
 
 #endif

@@ -144,41 +144,36 @@ static void panic_enter_owner_or_halt(void)
 
     uint32_t cpu = (uint32_t)lapic_get_id();
 
-    // Só o primeiro core que entrar no panic vira "owner".
     if (__sync_bool_compare_and_swap(&g_panic_in_progress, 0, 1))
     {
         g_panic_owner_cpu = (int32_t)cpu;
         return;
     }
 
-    // Core secundário: não tenta pegar locks nem desenhar nada.
     serial_write_all("[PANIC] Secondary CPU entered panic. Halting. cpu=0x");
     serial_write_hex64_all((uint64_t)cpu);
     serial_write_all("\n");
 
     __asm__ volatile("cli");
-    while (1) __asm__ volatile("hlt");
+    while (1)
+        __asm__ volatile("hlt");
 }
 
 void kpanic(const char *message)
 {
-    // Define owner ou para o core imediatamente (SMP-safe).
+
     panic_enter_owner_or_halt();
 
-    // Apenas o owner chega aqui.
     serial_write_all("\n[PANIC] kpanic() owner entered. Stopping other CPUs...\n");
 
     serial_write_all("[PANIC] Message: ");
     serial_write_all(message ? message : "(null)");
     serial_write_all("\n");
 
-    // "Stop-the-world" cedo para congelar os outros cores antes de tocar em console/graphics.
     lapic_send_broadcast_halt();
 
-    // Evita flicker / buffer swap durante panic
     graphics_enable_buffering(false);
 
-    // Serializa acesso ao console caso algum caminho ainda tente escrever antes do halt pegar.
     irq_flags_t flags = spin_lock_irqsave(&g_panic_lock);
 
     console_clear(COLOR_BSOD_BG);
@@ -222,10 +217,9 @@ void kpanic_exception_ex(const char *title,
                          uint64_t cr2,
                          int has_cr2)
 {
-    // Define owner ou para o core imediatamente (SMP-safe).
+
     panic_enter_owner_or_halt();
 
-    // Apenas o owner chega aqui.
     serial_write_all("\n[PANIC] kpanic_exception_ex() owner entered. Stopping other CPUs...\n");
 
     serial_write_all("[PANIC] Exception Title: ");
@@ -234,7 +228,6 @@ void kpanic_exception_ex(const char *title,
     serial_write_hex64_all((uint64_t)vector);
     serial_write_all("\n");
 
-    // "Stop-the-world" cedo.
     lapic_send_broadcast_halt();
 
     graphics_enable_buffering(false);
@@ -262,17 +255,32 @@ void kpanic_exception_ex(const char *title,
     {
         InterruptFrame *f = (InterruptFrame *)frame;
 
-        console_write("RIP:    0x"); console_print_hex(f->rip); console_write("\n");
-        console_write("CS:     0x"); console_print_hex(f->cs); console_write("\n");
-        console_write("RFLAGS: 0x"); console_print_hex(f->rflags); console_write("\n");
-        console_write("RSP:    0x"); console_print_hex(f->rsp); console_write("\n");
-        console_write("SS:     0x"); console_print_hex(f->ss); console_write("\n");
+        console_write("RIP:    0x");
+        console_print_hex(f->rip);
+        console_write("\n");
+        console_write("CS:     0x");
+        console_print_hex(f->cs);
+        console_write("\n");
+        console_write("RFLAGS: 0x");
+        console_print_hex(f->rflags);
+        console_write("\n");
+        console_write("RSP:    0x");
+        console_print_hex(f->rsp);
+        console_write("\n");
+        console_write("SS:     0x");
+        console_print_hex(f->ss);
+        console_write("\n");
 
-        serial_write_all("[PANIC] RIP=0x"); serial_write_hex64_all(f->rip);
-        serial_write_all(" RSP=0x"); serial_write_hex64_all(f->rsp);
-        serial_write_all(" RFLAGS=0x"); serial_write_hex64_all(f->rflags);
-        serial_write_all(" CS=0x"); serial_write_hex64_all(f->cs);
-        serial_write_all(" SS=0x"); serial_write_hex64_all(f->ss);
+        serial_write_all("[PANIC] RIP=0x");
+        serial_write_hex64_all(f->rip);
+        serial_write_all(" RSP=0x");
+        serial_write_hex64_all(f->rsp);
+        serial_write_all(" RFLAGS=0x");
+        serial_write_hex64_all(f->rflags);
+        serial_write_all(" CS=0x");
+        serial_write_hex64_all(f->cs);
+        serial_write_all(" SS=0x");
+        serial_write_hex64_all(f->ss);
         serial_write_all("\n");
     }
     else
@@ -330,7 +338,6 @@ void kpanic_exception_ex(const char *title,
         console_write("\n");
     }
 
-    // Dump CR3
     {
         uint64_t cr3;
         __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));

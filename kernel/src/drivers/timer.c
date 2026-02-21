@@ -93,8 +93,7 @@ void timer_run_deferred(void)
     g_shell_tick_counter += delta;
     if (g_shell_tick_counter >= SHELL_TICK_DIVIDER)
     {
-        /* shell_on_tick() internamente usa trylock —
-         * seguro para contexto de IRQ */
+
         shell_on_tick();
         g_shell_tick_counter = 0;
     }
@@ -102,9 +101,7 @@ void timer_run_deferred(void)
     g_xhci_poll_counter += delta;
     if (g_xhci_poll_counter >= XHCI_POLL_THRESHOLD)
     {
-        /* xhci_poll_events e xhci_kbd_repeat_poll não seguram
-         * locks que o input thread usa, então são seguros aqui.
-         * Se no futuro causarem problemas, envolver em trylock. */
+
         xhci_poll_events();
 
         xhci_kbd_repeat_poll();

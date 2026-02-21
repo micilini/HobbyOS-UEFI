@@ -56,7 +56,6 @@ static void gop_clear_screen_black()
     if (!gop || !gop->Mode || !gop->Mode->Info)
         return;
 
-    
     EFI_GRAPHICS_OUTPUT_BLT_PIXEL black;
     black.Blue = 0;
     black.Green = 0;
@@ -139,7 +138,6 @@ Framebuffer *get_framebuffer(BootInfo *boot_info)
         return NULL;
     }
 
-    
     for (UINT32 i = 0; i < cand_count; i++)
     {
         for (UINT32 j = i + 1; j < cand_count; j++)
@@ -157,9 +155,6 @@ Framebuffer *get_framebuffer(BootInfo *boot_info)
         }
     }
 
-    
-    
-    
     UINT32 chosen_mode = gop->Mode->Mode;
     int set_ok = 0;
 
@@ -167,7 +162,6 @@ Framebuffer *get_framebuffer(BootInfo *boot_info)
     {
         UINT32 try_mode = cand[k].mode;
 
-        
         if (try_mode == gop->Mode->Mode)
         {
             chosen_mode = try_mode;
@@ -178,7 +172,7 @@ Framebuffer *get_framebuffer(BootInfo *boot_info)
         EFI_STATUS st = uefi_call_wrapper(gop->SetMode, 2, gop, try_mode);
         if (st == EFI_SUCCESS)
         {
-            
+
             UINT32 cur_mode = gop->Mode->Mode;
             UINT32 cur_w = gop->Mode->Info ? gop->Mode->Info->HorizontalResolution : 0;
             UINT32 cur_h = gop->Mode->Info ? gop->Mode->Info->VerticalResolution : 0;
@@ -195,7 +189,7 @@ Framebuffer *get_framebuffer(BootInfo *boot_info)
             }
             else
             {
-                
+
                 serial_write_str(boot_info, "[UEFI][GOP] SetMode returned SUCCESS but mode did not change!\n");
                 serial_write_str(boot_info, "[UEFI][GOP] Expected mode=0x");
                 serial_hex(boot_info, (uint64_t)try_mode);
@@ -212,8 +206,6 @@ Framebuffer *get_framebuffer(BootInfo *boot_info)
                 serial_write_str(boot_info, " H=0x");
                 serial_hex(boot_info, (uint64_t)cur_h);
                 serial_write_str(boot_info, "\n");
-
-                
             }
         }
         else

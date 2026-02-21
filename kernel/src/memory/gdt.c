@@ -3,25 +3,29 @@
 #include "../graphics/console.h"
 #include "../libc/memory.h"
 #include "../memory/heap.h"
-#include "../drivers/serial.h" 
+#include "../drivers/serial.h"
 
 GdtTable g_gdt;
 static GdtPtr g_gdtr;
 
 #define HHDM_OFFSET 0xFFFFFFFF80000000ULL
 
-static void* to_higher_half(void* ptr) {
+static void *to_higher_half(void *ptr)
+{
     uint64_t addr = (uint64_t)ptr;
-    
-    if (addr < 0x100000000ULL && addr > 0) {
-        return (void*)(addr | HHDM_OFFSET);
+
+    if (addr < 0x100000000ULL && addr > 0)
+    {
+        return (void *)(addr | HHDM_OFFSET);
     }
     return ptr;
 }
 
-static void serial_print_hex(uint64_t n) {
+static void serial_print_hex(uint64_t n)
+{
     serial_write_all("0x");
-    for (int i = 60; i >= 0; i -= 4) {
+    for (int i = 60; i >= 0; i -= 4)
+    {
         uint8_t nibble = (n >> i) & 0xF;
         char c = (nibble < 10) ? ('0' + nibble) : ('A' + (nibble - 10));
         serial_putc_all(c);
@@ -46,7 +50,7 @@ static void gdt_set_tss(TssDesc64 *desc, uint64_t base, uint32_t limit)
     desc->limit_low = (uint16_t)(limit & 0xFFFF);
     desc->base_low = (uint16_t)(base & 0xFFFF);
     desc->base_mid1 = (uint8_t)((base >> 16) & 0xFF);
-    desc->access = 0x89; 
+    desc->access = 0x89;
     desc->gran = (uint8_t)((limit >> 16) & 0x0F);
     desc->base_mid2 = (uint8_t)((base >> 24) & 0xFF);
     desc->base_high = (uint32_t)((base >> 32) & 0xFFFFFFFF);
@@ -103,32 +107,30 @@ void init_gdt()
     tss_load();
 }
 
-GdtTable* gdt_create_per_cpu(void *tss_ptr)
+GdtTable *gdt_create_per_cpu(void *tss_ptr)
 {
     serial_write_all("      [GDT] Allocating... ");
-    
-    
+
     void *phys_ptr = kmalloc(sizeof(GdtTable));
-    if (!phys_ptr) { 
-        serial_write_all("FAIL (kmalloc)\n"); 
-        return NULL; 
+    if (!phys_ptr)
+    {
+        serial_write_all("FAIL (kmalloc)\n");
+        return NULL;
     }
 
-    
     GdtTable *new_gdt = (GdtTable *)to_higher_half(phys_ptr);
-    
+
     serial_write_all("OK. Copying from global... ");
-    
-    
+
     memcpy(new_gdt, &g_gdt, sizeof(GdtTable));
-    
+
     serial_write_all("OK. Setting TSS... ");
 
     uint64_t tss_base = (uint64_t)tss_ptr;
     uint32_t tss_limit = (uint32_t)(sizeof(Tss64) - 1);
-    
+
     gdt_set_tss(&new_gdt->tss, tss_base, tss_limit);
-    
+
     serial_write_all("Done.\n");
 
     return new_gdt;

@@ -19,15 +19,14 @@ static void serial_write_hex_u64(uint64_t v)
 typedef struct
 {
     uint32_t worker_id;
-    uint32_t panic_pct;          // 0..100
-    uint32_t period_ms;          // throttle log
+    uint32_t panic_pct;
+    uint32_t period_ms;
     uint32_t rng_state;
     uint64_t iterations;
 
-    // --- novos controles ---
-    uint64_t warmup_until_ms;    // não pode panic antes disso
-    uint32_t yield_ms;           // sleep por loop (1..N)
-    uint32_t panic_check_ms;     // só tenta panic a cada X ms
+    uint64_t warmup_until_ms;
+    uint32_t yield_ms;
+    uint32_t panic_check_ms;
     uint64_t next_panic_check_ms;
 } smpstress_ctx_t;
 
@@ -49,7 +48,7 @@ static uint32_t parse_u32(const char *s, uint32_t def)
 
 static uint32_t rng_next_u32(smpstress_ctx_t *c)
 {
-    // xorshift32
+
     uint32_t x = c->rng_state;
     if (x == 0)
         x = 0xA341316Cu ^ (c->worker_id * 2654435761u);
@@ -88,7 +87,7 @@ static void serial_write_u32_dec_all(uint32_t v)
 
 static uint64_t stress_job_A(uint64_t x)
 {
-    // mixing + arithmetic
+
     for (int i = 0; i < 250000; i++)
     {
         x ^= (x << 7);
@@ -101,7 +100,7 @@ static uint64_t stress_job_A(uint64_t x)
 
 static uint64_t stress_job_B(uint64_t x)
 {
-    // bounded trial division loop
+
     uint64_t acc = 0;
     uint64_t n = (x | 1ULL);
 
@@ -127,7 +126,7 @@ static uint64_t stress_job_B(uint64_t x)
 
 static uint64_t stress_job_C(uint64_t x)
 {
-    // matrix-ish accumulation
+
     uint64_t a = (x ^ 0x9E3779B97F4A7C15ULL);
     uint64_t b = (x + 0xD1B54A32D192ED03ULL);
     uint64_t sum = 0;
@@ -149,7 +148,8 @@ static void smpstress_worker(void *arg)
         return;
 
     const uint32_t test_kind = (c->worker_id % 3u);
-    const char *test_name = (test_kind == 0) ? "A" : (test_kind == 1) ? "B" : "C";
+    const char *test_name = (test_kind == 0) ? "A" : (test_kind == 1) ? "B"
+                                                                      : "C";
 
     uint64_t last_log = timer_get_ms();
 
@@ -178,7 +178,6 @@ static void smpstress_worker(void *arg)
 
         uint64_t now = timer_get_ms();
 
-        // Log no serial com throttle
         if ((now - last_log) >= (uint64_t)c->period_ms)
         {
             last_log = now;
@@ -195,7 +194,6 @@ static void smpstress_worker(void *arg)
             serial_write_all("\n");
         }
 
-        // Panic: só depois do warmup + só em janelas (panic_check_ms)
         if (c->panic_pct > 0 && now >= c->warmup_until_ms)
         {
             if (now >= c->next_panic_check_ms)
@@ -220,14 +218,12 @@ static void smpstress_worker(void *arg)
             }
         }
 
-        // TESTE 7.3: sem yield — só preempção real salva o sistema
         if (c->yield_ms == 0)
         {
-            // CPU-bound puro: não dorme, não yield
         }
         else
         {
-             if (c->yield_ms > 0)
+            if (c->yield_ms > 0)
                 timer_sleep(c->yield_ms);
         }
     }
@@ -235,36 +231,40 @@ static void smpstress_worker(void *arg)
 
 int cmd_smpstress(int argc, char **argv)
 {
-    // Usage:
-    //   smpstress [workers] [panic_pct] [period_ms] [warmup_s] [yield_ms] [panic_check_ms]
-    //
-    // Ex:
-    //   smpstress 10 5 200        (defaults: warmup=5s yield=1ms panic_check=250ms)
-    //   smpstress 10 5 200 5 2 500
 
     uint32_t workers = 3;
     uint32_t panic_pct = 30;
     uint32_t period_ms = 250;
 
-    uint32_t warmup_s = 5;         // deixa você brincar no shell antes do caos
-    uint32_t yield_ms = 1;         // 1..5 geralmente deixa o shell bem responsivo
-    uint32_t panic_check_ms = 250; // tenta panic no máximo 4x por segundo por worker
+    uint32_t warmup_s = 5;
+    uint32_t yield_ms = 1;
+    uint32_t panic_check_ms = 250;
 
-    if (argc >= 2) workers = parse_u32(argv[1], workers);
-    if (argc >= 3) panic_pct = parse_u32(argv[2], panic_pct);
-    if (argc >= 4) period_ms = parse_u32(argv[3], period_ms);
+    if (argc >= 2)
+        workers = parse_u32(argv[1], workers);
+    if (argc >= 3)
+        panic_pct = parse_u32(argv[2], panic_pct);
+    if (argc >= 4)
+        period_ms = parse_u32(argv[3], period_ms);
 
-    if (argc >= 5) warmup_s = parse_u32(argv[4], warmup_s);
-    if (argc >= 6) yield_ms = parse_u32(argv[5], yield_ms);
-    if (argc >= 7) panic_check_ms = parse_u32(argv[6], panic_check_ms);
+    if (argc >= 5)
+        warmup_s = parse_u32(argv[4], warmup_s);
+    if (argc >= 6)
+        yield_ms = parse_u32(argv[5], yield_ms);
+    if (argc >= 7)
+        panic_check_ms = parse_u32(argv[6], panic_check_ms);
 
-    if (workers == 0) workers = 1;
-    if (panic_pct > 100) panic_pct = 100;
+    if (workers == 0)
+        workers = 1;
+    if (panic_pct > 100)
+        panic_pct = 100;
 
-    // evita serial spam e starvation
-    if (period_ms < 50) period_ms = 50;
-    if (yield_ms > 20) yield_ms = 20;
-    if (panic_check_ms < 50) panic_check_ms = 50;
+    if (period_ms < 50)
+        period_ms = 50;
+    if (yield_ms > 20)
+        yield_ms = 20;
+    if (panic_check_ms < 50)
+        panic_check_ms = 50;
 
     uint64_t now = timer_get_ms();
     uint64_t warmup_until = now + (uint64_t)warmup_s * 1000ULL;
@@ -301,7 +301,7 @@ int cmd_smpstress(int argc, char **argv)
         ctx->warmup_until_ms = warmup_until;
         ctx->yield_ms = yield_ms;
         ctx->panic_check_ms = panic_check_ms;
-        ctx->next_panic_check_ms = warmup_until; // começa a checar só após warmup
+        ctx->next_panic_check_ms = warmup_until;
 
         thread_create(smpstress_worker, ctx);
     }

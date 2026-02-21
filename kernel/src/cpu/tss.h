@@ -26,10 +26,9 @@ typedef struct __attribute__((packed))
     uint16_t iomap_base;
 } Tss64;
 
-void tss_init(void);     
-Tss64 *tss_get(void);    
+void tss_init(void);
+Tss64 *tss_get(void);
 
-
-Tss64* tss_create_per_cpu(void);
+Tss64 *tss_create_per_cpu(void);
 
 #endif

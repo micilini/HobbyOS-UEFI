@@ -3,6 +3,7 @@
 #include "../utils/utils.h"
 #include "../libc/memory.h"
 #include "../core/spinlock.h"
+#include "../drivers/serial.h"
 
 extern volatile int g_panic_in_progress;
 
@@ -68,6 +69,8 @@ void console_end_batch()
 
 static inline void console_flush_if_needed()
 {
+    if (g_console_render_suspended)
+        return;
     if (g_console_batch == 0)
         swap_buffers();
 }
@@ -110,8 +113,8 @@ static void draw_char_pixels_at(char c, uint32_t cx, uint32_t cy, uint32_t fg_co
 {
 
     if (g_console_render_suspended)
-    return;
-    
+        return;
+
     if (!g_font)
         return;
 
@@ -155,37 +158,40 @@ static void console_scroll()
         g_history[bottom_line][x].bg = g_color_bg;
     }
 
-    for (uint32_t screen_y = 0; screen_y < g_max_rows; screen_y++)
+    if (!g_console_render_suspended)
     {
-        uint32_t history_idx = (g_view_start_line + screen_y) % CONSOLE_MAX_HISTORY;
-        uint32_t cy_pixel = CONSOLE_PAD_Y + (screen_y * g_font->psf_header->charsize);
-
-        for (uint32_t x = 0; x < g_max_cols; x++)
+        for (uint32_t screen_y = 0; screen_y < g_max_rows; screen_y++)
         {
-            ConsoleCell *cell = &g_history[history_idx][x];
+            uint32_t history_idx = (g_view_start_line + screen_y) % CONSOLE_MAX_HISTORY;
+            uint32_t cy_pixel = CONSOLE_PAD_Y + (screen_y * g_font->psf_header->charsize);
 
-            char c = cell->c;
-            if (c == 0)
-                c = ' ';
-
-            uint32_t cx_pixel = CONSOLE_PAD_X + (x * 8);
-            char *fontPtr = (char *)g_font->glyph_buffer + (c * g_font->psf_header->charsize);
-
-            for (uint32_t py = 0; py < g_font->psf_header->charsize; py++)
+            for (uint32_t x = 0; x < g_max_cols; x++)
             {
-                char row = *fontPtr;
-                for (uint32_t px = 0; px < 8; px++)
+                ConsoleCell *cell = &g_history[history_idx][x];
+
+                char c = cell->c;
+                if (c == 0)
+                    c = ' ';
+
+                uint32_t cx_pixel = CONSOLE_PAD_X + (x * 8);
+                char *fontPtr = (char *)g_font->glyph_buffer + (c * g_font->psf_header->charsize);
+
+                for (uint32_t py = 0; py < g_font->psf_header->charsize; py++)
                 {
-                    if (row & (0x80 >> px))
+                    char row = *fontPtr;
+                    for (uint32_t px = 0; px < 8; px++)
                     {
-                        put_pixel(cx_pixel + px, cy_pixel + py, cell->fg);
+                        if (row & (0x80 >> px))
+                        {
+                            put_pixel(cx_pixel + px, cy_pixel + py, cell->fg);
+                        }
+                        else
+                        {
+                            put_pixel(cx_pixel + px, cy_pixel + py, cell->bg);
+                        }
                     }
-                    else
-                    {
-                        put_pixel(cx_pixel + px, cy_pixel + py, cell->bg);
-                    }
+                    fontPtr++;
                 }
-                fontPtr++;
             }
         }
     }
@@ -305,11 +311,7 @@ void console_clear(uint32_t bg_color)
 
 static void console_put_char_internal(char c)
 {
-    // Se estivermos em pânico, não queremos que outras threads 
-    // (como o Shell ou tarefas de teste) fiquem "sujando" a tela.
-    // Mas o core que está em pânico precisa desenhar, então checamos se 
-    // o lock está sendo ignorado ou se somos o core do pânico.
-    
+
     if (!g_font || !g_fb)
         return;
 
@@ -377,7 +379,8 @@ static void console_put_char_internal(char c)
 
 void console_put_char(char c)
 {
-    if (g_panic_in_progress) {
+    if (g_panic_in_progress)
+    {
         console_put_char_internal(c);
         return;
     }
@@ -417,35 +420,52 @@ void console_write_debug(const char *str)
 {
     if (!g_console_debug_enabled)
         return;
-    console_write(str);
+    serial_write_all(str);
 }
 
 void console_print_hex_debug(uint64_t n)
 {
     if (!g_console_debug_enabled)
         return;
-    console_print_hex(n);
+    serial_write_hex64_all(n);
 }
 
 void console_print_dec_debug(uint64_t n)
 {
     if (!g_console_debug_enabled)
         return;
-    console_print_dec(n);
+
+    if (n == 0)
+    {
+        serial_putc_all('0');
+        return;
+    }
+
+    char buf[21];
+    int i = 0;
+    while (n > 0 && i < 20)
+    {
+        buf[i++] = '0' + (n % 10);
+        n /= 10;
+    }
+    while (i > 0)
+    {
+        serial_putc_all(buf[--i]);
+    }
 }
 
 void console_set_color_debug(uint32_t fg, uint32_t bg)
 {
-    if (!g_console_debug_enabled)
-        return;
-    console_set_color(fg, bg);
+
+    (void)fg;
+    (void)bg;
 }
 
 void console_put_char_debug(char c)
 {
     if (!g_console_debug_enabled)
         return;
-    console_put_char(c);
+    serial_putc_all(c);
 }
 
 static void console_redraw_char_internal(char c)

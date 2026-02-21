@@ -150,10 +150,8 @@ __attribute__((interrupt)) void irq_keyboard_handler(InterruptFrame *frame)
     lapic_eoi();
 }
 
-/* Handler assembly (switch.S) — registrado na IDT para vetor 32 */
 extern void irq_timer_entry(void);
 
-/* Função C chamada pelo stub assembly irq_timer_entry */
 void irq_timer_handler_inner(void)
 {
     extern volatile int g_panic_in_progress;
@@ -167,28 +165,16 @@ void irq_timer_handler_inner(void)
     uint32_t id = lapic_get_id();
     irq_stats_record(INT_VECTOR_TIMER);
 
-    // EOI cedo
     lapic_eoi();
 
-    // timer_handler() só roda no BSP real
     if (id == g_bsp_apic_id)
     {
         timer_handler();
 
-        // Roda trabalho deferido AQUI dentro do IRQ do BSP.
-        // Isso garante que shell_on_tick() e xhci_poll_events()
-        // SEMPRE rodam, mesmo quando workers CPU-bound estão
-        // monopolizando o BSP.
-        // É seguro porque: (1) IRQs estão desabilitadas (estamos
-        // dentro de um IRQ handler), (2) o worker interrompido não
-        // segura nenhum destes locks (shell_lock, console_lock).
         timers_poll();
         timer_run_deferred();
     }
 
-    // Sinaliza resched a cada tick.
-    // O scheduler_preempt_from_irq() (chamado pelo stub asm)
-    // decide se realmente troca baseado no quantum.
     interrupts_request_reschedule();
 }
 
@@ -209,14 +195,13 @@ __attribute__((interrupt)) void exc_isr2(InterruptFrame *frame)
 
     extern volatile int g_panic_in_progress;
 
-    /* Se estamos em panic, NMI serve como “freeze” dos outros cores */
     if (g_panic_in_progress)
     {
         __asm__ volatile("cli");
-        while (1) __asm__ volatile("hlt");
+        while (1)
+            __asm__ volatile("hlt");
     }
 
-    /* Caso contrário, mantém o comportamento anterior: panic normal */
     EXC_PANIC_NOERR(2);
 }
 
@@ -266,9 +251,11 @@ __attribute__((interrupt)) void exc_isr30(InterruptFrame *frame, uint64_t error_
 
 __attribute__((interrupt)) void exc_isr31(InterruptFrame *frame) { EXC_PANIC_NOERR(31); }
 
-__attribute__((interrupt)) void irq_halt_handler(InterruptFrame *frame) {
+__attribute__((interrupt)) void irq_halt_handler(InterruptFrame *frame)
+{
     (void)frame;
     lapic_eoi();
     __asm__ volatile("cli");
-    while(1) __asm__ volatile("hlt"); // Para o core para sempre
+    while (1)
+        __asm__ volatile("hlt");
 }

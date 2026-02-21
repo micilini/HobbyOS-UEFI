@@ -13,12 +13,11 @@ typedef enum
     TASK_ZOMBIE
 } task_state_t;
 
-/* Classes de prioridade */
-#define TASK_CLASS_INTERACTIVE  0   /* input thread, DPC, shell — baixa latência */
-#define TASK_CLASS_NORMAL       1   /* tasks normais criadas pelo usuário */
+#define TASK_CLASS_INTERACTIVE 0
+#define TASK_CLASS_NORMAL 1
 
-#define DEFAULT_QUANTUM         20  /* ~20ms com tick de 1ms */
-#define INTERACTIVE_QUANTUM     5   /* ~5ms — interativos rodam pouco mas rápido */
+#define DEFAULT_QUANTUM 20
+#define INTERACTIVE_QUANTUM 5
 
 typedef struct
 {
@@ -29,9 +28,9 @@ typedef struct
     uint64_t cr3;
     void *stack_base;
 
-    int quantum;            /* ticks restantes neste time slice */
-    int quantum_default;    /* valor de reset ao ser re-enfileirada */
-    int task_class;         /* TASK_CLASS_INTERACTIVE ou TASK_CLASS_NORMAL */
+    int quantum;
+    int quantum_default;
+    int task_class;
 
     struct list_head list;
 } task_t;

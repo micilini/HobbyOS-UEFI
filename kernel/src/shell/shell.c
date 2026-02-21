@@ -434,15 +434,10 @@ void shell_on_tick()
     tick++;
     if ((tick % 40) == 0)
     {
-        /*
-         * shell_on_tick() agora roda dentro do timer IRQ no BSP.
-         * Se o input thread (ou qualquer outro) estiver segurando
-         * g_shell_lock neste momento, NÃO podemos esperar (deadlock).
-         * Usamos trylock: se não conseguir, pula — o próximo tick tenta.
-         */
+
         irq_flags_t flags;
         if (!spin_trylock_irqsave(&g_shell_lock, &flags))
-            return;  /* lock ocupado, tenta no próximo tick */
+            return;
 
         if (g_shell_active)
         {
@@ -506,7 +501,7 @@ void shell_receive_char(char c)
 
         g_hist_nav = -1;
 
-               g_shell_active = false;
+        g_shell_active = false;
 
         spin_unlock_irqrestore(&g_shell_lock, flags);
 

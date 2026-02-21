@@ -79,8 +79,7 @@ void init_idt()
 
     set_idt_gate(0xFF, irq_spurious_handler, IDT_TA_INTERRUPT_GATE);
 
-    // Vetor 0xFD reservado para SMP Halt (Pânico)
-    set_idt_gate(0xFD, irq_halt_handler, IDT_TA_INTERRUPT_GATE);
+        set_idt_gate(0xFD, irq_halt_handler, IDT_TA_INTERRUPT_GATE);
 
     g_idtr.limit = (sizeof(IdtEntry) * IDT_ENTRIES) - 1;
     g_idtr.base = (uint64_t)&g_idt;

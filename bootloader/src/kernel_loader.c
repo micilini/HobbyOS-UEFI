@@ -81,8 +81,8 @@ void *load_elf_kernel(EFI_FILE *kernel_file)
     Print(L"[DEBUG] Scanning ELF Segments...\n");
     for (int i = 0; i < header.e_phnum; i++)
     {
-        
-        Print(L"  Seg %d: Type=%x, PAddr=0x%lx, MemSz=0x%lx\n", 
+
+        Print(L"  Seg %d: Type=%x, PAddr=0x%lx, MemSz=0x%lx\n",
               i, phdr->p_type, phdr->p_paddr, phdr->p_memsz);
 
         if (phdr->p_type == PT_LOAD && phdr->p_memsz > 0 && phdr->p_paddr >= 0x10000)
@@ -120,16 +120,13 @@ void *load_elf_kernel(EFI_FILE *kernel_file)
         return NULL;
     }
 
-    
     uefi_call_wrapper(BS->SetMem, 3, (void *)min_start, (max_end - min_start), 0);
 
-    
     phdr = (Elf64_Phdr *)ph_buffer;
 
-    
     for (int i = 0; i < header.e_phnum; i++)
     {
-        
+
         if (phdr->p_type == PT_LOAD && phdr->p_filesz > 0 && phdr->p_paddr >= 0x100000)
         {
             uefi_call_wrapper(kernel_file->SetPosition, 2, kernel_file, phdr->p_offset);
@@ -150,7 +147,6 @@ void *load_elf_kernel(EFI_FILE *kernel_file)
     }
 
     uefi_call_wrapper(BS->FreePool, 1, ph_buffer);
-    
-    
+
     return (void *)header.e_entry;
 }

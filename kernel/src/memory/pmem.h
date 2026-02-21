@@ -16,7 +16,6 @@ void *pmm_alloc_contiguous_frames(size_t count);
 
 void pmm_free_frame(void *paddr);
 
-
 bool pmm_is_frame_free(uint64_t physical_address);
 void pmm_mark_frame_used(uint64_t physical_address);
 

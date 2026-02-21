@@ -65,6 +65,6 @@ __attribute__((interrupt)) void irq_spurious_handler(InterruptFrame *frame);
 __attribute__((interrupt)) void irq_halt_handler(InterruptFrame *frame);
 
 void interrupts_request_reschedule(void);
-int  interrupts_consume_reschedule(void);
+int interrupts_consume_reschedule(void);
 
 #endif

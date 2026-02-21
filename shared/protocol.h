@@ -11,8 +11,8 @@
 
 #define HOBBYOS_MAX_SERIAL_PORTS 32
 
-#define HOBBYOS_SERIAL_KIND_NONE        0
-#define HOBBYOS_SERIAL_KIND_16550_IO    1
+#define HOBBYOS_SERIAL_KIND_NONE 0
+#define HOBBYOS_SERIAL_KIND_16550_IO 1
 
 typedef struct
 {
@@ -44,14 +44,16 @@ typedef struct
     uint32_t PixelsPerScanLine;
 } Framebuffer;
 
-typedef struct {
+typedef struct
+{
     uint16_t io_base;
-    uint8_t  kind;
-    uint8_t  reserved;
+    uint8_t kind;
+    uint8_t reserved;
     uint32_t reserved2;
 } HobbyOSSerialPort;
 
-typedef struct {
+typedef struct
+{
     uint32_t count;
     HobbyOSSerialPort ports[HOBBYOS_MAX_SERIAL_PORTS];
 } HobbyOSSerialInfo;

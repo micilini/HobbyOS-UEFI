@@ -6,8 +6,6 @@
 #define HOBBYOS_MAX_SERIAL_PORTS 32
 #endif
 
-
-
 #ifndef HOBBYOS_KERNEL_SERIAL_DEV_PORTS
 #define HOBBYOS_KERNEL_SERIAL_DEV_PORTS 0
 #endif
@@ -41,52 +39,57 @@ static inline void io_wait(void)
     outb_u8(0x80, 0);
 }
 
-enum {
+enum
+{
     UART_RBR_THR_DLL = 0,
-    UART_IER_DLM     = 1,
-    UART_IIR_FCR     = 2,
-    UART_LCR         = 3,
-    UART_MCR         = 4,
-    UART_LSR         = 5,
-    UART_SCR         = 7,
+    UART_IER_DLM = 1,
+    UART_IIR_FCR = 2,
+    UART_LCR = 3,
+    UART_MCR = 4,
+    UART_LSR = 5,
+    UART_SCR = 7,
 };
 
 #define UART_LSR_THRE (1u << 5)
 
 static int uart_wait_thre(uint16_t base)
 {
-    
-    
-    uint8_t first = inb_u8(base + UART_LSR);
-    if (first == 0xFF) return 0;
-    if (first & UART_LSR_THRE) return 1;
 
-    
+    uint8_t first = inb_u8(base + UART_LSR);
+    if (first == 0xFF)
+        return 0;
+    if (first & UART_LSR_THRE)
+        return 1;
+
     for (uint32_t spin = 0; spin < 20000; spin++)
     {
         uint8_t lsr = inb_u8(base + UART_LSR);
-        if (lsr == 0xFF) return 0;
-        if (lsr & UART_LSR_THRE) return 1;
+        if (lsr == 0xFF)
+            return 0;
+        if (lsr & UART_LSR_THRE)
+            return 1;
     }
     return 0;
 }
 
 static int uart_probe(uint16_t base)
 {
-    
+
     uint8_t lsr = inb_u8(base + UART_LSR);
     uint8_t iir = inb_u8(base + UART_IIR_FCR);
 
-    if (lsr == 0xFF && iir == 0xFF) return 0;
+    if (lsr == 0xFF && iir == 0xFF)
+        return 0;
 
-    
     uint8_t old = inb_u8(base + UART_LCR);
     outb_u8(base + UART_LCR, (uint8_t)(old ^ 0x03));
     uint8_t now = inb_u8(base + UART_LCR);
     outb_u8(base + UART_LCR, old);
 
-    if (now == 0xFF) return 0;
-    if (now == old) return 0;
+    if (now == 0xFF)
+        return 0;
+    if (now == old)
+        return 0;
 
     return 1;
 }
@@ -105,13 +108,18 @@ static void uart_init_115200_8n1(uint16_t base)
 
 static void uart_putc_idx(uint32_t idx, uint16_t base, char c)
 {
-    if (g_serial_dead[idx]) return;
+    if (g_serial_dead[idx])
+        return;
 
-    if (c == '\n') uart_putc_idx(idx, base, '\r');
+    if (c == '\n')
+        uart_putc_idx(idx, base, '\r');
 
-    if (!uart_wait_thre(base)) {
-        if (g_serial_fail[idx] < 0xFF) g_serial_fail[idx]++;
-        if (g_serial_fail[idx] >= 4) g_serial_dead[idx] = 1; 
+    if (!uart_wait_thre(base))
+    {
+        if (g_serial_fail[idx] < 0xFF)
+            g_serial_fail[idx]++;
+        if (g_serial_fail[idx] >= 4)
+            g_serial_dead[idx] = 1;
         return;
     }
 
@@ -119,9 +127,10 @@ static void uart_putc_idx(uint32_t idx, uint16_t base, char c)
     outb_u8(base + UART_RBR_THR_DLL, (uint8_t)c);
 }
 
-static void uart_write_idx(uint32_t idx, uint16_t base, const char* s)
+static void uart_write_idx(uint32_t idx, uint16_t base, const char *s)
 {
-    while (*s) uart_putc_idx(idx, base, *s++);
+    while (*s)
+        uart_putc_idx(idx, base, *s++);
 }
 
 static void uart_write_hex64_idx(uint32_t idx, uint16_t base, uint64_t v)
@@ -136,7 +145,7 @@ static void uart_write_hex64_idx(uint32_t idx, uint16_t base, uint64_t v)
 
 static void add_port(uint16_t base)
 {
-    
+
     if ((base & 0x7) != 0)
         return;
 
@@ -153,7 +162,7 @@ static void add_port(uint16_t base)
     g_serial_ports[g_serial_count++] = base;
 }
 
-void serial_init_from_bootinfo(const BootInfo* boot_info)
+void serial_init_from_bootinfo(const BootInfo *boot_info)
 {
     if (!g_serial_lock_inited)
     {
@@ -164,12 +173,12 @@ void serial_init_from_bootinfo(const BootInfo* boot_info)
     g_serial_count = 0;
     g_serial_inited = 0;
 
-    for (uint32_t i = 0; i < HOBBYOS_MAX_SERIAL_PORTS; i++) {
+    for (uint32_t i = 0; i < HOBBYOS_MAX_SERIAL_PORTS; i++)
+    {
         g_serial_dead[i] = 0;
         g_serial_fail[i] = 0;
     }
 
-    
     if ((uintptr_t)boot_info < 0x1000)
     {
         add_port(0x3F8);
@@ -177,10 +186,10 @@ void serial_init_from_bootinfo(const BootInfo* boot_info)
         add_port(0x3E8);
         add_port(0x2E8);
 
-        #if HOBBYOS_KERNEL_SERIAL_DEV_PORTS
+#if HOBBYOS_KERNEL_SERIAL_DEV_PORTS
         add_port(0x40C0);
         add_port(0x40C8);
-        #endif
+#endif
 
         for (uint32_t i = 0; i < g_serial_count; i++)
             uart_init_115200_8n1(g_serial_ports[i]);
@@ -189,7 +198,6 @@ void serial_init_from_bootinfo(const BootInfo* boot_info)
         return;
     }
 
-    
     if (boot_info && boot_info->serial.count > 0)
     {
         for (uint32_t i = 0; i < boot_info->serial.count; i++)
@@ -201,14 +209,11 @@ void serial_init_from_bootinfo(const BootInfo* boot_info)
         }
     }
 
-    
-    
-    #if HOBBYOS_KERNEL_SERIAL_DEV_PORTS
+#if HOBBYOS_KERNEL_SERIAL_DEV_PORTS
     add_port(0x40C0);
     add_port(0x40C8);
-    #endif
+#endif
 
-    
     if (g_serial_count == 0)
     {
         add_port(0x3F8);
@@ -225,7 +230,8 @@ void serial_init_from_bootinfo(const BootInfo* boot_info)
 
 void serial_putc_all(char c)
 {
-    if (!g_serial_inited) return;
+    if (!g_serial_inited)
+        return;
 
     if (!g_panic_in_progress)
     {
@@ -236,14 +242,14 @@ void serial_putc_all(char c)
         return;
     }
 
-    // Em panic: best-effort, sem lock (evita deadlock)
     for (uint32_t i = 0; i < g_serial_count; i++)
         uart_putc_idx(i, g_serial_ports[i], c);
 }
 
-void serial_write_all(const char* s)
+void serial_write_all(const char *s)
 {
-    if (!g_serial_inited || !s) return;
+    if (!g_serial_inited || !s)
+        return;
 
     if (!g_panic_in_progress)
     {
@@ -260,9 +266,9 @@ void serial_write_all(const char* s)
 
 void serial_write_hex64_all(uint64_t v)
 {
-    if (!g_serial_inited) return;
+    if (!g_serial_inited)
+        return;
 
-    // Fora de panic: serial é compartilhado em SMP, então precisa de lock
     if (!g_panic_in_progress)
     {
         irq_flags_t flags = spin_lock_irqsave(&g_serial_lock);
@@ -274,7 +280,6 @@ void serial_write_hex64_all(uint64_t v)
         return;
     }
 
-    // Em panic: best-effort, sem lock (evita deadlock)
     for (uint32_t i = 0; i < g_serial_count; i++)
         uart_write_hex64_idx(i, g_serial_ports[i], v);
 }

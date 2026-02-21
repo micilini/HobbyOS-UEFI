@@ -16,9 +16,6 @@
 
 EFI_SYSTEM_TABLE *SystemTable;
 
-
-
-
 static void serial_write_u32_all(BootInfo *boot_info, uint32_t value)
 {
     char buf[16];
@@ -37,7 +34,6 @@ static void serial_write_u32_all(BootInfo *boot_info, uint32_t value)
         value /= 10;
     }
 
-    
     for (int i = idx - 1; i >= 0; i--)
     {
         char out[2];
@@ -71,12 +67,11 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SysTable)
     {
         Print(L"[-] Critical: Failed to initialize Graphics Output Protocol.\n");
         serial_write_all(&boot_info, "[UEFI] ERROR: GOP failed.\n");
-        while (1) { }
+        while (1)
+        {
+        }
     }
 
-    
-    
-    
     serial_write_all(&boot_info, "[UEFI] GOP Mode Selected: W=0x");
     serial_write_hex64_all(&boot_info, (uint64_t)fb->Width);
     serial_write_all(&boot_info, " H=0x");
@@ -99,7 +94,9 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SysTable)
     {
         Print(L"[-] Critical: Failed to open root volume.\n");
         serial_write_all(&boot_info, "[UEFI] ERROR: open_root_volume failed.\n");
-        while (1) { }
+        while (1)
+        {
+        }
     }
 
     EFI_FILE *kernel_file = load_file(root, L"kernel.elf");
@@ -107,7 +104,9 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SysTable)
     {
         Print(L"[-] Critical: Kernel file not found.\n");
         serial_write_all(&boot_info, "[UEFI] ERROR: kernel.elf not found.\n");
-        while (1) { }
+        while (1)
+        {
+        }
     }
     Print(L"[*] Kernel file has been loaded successfully\n");
     serial_write_all(&boot_info, "[UEFI] kernel.elf loaded.\n");
@@ -117,7 +116,9 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SysTable)
     {
         Print(L"[-] Critical: Failed to load Kernel ELF into memory.\n");
         serial_write_all(&boot_info, "[UEFI] ERROR: load_elf_kernel failed.\n");
-        while (1) { }
+        while (1)
+        {
+        }
     }
     Print(L"[*] Kernel has been successfully loaded into memory\n");
 
@@ -170,7 +171,9 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SysTable)
     {
         Print(L"[-] Critical: Failed to retrieve Memory Map.\n");
         serial_write_all(&boot_info, "[UEFI] ERROR: get_memory_map failed.\n");
-        while (1) { }
+        while (1)
+        {
+        }
     }
     Print(L"[*] Memory Map retrieved successfully (Key: %d)\n", mem_map->MapKey);
     serial_write_all(&boot_info, "[UEFI] MemoryMap OK.\n");
@@ -184,7 +187,6 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SysTable)
     Print(L"[*] All checks passed. Handing over control to Kernel...\n");
     serial_write_all(&boot_info, "[UEFI] Jumping to kernel...\n");
 
-    
     start_kernel(ImageHandle, entry_point, &boot_info);
 
     return EFI_SUCCESS;

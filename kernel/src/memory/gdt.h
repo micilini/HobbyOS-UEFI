@@ -47,12 +47,11 @@ typedef struct
     TssDesc64 tss;
 } __attribute__((packed, aligned(0x1000))) GdtTable;
 
-
 extern GdtTable g_gdt;
 
-void init_gdt(); 
-void gdt_flush(uint64_t gdtr_addr); 
+void init_gdt();
+void gdt_flush(uint64_t gdtr_addr);
 
-GdtTable* gdt_create_per_cpu(void *tss_ptr);
+GdtTable *gdt_create_per_cpu(void *tss_ptr);
 
 #endif

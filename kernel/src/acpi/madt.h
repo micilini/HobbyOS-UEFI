@@ -8,7 +8,6 @@
 #define MADT_TYPE_IO_APIC 1
 #define MADT_TYPE_ISO 2
 
-
 #define MADT_FLAG_ENABLED (1 << 0)
 #define MADT_FLAG_ONLINE_CAPABLE (1 << 1)
 
@@ -45,7 +44,6 @@ typedef struct
 void init_madt();
 uint64_t get_lapic_base();
 uint64_t get_ioapic_base();
-
 
 uint32_t madt_get_cpu_count();
 uint32_t madt_get_cpu_apic_ids(uint8_t *buffer, uint32_t max_count);

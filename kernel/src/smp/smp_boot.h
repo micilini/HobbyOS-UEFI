@@ -3,13 +3,13 @@
 
 #include <stdint.h>
 
-
-enum {
+enum
+{
     CPU_STATE_DEAD = 0,
-    CPU_STATE_PREPARE, 
+    CPU_STATE_PREPARE,
     CPU_STATE_STARTING,
-    CPU_STATE_ONLINE,  
-    CPU_STATE_FAILED   
+    CPU_STATE_ONLINE,
+    CPU_STATE_FAILED
 };
 
 void smp_boot_aps();

@@ -7,7 +7,6 @@
 extern uint64_t _kernel_start;
 extern uint64_t _kernel_end;
 
-/* Linker: VIRT_TO_PHYS_OFFSET = 0xFFFFFFFF80000000 */
 #define VIRT_TO_PHYS_OFFSET 0xFFFFFFFF80000000ULL
 
 static uint64_t g_min_alloc_frame = 0;
@@ -24,10 +23,11 @@ static spinlock_t g_pmm_lock;
 #define PMM_BITMAP_MAX_PHYS 0x40000000ULL
 #endif
 
-
-static void pmem_print_hex(uint64_t n) {
+static void pmem_print_hex(uint64_t n)
+{
     serial_write_all("0x");
-    for (int i = 60; i >= 0; i -= 4) {
+    for (int i = 60; i >= 0; i -= 4)
+    {
         uint8_t nibble = (n >> i) & 0xF;
         char c = (nibble < 10) ? ('0' + nibble) : ('A' + (nibble - 10));
         serial_putc_all(c);
@@ -129,7 +129,8 @@ void init_pmm(MemoryMap *map)
     if (g_bitmap_buffer == NULL)
     {
         serial_write_all("[PMM] CRITICAL: Failed to allocate bitmap buffer!\n");
-        while (1);
+        while (1)
+            ;
     }
 
     bitmap_init(&g_bitmap, g_bitmap_buffer, g_total_frames);
@@ -165,19 +166,7 @@ void init_pmm(MemoryMap *map)
         }
     }
 
-    /* ------------------------------------------------------------
-     * RESERVA CRÍTICA: LOW MEMORY
-     * ------------------------------------------------------------
-     * Seu heap usa endereço físico direto (identity map 4GB).
-     * Se o PMM liberar frames baixos, você pode alocar:
-     *  - IVT/BDA/EBDA
-     *  - área do SMP trampoline (tipicamente 0x2000)
-     *  - stacks temporárias
-     * Isso gera exatamente RIP=0x2011 / RSP=0x210 e #UD.
-     *
-     * Então: reserva TUDO abaixo de 1MB.
-     */
-    const uint64_t low_limit = 0x100000ULL; /* 1MB */
+    const uint64_t low_limit = 0x100000ULL;
     const uint64_t low_frames = low_limit / PAGE_SIZE;
 
     for (uint64_t f = 0; f < low_frames; f++)
@@ -189,35 +178,19 @@ void init_pmm(MemoryMap *map)
         }
     }
 
-    /* ------------------------------------------------------------
-     * Cinto + suspensório: nunca alocar abaixo de 1MB
-     * ------------------------------------------------------------
-     * Mesmo que algo dê errado no bitmap, o allocator deve começar
-     * a procurar frames a partir daqui.
-     */
-    g_min_alloc_frame = low_frames; // 1MB / PAGE_SIZE
+    g_min_alloc_frame = low_frames;
     serial_write_all("[PMM] min_alloc_frame set to 1MB (frame=");
     pmem_print_hex(g_min_alloc_frame);
     serial_write_all(")\n");
 
-    /* ------------------------------------------------------------
-     * RESERVA CRÍTICA: KERNEL FÍSICO
-     * ------------------------------------------------------------
-     * O kernel é carregado em KERNEL_P_BASE=0x02000000 e mapeado
-     * em higher-half. O PMM não pode entregar esses frames!
-     *
-     * Observação: aqui usamos símbolos do linker (_kernel_start/_kernel_end)
-     * e convertemos VA->PA subtraindo VIRT_TO_PHYS_OFFSET.
-     */
     uint64_t kstart_phys = ((uint64_t)&_kernel_start) - VIRT_TO_PHYS_OFFSET;
-    uint64_t kend_phys   = ((uint64_t)&_kernel_end)   - VIRT_TO_PHYS_OFFSET;
+    uint64_t kend_phys = ((uint64_t)&_kernel_end) - VIRT_TO_PHYS_OFFSET;
 
-    /* Alinha para páginas */
     kstart_phys &= ~(PAGE_SIZE - 1);
     kend_phys = (kend_phys + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 
     uint64_t kstart_frame = kstart_phys / PAGE_SIZE;
-    uint64_t kend_frame   = kend_phys / PAGE_SIZE;
+    uint64_t kend_frame = kend_phys / PAGE_SIZE;
 
     for (uint64_t f = kstart_frame; f < kend_frame; f++)
     {
@@ -243,9 +216,9 @@ void *pmm_alloc_frame()
 {
     irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
 
-    // Nunca alocar abaixo de 1MB (protege mesmo se bitmap estiver errado)
     uint64_t start = g_min_alloc_frame;
-    if (start == 0) start = (0x100000ULL / PAGE_SIZE);
+    if (start == 0)
+        start = (0x100000ULL / PAGE_SIZE);
 
     for (uint64_t i = start; i < g_total_frames; i++)
     {
@@ -271,9 +244,9 @@ void *pmm_alloc_contiguous_frames(size_t count)
 
     irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
 
-    // Nunca alocar abaixo de 1MB
     uint64_t start = g_min_alloc_frame;
-    if (start == 0) start = (0x100000ULL / PAGE_SIZE);
+    if (start == 0)
+        start = (0x100000ULL / PAGE_SIZE);
 
     uint64_t run_start = 0;
     uint64_t run_length = 0;
@@ -322,23 +295,20 @@ void pmm_free_frame(void *paddr)
     spin_unlock_irqrestore(&g_pmm_lock, flags);
 }
 
-
-
 bool pmm_is_frame_free(uint64_t physical_address)
 {
     irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
-    
+
     uint64_t frame = physical_address / PAGE_SIZE;
-    
-    
-    if (frame >= g_total_frames) {
+
+    if (frame >= g_total_frames)
+    {
         spin_unlock_irqrestore(&g_pmm_lock, flags);
         return false;
     }
 
-    
     bool is_free = !bitmap_get(&g_bitmap, frame);
-    
+
     spin_unlock_irqrestore(&g_pmm_lock, flags);
     return is_free;
 }
@@ -346,25 +316,29 @@ bool pmm_is_frame_free(uint64_t physical_address)
 void pmm_mark_frame_used(uint64_t physical_address)
 {
     irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
-    
+
     uint64_t frame = physical_address / PAGE_SIZE;
-    
-    if (frame < g_total_frames) {
-        
-        if (!bitmap_get(&g_bitmap, frame)) {
+
+    if (frame < g_total_frames)
+    {
+
+        if (!bitmap_get(&g_bitmap, frame))
+        {
             bitmap_set(&g_bitmap, frame, true);
             g_free_frames--;
-            
+
             serial_write_all("[PMM] Explicitly marked frame used: ");
             pmem_print_hex(physical_address);
             serial_write_all("\n");
-        } else {
+        }
+        else
+        {
             serial_write_all("[PMM] Warning: Frame already used: ");
             pmem_print_hex(physical_address);
             serial_write_all("\n");
         }
     }
-    
+
     spin_unlock_irqrestore(&g_pmm_lock, flags);
 }
 
