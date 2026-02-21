@@ -27,6 +27,7 @@
 #include "../smp/smp_boot.h"
 #include "list.h"
 #include "queue.h"
+#include "task.h"
 
 #include <stdint.h>
 #include <stddef.h>
@@ -189,9 +190,9 @@ void init_system_core(BootInfo *boot_info)
 
     dpc_init();
 
-    thread_create(input_thread_entry, NULL);
+    /* Input thread é INTERATIVO — prioridade alta para baixa latência */
+    thread_create_with_class(input_thread_entry, NULL, TASK_CLASS_INTERACTIVE);
 
-    
     ioapic_map_irq(1, 33, 0);
 
     extern volatile int g_system_ready_for_scheduling;

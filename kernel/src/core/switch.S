@@ -37,6 +37,9 @@ thread_wrapper:
     sti
     mov rdi, r13
     call r12
+    /* Thread retornou — faz exit limpo */
+    call thread_exit
+    /* thread_exit nunca retorna, mas por segurança: */
     cli
     hlt
     jmp .-2

@@ -6,7 +6,7 @@
 #include "../libc/string.h"
 #include "../libc/memory.h"
 #include "timers.h"
-#include "../apic/lapic.h" 
+#include "../apic/lapic.h"
 
 #include "panic.h"
 #include "../drivers/serial.h"
@@ -18,7 +18,9 @@
 extern void thread_wrapper(void);
 
 
-static struct list_head g_ready_queue;
+/* Duas filas: interativos rodam primeiro, depois normais */
+static struct list_head g_interactive_queue;
+static struct list_head g_normal_queue;
 static spinlock_t g_scheduler_lock;
 
 
@@ -33,30 +35,71 @@ static int g_next_tid = 1;
 static task_t* create_idle_task(void) {
     task_t *idle = (task_t *)kmalloc(sizeof(task_t));
     if (!idle) return NULL;
-    
+
     memset(idle, 0, sizeof(task_t));
-    
-    idle->id = 0; 
+
+    idle->id = 0;
     strcpy(idle->name, "Idle");
     idle->state = TASK_RUNNING;
-    idle->stack_base = NULL; 
+    idle->stack_base = NULL;
     idle->rsp = 0;
     idle->quantum = DEFAULT_QUANTUM;
     idle->quantum_default = DEFAULT_QUANTUM;
-    
+    idle->task_class = TASK_CLASS_NORMAL;
+
     list_init(&idle->list);
     return idle;
+}
+
+/* Helper: retorna a fila correta para a classe da task */
+static struct list_head *queue_for_class(int task_class)
+{
+    if (task_class == TASK_CLASS_INTERACTIVE)
+        return &g_interactive_queue;
+    return &g_normal_queue;
+}
+
+/* Helper: pega a próxima task priorizando interativos */
+static task_t *pick_next_task(void)
+{
+    /* Interativos primeiro */
+    if (!list_empty(&g_interactive_queue))
+    {
+        struct list_head *node = g_interactive_queue.next;
+        task_t *t = list_entry(node, task_t, list);
+        list_del(&t->list);
+        return t;
+    }
+
+    /* Depois normais */
+    if (!list_empty(&g_normal_queue))
+    {
+        struct list_head *node = g_normal_queue.next;
+        task_t *t = list_entry(node, task_t, list);
+        list_del(&t->list);
+        return t;
+    }
+
+    return NULL;
+}
+
+/* Helper: re-enfileira task na fila correta */
+static void enqueue_task(task_t *t)
+{
+    struct list_head *q = queue_for_class(t->task_class);
+    list_add_tail(&t->list, q);
 }
 
 
 void scheduler_init(void)
 {
     spinlock_init(&g_scheduler_lock);
-    list_init(&g_ready_queue);
+    list_init(&g_interactive_queue);
+    list_init(&g_normal_queue);
 
-    
+
     uint32_t bsp_id = lapic_get_id();
-    
+
     task_t *idle = create_idle_task();
     if (!idle) {
         kpanic("SCHED: Failed to create BSP Idle Task");
@@ -65,17 +108,17 @@ void scheduler_init(void)
     g_idle_task_map[bsp_id] = idle;
     g_current_task_map[bsp_id] = idle;
 
-    console_write_debug("[SCHED] SMP Scheduler initialized (Global Queue).\n");
+    console_write_debug("[SCHED] SMP Scheduler initialized (Priority Queues).\n");
 }
 
 
 void scheduler_init_ap(void)
 {
     uint32_t id = lapic_get_id();
-    
+
     task_t *idle = create_idle_task();
     if (!idle) {
-        while(1) __asm__ volatile("cli; hlt"); 
+        while(1) __asm__ volatile("cli; hlt");
     }
 
     idle->state = TASK_RUNNING;
@@ -89,7 +132,7 @@ task_t *get_current_task(void)
     return g_current_task_map[id];
 }
 
-task_t *thread_create(void (*entry_point)(void *), void *arg)
+task_t *thread_create_with_class(void (*entry_point)(void *), void *arg, int task_class)
 {
     task_t *t = (task_t *)kmalloc(sizeof(task_t));
     if (!t)
@@ -104,65 +147,80 @@ task_t *thread_create(void (*entry_point)(void *), void *arg)
     }
     memset(t->stack_base, 0, STACK_SIZE);
 
-    
+
     irq_flags_t flags = spin_lock_irqsave(&g_scheduler_lock);
     t->id = g_next_tid++;
     spin_unlock_irqrestore(&g_scheduler_lock, flags);
 
     t->state = TASK_READY;
     t->cr3 = 0;
-    t->quantum = DEFAULT_QUANTUM;
-    t->quantum_default = DEFAULT_QUANTUM;
+    t->task_class = task_class;
+
+    if (task_class == TASK_CLASS_INTERACTIVE)
+    {
+        t->quantum = INTERACTIVE_QUANTUM;
+        t->quantum_default = INTERACTIVE_QUANTUM;
+    }
+    else
+    {
+        t->quantum = DEFAULT_QUANTUM;
+        t->quantum_default = DEFAULT_QUANTUM;
+    }
 
     uint64_t *sp = (uint64_t *)((uint8_t *)t->stack_base + STACK_SIZE);
 
     sp--;
     *sp = (uint64_t)thread_wrapper;
     sp--;
-    *sp = 0; 
+    *sp = 0;
     sp--;
-    *sp = 0; 
+    *sp = 0;
     sp--;
-    *sp = (uint64_t)entry_point; 
+    *sp = (uint64_t)entry_point;
     sp--;
-    *sp = (uint64_t)arg; 
+    *sp = (uint64_t)arg;
     sp--;
-    *sp = 0; 
+    *sp = 0;
     sp--;
-    *sp = 0; 
+    *sp = 0;
 
     t->rsp = (uint64_t)sp;
 
     list_init(&t->list);
 
-    
+
     flags = spin_lock_irqsave(&g_scheduler_lock);
-    list_add_tail(&t->list, &g_ready_queue);
+    enqueue_task(t);
     spin_unlock_irqrestore(&g_scheduler_lock, flags);
 
     console_write_debug("[SCHED] Thread created. ID=");
     console_print_dec_debug(t->id);
-    console_write_debug("\n");
+    console_write_debug(task_class == TASK_CLASS_INTERACTIVE ? " [INTERACTIVE]\n" : "\n");
 
     return t;
 }
 
+task_t *thread_create(void (*entry_point)(void *), void *arg)
+{
+    return thread_create_with_class(entry_point, arg, TASK_CLASS_NORMAL);
+}
+
 void thread_block(wait_queue_t *wq, task_state_t state)
 {
-    
+
     irq_flags_t flags = spin_lock_irqsave(&g_scheduler_lock);
 
     task_t *current = get_current_task();
-    
-    
+
+
     if (current == g_idle_task_map[lapic_get_id()]) {
         spin_unlock_irqrestore(&g_scheduler_lock, flags);
-        return; 
+        return;
     }
 
     current->state = state;
 
-    
+
     if (current->list.next != NULL && current->list.prev != NULL) {
         list_del(&current->list);
     }
@@ -193,13 +251,13 @@ void thread_wake(task_t *t)
         return;
     }
 
-    
+
     if (t->list.next != NULL && t->list.prev != NULL) {
         list_del(&t->list);
     }
 
     t->state = TASK_READY;
-    list_add_tail(&t->list, &g_ready_queue);
+    enqueue_task(t);
 
     spin_unlock_irqrestore(&g_scheduler_lock, flags);
 }
@@ -219,23 +277,54 @@ int thread_wake_one(wait_queue_t *wq)
 
     list_del(&t->list);
     t->state = TASK_READY;
-    list_add_tail(&t->list, &g_ready_queue);
+    enqueue_task(t);
 
     spin_unlock_irqrestore(&g_scheduler_lock, flags);
     return 1;
 }
 
 /*
+ * thread_exit — termina a thread atual de forma limpa.
+ * Marca como ZOMBIE e faz schedule para nunca mais voltar.
+ * A memória da stack/task fica "vazando" por ora (sem reaper thread),
+ * mas o sistema não trava.
+ */
+void thread_exit(void)
+{
+    irq_flags_t flags = spin_lock_irqsave(&g_scheduler_lock);
+
+    task_t *current = get_current_task();
+
+    if (current && current != g_idle_task_map[lapic_get_id()])
+    {
+        current->state = TASK_ZOMBIE;
+
+        if (current->list.next != NULL && current->list.prev != NULL)
+        {
+            list_del(&current->list);
+        }
+        list_init(&current->list);
+    }
+
+    spin_unlock_irqrestore(&g_scheduler_lock, flags);
+
+    schedule_voluntary();
+
+    /* Nunca deveria chegar aqui, mas por segurança: */
+    while (1) __asm__ volatile("cli; hlt");
+}
+
+/*
  * schedule_impl — implementacao interna do scheduler.
  *
- * voluntary=0: chamado pelo loop BSP/AP (preempcao). Respeita quantum.
+ * voluntary=0: chamado pelo timer IRQ (preempcao). Respeita quantum.
  * voluntary=1: chamado por thread_block/timer_sleep/yield. Sempre troca.
  *
  * INVARIANTE CRITICO para SMP:
  *   IRQs ficam DESABILITADAS durante todo o switch_context.
  *   Usamos spin_unlock (sem irq_restore) antes do switch para liberar
  *   o lock sem habilitar IRQs. Apos switch_context retornar no novo
- *   contexto, fazemos sti explicitamente.
+ *   contexto, fazemos irq_restore explicitamente.
  */
 void schedule_impl(int voluntary)
 {
@@ -255,7 +344,6 @@ void schedule_impl(int voluntary)
     irq_flags_t flags = spin_lock_irqsave(&g_scheduler_lock);
 
     // AP entrou no scheduler sem current inicializado (bug real de ordem de init/timer).
-    // Para não pular para NULL, “ancora” no idle local.
     if (prev == NULL)
     {
         serial_write_all("[SCHED] WARN: prev==NULL, anchoring to per-cpu idle. CPU=0x");
@@ -279,18 +367,24 @@ void schedule_impl(int voluntary)
         prev->quantum--;
         if (prev->quantum > 0)
         {
-            spin_unlock_irqrestore(&g_scheduler_lock, flags);
-            return;
+            /* Mas: se há uma task interativa esperando e prev é normal,
+             * preempta imediatamente (interativo "fura a fila"). */
+            if (prev->task_class != TASK_CLASS_INTERACTIVE &&
+                !list_empty(&g_interactive_queue))
+            {
+                /* Força preempção — cai no código abaixo */
+            }
+            else
+            {
+                spin_unlock_irqrestore(&g_scheduler_lock, flags);
+                return;
+            }
         }
     }
 
-    if (!list_empty(&g_ready_queue))
-    {
-        struct list_head *next_node = g_ready_queue.next;
-        next = list_entry(next_node, task_t, list);
-        list_del(&next->list);
-    }
-    else
+    next = pick_next_task();
+
+    if (next == NULL)
     {
         next = my_idle;
     }
@@ -301,7 +395,7 @@ void schedule_impl(int voluntary)
         {
             prev->state = TASK_READY;
             prev->quantum = prev->quantum_default;
-            list_add_tail(&prev->list, &g_ready_queue);
+            enqueue_task(prev);
         }
         else if (prev == my_idle && prev)
         {
@@ -323,11 +417,9 @@ void schedule_impl(int voluntary)
         /*
          * Libera o lock MAS mantem IRQs desabilitadas.
          * spin_unlock so libera o lock, nao toca em RFLAGS.
-         * IRQs permanecem OFF (do cli feito por spin_lock_irqsave).
          */
         spin_unlock(&g_scheduler_lock);
 
-        // ----------------- DEBUG EXTREMO: validação SMP (ANTES do switch) -----------------
         if (!next)
         {
             serial_write_all("[SCHED] FATAL: next == NULL\n");
@@ -336,7 +428,6 @@ void schedule_impl(int voluntary)
 
         uint64_t nrsp = next->rsp;
 
-        // Fatal só para casos realmente “impossíveis”
         if ((nrsp < 0x100000ULL) ||
             (nrsp >= 0x0000800000000000ULL && nrsp < 0xFFFF800000000000ULL))
         {
@@ -381,13 +472,11 @@ void schedule_impl(int voluntary)
             kpanic("SCHED: next->rsp corrupted (range) (see serial)");
         }
 
-        /* switch_context com IRQs OFF — nenhum timer pode interromper */
+        /* switch_context com IRQs OFF */
         switch_context(prev, next);
 
         /*
          * Voltamos aqui quando 'prev' é re-escalonado por outro CPU.
-         * Restaura exatamente o estado de IF (e demais flags) que existia
-         * antes do spin_lock_irqsave() deste schedule_impl().
          */
         irq_restore(flags);
     }
@@ -397,7 +486,7 @@ void schedule_impl(int voluntary)
     }
 }
 
-/* Chamado pelo loop BSP/AP (preempcao via consume_reschedule) */
+/* Chamado pelo loop BSP/AP (fallback) */
 void schedule(void)
 {
     schedule_impl(0);
@@ -411,15 +500,6 @@ void schedule_voluntary(void)
 
 /*
  * scheduler_preempt_from_irq — chamado pelo stub assembly irq_timer_entry.
- *
- * Estamos DENTRO do handler de IRQ do timer (IRQs desabilitadas).
- * Se need_resched estiver setado para este CPU, chamamos schedule_impl(0)
- * que fará a contabilidade de quantum e, se necessário, switch_context.
- *
- * Quando switch_context salvar prev->rsp, ele salva o RSP que inclui
- * todo o frame do irq_timer_entry (15 GPRs + iretq frame).
- * Quando a task for re-escalonada, switch_context restaura esse RSP,
- * retorna para irq_timer_entry, que faz pop dos GPRs e iretq.
  */
 void scheduler_preempt_from_irq(void)
 {
@@ -430,10 +510,8 @@ void scheduler_preempt_from_irq(void)
 
     uint32_t id = lapic_get_id();
 
-    /* Consome o need_resched deste CPU */
     if (id < MAX_CPUS && interrupts_consume_reschedule())
     {
-        /* schedule_impl(0) = preemptivo: respeita quantum */
         schedule_impl(0);
     }
 }
