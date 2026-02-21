@@ -4,6 +4,14 @@
 #include "../core/spinlock.h"
 #include "../drivers/serial.h"
 
+extern uint64_t _kernel_start;
+extern uint64_t _kernel_end;
+
+/* Linker: VIRT_TO_PHYS_OFFSET = 0xFFFFFFFF80000000 */
+#define VIRT_TO_PHYS_OFFSET 0xFFFFFFFF80000000ULL
+
+static uint64_t g_min_alloc_frame = 0;
+
 static Bitmap g_bitmap;
 static uint64_t g_total_frames = 0;
 static uint64_t g_free_frames = 0;
@@ -157,11 +165,74 @@ void init_pmm(MemoryMap *map)
         }
     }
 
-    if (!bitmap_get(&g_bitmap, 0))
+    /* ------------------------------------------------------------
+     * RESERVA CRÍTICA: LOW MEMORY
+     * ------------------------------------------------------------
+     * Seu heap usa endereço físico direto (identity map 4GB).
+     * Se o PMM liberar frames baixos, você pode alocar:
+     *  - IVT/BDA/EBDA
+     *  - área do SMP trampoline (tipicamente 0x2000)
+     *  - stacks temporárias
+     * Isso gera exatamente RIP=0x2011 / RSP=0x210 e #UD.
+     *
+     * Então: reserva TUDO abaixo de 1MB.
+     */
+    const uint64_t low_limit = 0x100000ULL; /* 1MB */
+    const uint64_t low_frames = low_limit / PAGE_SIZE;
+
+    for (uint64_t f = 0; f < low_frames; f++)
     {
-        bitmap_set(&g_bitmap, 0, true);
-        g_free_frames--;
+        if (!bitmap_get(&g_bitmap, f))
+        {
+            bitmap_set(&g_bitmap, f, true);
+            g_free_frames--;
+        }
     }
+
+    /* ------------------------------------------------------------
+     * Cinto + suspensório: nunca alocar abaixo de 1MB
+     * ------------------------------------------------------------
+     * Mesmo que algo dê errado no bitmap, o allocator deve começar
+     * a procurar frames a partir daqui.
+     */
+    g_min_alloc_frame = low_frames; // 1MB / PAGE_SIZE
+    serial_write_all("[PMM] min_alloc_frame set to 1MB (frame=");
+    pmem_print_hex(g_min_alloc_frame);
+    serial_write_all(")\n");
+
+    /* ------------------------------------------------------------
+     * RESERVA CRÍTICA: KERNEL FÍSICO
+     * ------------------------------------------------------------
+     * O kernel é carregado em KERNEL_P_BASE=0x02000000 e mapeado
+     * em higher-half. O PMM não pode entregar esses frames!
+     *
+     * Observação: aqui usamos símbolos do linker (_kernel_start/_kernel_end)
+     * e convertemos VA->PA subtraindo VIRT_TO_PHYS_OFFSET.
+     */
+    uint64_t kstart_phys = ((uint64_t)&_kernel_start) - VIRT_TO_PHYS_OFFSET;
+    uint64_t kend_phys   = ((uint64_t)&_kernel_end)   - VIRT_TO_PHYS_OFFSET;
+
+    /* Alinha para páginas */
+    kstart_phys &= ~(PAGE_SIZE - 1);
+    kend_phys = (kend_phys + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+
+    uint64_t kstart_frame = kstart_phys / PAGE_SIZE;
+    uint64_t kend_frame   = kend_phys / PAGE_SIZE;
+
+    for (uint64_t f = kstart_frame; f < kend_frame; f++)
+    {
+        if (!bitmap_get(&g_bitmap, f))
+        {
+            bitmap_set(&g_bitmap, f, true);
+            g_free_frames--;
+        }
+    }
+
+    serial_write_all("[PMM] Reserved LOW<1MB and KERNEL frames. Kernel phys=[0x");
+    pmem_print_hex(kstart_phys);
+    serial_write_all("..0x");
+    pmem_print_hex(kend_phys);
+    serial_write_all(")\n");
 
     serial_write_all("[PMM] Init Done. Free Frames: ");
     pmem_print_hex(g_free_frames);
@@ -172,7 +243,11 @@ void *pmm_alloc_frame()
 {
     irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
 
-    for (uint64_t i = 0; i < g_total_frames; i++)
+    // Nunca alocar abaixo de 1MB (protege mesmo se bitmap estiver errado)
+    uint64_t start = g_min_alloc_frame;
+    if (start == 0) start = (0x100000ULL / PAGE_SIZE);
+
+    for (uint64_t i = start; i < g_total_frames; i++)
     {
         if (!bitmap_get(&g_bitmap, i))
         {
@@ -196,10 +271,14 @@ void *pmm_alloc_contiguous_frames(size_t count)
 
     irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
 
+    // Nunca alocar abaixo de 1MB
+    uint64_t start = g_min_alloc_frame;
+    if (start == 0) start = (0x100000ULL / PAGE_SIZE);
+
     uint64_t run_start = 0;
     uint64_t run_length = 0;
 
-    for (uint64_t i = 0; i < g_total_frames; i++)
+    for (uint64_t i = start; i < g_total_frames; i++)
     {
         if (!bitmap_get(&g_bitmap, i))
         {
@@ -210,9 +289,8 @@ void *pmm_alloc_contiguous_frames(size_t count)
             if (run_length == count)
             {
                 for (uint64_t j = 0; j < count; j++)
-                {
                     bitmap_set(&g_bitmap, run_start + j, true);
-                }
+
                 g_free_frames -= count;
 
                 spin_unlock_irqrestore(&g_pmm_lock, flags);

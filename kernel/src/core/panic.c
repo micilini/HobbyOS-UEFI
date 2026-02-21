@@ -174,6 +174,10 @@ void kpanic(const char *message)
     // Apenas o owner chega aqui.
     serial_write_all("\n[PANIC] kpanic() owner entered. Stopping other CPUs...\n");
 
+    serial_write_all("[PANIC] Message: ");
+    serial_write_all(message ? message : "(null)");
+    serial_write_all("\n");
+
     // "Stop-the-world" cedo para congelar os outros cores antes de tocar em console/graphics.
     lapic_send_broadcast_halt();
 
@@ -224,6 +228,12 @@ void kpanic_exception_ex(const char *title,
     // Apenas o owner chega aqui.
     serial_write_all("\n[PANIC] kpanic_exception_ex() owner entered. Stopping other CPUs...\n");
 
+    serial_write_all("[PANIC] Exception Title: ");
+    serial_write_all(title ? title : "(null)");
+    serial_write_all(" Vector=0x");
+    serial_write_hex64_all((uint64_t)vector);
+    serial_write_all("\n");
+
     // "Stop-the-world" cedo.
     lapic_send_broadcast_halt();
 
@@ -266,7 +276,7 @@ void kpanic_exception_ex(const char *title,
     console_print_hex((uint64_t)frame);
     console_write("\n");
 
-        // Dump do frame (RIP/RSP/RFLAGS etc) — essencial pra caçar #UD real
+    // Dump do frame (RIP/RSP/RFLAGS etc) — essencial pra caçar #UD real
     if (frame)
     {
         InterruptFrame *f = (InterruptFrame *)frame;
@@ -282,6 +292,15 @@ void kpanic_exception_ex(const char *title,
         serial_write_all(" RFLAGS=0x"); serial_write_hex64_all(f->rflags);
         serial_write_all(" CS=0x"); serial_write_hex64_all(f->cs);
         serial_write_all(" SS=0x"); serial_write_hex64_all(f->ss);
+        serial_write_all("\n");
+    }
+
+    // Dump CR3 (page table atual do CPU que panica)
+    {
+        uint64_t cr3;
+        __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+        serial_write_all("[PANIC] CR3=0x");
+        serial_write_hex64_all(cr3);
         serial_write_all("\n");
     }
 

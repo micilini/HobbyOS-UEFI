@@ -8,6 +8,9 @@
 #include "timers.h"
 #include "../apic/lapic.h" 
 
+#include "panic.h"
+#include "../drivers/serial.h"
+
 #define STACK_SIZE (16 * 1024)
 #define MAX_CPUS 256
 
@@ -49,10 +52,6 @@ void scheduler_init(void)
 {
     spinlock_init(&g_scheduler_lock);
     list_init(&g_ready_queue);
-    
-    
-    memset(g_current_task_map, 0, sizeof(g_current_task_map));
-    memset(g_idle_task_map, 0, sizeof(g_idle_task_map));
 
     
     uint32_t bsp_id = lapic_get_id();
@@ -244,7 +243,34 @@ static void schedule_impl(int voluntary)
     task_t *next = NULL;
     task_t *my_idle = g_idle_task_map[my_id];
 
+    if (my_idle == NULL)
+    {
+        serial_write_all("[SCHED] FATAL: my_idle == NULL. CPU=0x");
+        serial_write_hex64_all((uint64_t)my_id);
+        serial_write_all(" (scheduler_init_ap probably stored idle on wrong APIC id)\n");
+        kpanic("SCHED: my_idle == NULL");
+    }
+
     irq_flags_t flags = spin_lock_irqsave(&g_scheduler_lock);
+
+    // AP entrou no scheduler sem current inicializado (bug real de ordem de init/timer).
+    // Para não pular para NULL, “ancora” no idle local.
+    if (prev == NULL)
+    {
+        serial_write_all("[SCHED] WARN: prev==NULL, anchoring to per-cpu idle. CPU=0x");
+        serial_write_hex64_all((uint64_t)my_id);
+        serial_write_all("\n");
+
+        prev = my_idle;
+        g_current_task_map[my_id] = prev;
+
+        if (prev)
+        {
+            prev->state = TASK_RUNNING;
+            if (prev->quantum <= 0)
+                prev->quantum = prev->quantum_default;
+        }
+    }
 
     /* Contabilidade de quantum — apenas para preempcao por timer */
     if (!voluntary && prev && prev != my_idle && prev->state == TASK_RUNNING)
@@ -270,20 +296,24 @@ static void schedule_impl(int voluntary)
 
     if (prev != next)
     {
-        if (prev->state == TASK_RUNNING && prev != my_idle)
+        if (prev && prev->state == TASK_RUNNING && prev != my_idle)
         {
             prev->state = TASK_READY;
             prev->quantum = prev->quantum_default;
             list_add_tail(&prev->list, &g_ready_queue);
         }
-        else if (prev == my_idle)
+        else if (prev == my_idle && prev)
         {
             prev->state = TASK_READY;
         }
 
-        next->state = TASK_RUNNING;
-        if (next->quantum <= 0)
-            next->quantum = next->quantum_default;
+        if (next)
+        {
+            next->state = TASK_RUNNING;
+            if (next->quantum <= 0)
+                next->quantum = next->quantum_default;
+        }
+
         g_current_task_map[my_id] = next;
     }
 
@@ -296,16 +326,67 @@ static void schedule_impl(int voluntary)
          */
         spin_unlock(&g_scheduler_lock);
 
+        // ----------------- DEBUG EXTREMO: validação SMP (ANTES do switch) -----------------
+        if (!next)
+        {
+            serial_write_all("[SCHED] FATAL: next == NULL\n");
+            kpanic("SCHED: next == NULL");
+        }
+
+        uint64_t nrsp = next->rsp;
+
+        // Fatal só para casos realmente “impossíveis”
+        if ((nrsp < 0x100000ULL) ||
+            (nrsp >= 0x0000800000000000ULL && nrsp < 0xFFFF800000000000ULL))
+        {
+            serial_write_all("\n[SCHED] FATAL: next->rsp looks CORRUPTED (range)\n");
+
+            serial_write_all("[SCHED] CPU=0x");
+            serial_write_hex64_all((uint64_t)lapic_get_id());
+
+            serial_write_all(" prev=0x");
+            serial_write_hex64_all((uint64_t)prev);
+
+            serial_write_all(" next=0x");
+            serial_write_hex64_all((uint64_t)next);
+
+            serial_write_all("\n");
+
+            if (prev)
+            {
+                serial_write_all("[SCHED] prev.id=0x");
+                serial_write_hex64_all((uint64_t)prev->id);
+
+                serial_write_all(" prev.rsp=0x");
+                serial_write_hex64_all((uint64_t)prev->rsp);
+
+                serial_write_all(" prev.stack=0x");
+                serial_write_hex64_all((uint64_t)prev->stack_base);
+
+                serial_write_all("\n");
+            }
+
+            serial_write_all("[SCHED] next.id=0x");
+            serial_write_hex64_all((uint64_t)next->id);
+
+            serial_write_all(" next.rsp=0x");
+            serial_write_hex64_all((uint64_t)next->rsp);
+
+            serial_write_all(" next.stack=0x");
+            serial_write_hex64_all((uint64_t)next->stack_base);
+
+            serial_write_all("\n");
+
+            kpanic("SCHED: next->rsp corrupted (range) (see serial)");
+        }
+
         /* switch_context com IRQs OFF — nenhum timer pode interromper */
         switch_context(prev, next);
 
-         /*
+        /*
          * Voltamos aqui quando 'prev' é re-escalonado por outro CPU.
          * Restaura exatamente o estado de IF (e demais flags) que existia
          * antes do spin_lock_irqsave() deste schedule_impl().
-         *
-         * Isso evita “ligar IRQ no susto” em caminhos onde o chamador estava
-         * com IRQs desabilitadas por motivo legítimo.
          */
         irq_restore(flags);
     }

@@ -225,8 +225,11 @@ void lapic_timer_set_periodic(uint32_t vector, uint32_t ticks)
     lapic_write(LAPIC_TICR, ticks);
 }
 
-void lapic_send_broadcast_halt() {
-    // Envia um IPI para todos os cores, exceto para si mesmo (self)
-    // Usando o vetor 0xFD (que definiremos como Halt)
-    lapic_write_icr(0, 0xFD, APIC_DEST_SHORTHAND_ALL_BUT_SELF | APIC_DM_FIXED | APIC_LEVEL_ASSERT);
+void lapic_send_broadcast_halt(void) {
+    /*
+     * IMPORTANTE:
+     * FIXED IPI pode ficar pendente se o outro core está com IF=0.
+     * NMI é não-mascarável e “para” cores mesmo em seções críticas.
+     */
+    lapic_write_icr(0, 0, APIC_DEST_SHORTHAND_ALL_BUT_SELF | APIC_DM_NMI | APIC_LEVEL_ASSERT);
 }

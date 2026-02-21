@@ -188,7 +188,24 @@ __attribute__((interrupt)) void irq_xhci_handler(InterruptFrame *frame)
 
 __attribute__((interrupt)) void exc_isr0(InterruptFrame *frame) { EXC_PANIC_NOERR(0); }
 __attribute__((interrupt)) void exc_isr1(InterruptFrame *frame) { EXC_PANIC_NOERR(1); }
-__attribute__((interrupt)) void exc_isr2(InterruptFrame *frame) { EXC_PANIC_NOERR(2); }
+
+__attribute__((interrupt)) void exc_isr2(InterruptFrame *frame)
+{
+    (void)frame;
+
+    extern volatile int g_panic_in_progress;
+
+    /* Se estamos em panic, NMI serve como “freeze” dos outros cores */
+    if (g_panic_in_progress)
+    {
+        __asm__ volatile("cli");
+        while (1) __asm__ volatile("hlt");
+    }
+
+    /* Caso contrário, mantém o comportamento anterior: panic normal */
+    EXC_PANIC_NOERR(2);
+}
+
 __attribute__((interrupt)) void exc_isr3(InterruptFrame *frame) { EXC_PANIC_NOERR(3); }
 __attribute__((interrupt)) void exc_isr4(InterruptFrame *frame) { EXC_PANIC_NOERR(4); }
 __attribute__((interrupt)) void exc_isr5(InterruptFrame *frame) { EXC_PANIC_NOERR(5); }

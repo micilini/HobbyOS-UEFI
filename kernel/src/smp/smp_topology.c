@@ -8,7 +8,7 @@
 #include "../memory/gdt.h"
 #include "../libc/string.h"
 #include "../memory/paging.h"
-
+#include <string.h>
 
 #define HHDM_OFFSET 0xFFFFFFFF80000000ULL
 #define PAGE_SIZE 4096

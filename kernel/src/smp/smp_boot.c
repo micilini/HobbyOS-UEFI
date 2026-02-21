@@ -59,10 +59,18 @@ void ap_kernel_entry(void) {
     
     
     
-    idt_load(); 
-    serial_write_all("I"); 
+    idt_load();
+    serial_write_all("I");
+
+    // IMPORTANTE: inicializa LAPIC/x2APIC no AP ANTES de qualquer lapic_get_id()
+    init_lapic_ap();
+    serial_write_all("L");
 
     uint32_t my_apic_id = lapic_get_id();
+    serial_write_all("[AP] apic_id=0x");
+    smp_print_hex(my_apic_id);
+    serial_write_all("\n");
+
     SmpCpuInfo *me = NULL;
 
     for (uint32_t i = 0; i < g_cpu_count; i++) {
@@ -89,10 +97,6 @@ void ap_kernel_entry(void) {
 
     __asm__ volatile("mov $0x28, %%ax; ltr %%ax" ::: "ax");
     serial_write_all("T"); 
-
-    
-        init_lapic_ap();
-    serial_write_all("L");
 
     // Primeiro garante que o AP tem idle/current map setado
     scheduler_init_ap();
