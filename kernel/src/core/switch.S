@@ -44,9 +44,10 @@ thread_wrapper:
 /*
  * irq_timer_entry - stub assembly para o vetor 32 (timer IRQ).
  *
- * Salva todos os registradores, chama o handler C, e retorna via iretq.
- * NAO chama schedule() — a preempcao acontece no ponto seguro dos
- * loops BSP/AP que consomem need_resched e chamam schedule_voluntary().
+ * Salva todos os registradores, chama o handler C, e depois tenta
+ * preemptar chamando scheduler_preempt_from_irq().
+ * Se preemptar, switch_context salva/restaura RSP que inclui este
+ * frame inteiro. Quando a task voltar, retorna aqui e faz iretq.
  */
 irq_timer_entry:
     push rax
@@ -65,7 +66,15 @@ irq_timer_entry:
     push r14
     push r15
 
+    /* Chama o handler C (EOI, timer_handler, etc) */
     call irq_timer_handler_inner
+
+    /* Tenta preempcao: esta funcao chama schedule() internamente
+     * se need_resched estiver setado e o quantum tiver esgotado.
+     * Se fizer switch_context, o RSP atual (com todo este frame)
+     * eh salvo em prev->rsp. Quando a task for re-escalonada,
+     * switch_context restaura RSP, retorna aqui, e faz iretq. */
+    call scheduler_preempt_from_irq
 
     pop r15
     pop r14

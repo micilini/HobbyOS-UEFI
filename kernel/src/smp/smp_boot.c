@@ -115,6 +115,11 @@ void ap_kernel_entry(void) {
     {
         __asm__ volatile("sti; hlt");
 
+        /* A preempção principal agora acontece diretamente no retorno
+         * do timer IRQ via scheduler_preempt_from_irq().
+         * Este consume_reschedule é apenas um fallback de segurança
+         * para o caso raro onde o IRQ sinalizou resched mas o
+         * preempt_from_irq não conseguiu trocar (ex: nenhuma task ready). */
         if (g_system_ready_for_scheduling && interrupts_consume_reschedule())
         {
             schedule_voluntary();

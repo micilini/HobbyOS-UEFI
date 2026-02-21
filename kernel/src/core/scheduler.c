@@ -10,6 +10,7 @@
 
 #include "panic.h"
 #include "../drivers/serial.h"
+#include "interrupts.h"
 
 #define STACK_SIZE (16 * 1024)
 #define MAX_CPUS 256
@@ -236,7 +237,7 @@ int thread_wake_one(wait_queue_t *wq)
  *   o lock sem habilitar IRQs. Apos switch_context retornar no novo
  *   contexto, fazemos sti explicitamente.
  */
-static void schedule_impl(int voluntary)
+void schedule_impl(int voluntary)
 {
     uint32_t my_id = lapic_get_id();
     task_t *prev = g_current_task_map[my_id];
@@ -406,4 +407,33 @@ void schedule(void)
 void schedule_voluntary(void)
 {
     schedule_impl(1);
+}
+
+/*
+ * scheduler_preempt_from_irq — chamado pelo stub assembly irq_timer_entry.
+ *
+ * Estamos DENTRO do handler de IRQ do timer (IRQs desabilitadas).
+ * Se need_resched estiver setado para este CPU, chamamos schedule_impl(0)
+ * que fará a contabilidade de quantum e, se necessário, switch_context.
+ *
+ * Quando switch_context salvar prev->rsp, ele salva o RSP que inclui
+ * todo o frame do irq_timer_entry (15 GPRs + iretq frame).
+ * Quando a task for re-escalonada, switch_context restaura esse RSP,
+ * retorna para irq_timer_entry, que faz pop dos GPRs e iretq.
+ */
+void scheduler_preempt_from_irq(void)
+{
+    extern volatile int g_system_ready_for_scheduling;
+
+    if (!g_system_ready_for_scheduling)
+        return;
+
+    uint32_t id = lapic_get_id();
+
+    /* Consome o need_resched deste CPU */
+    if (id < MAX_CPUS && interrupts_consume_reschedule())
+    {
+        /* schedule_impl(0) = preemptivo: respeita quantum */
+        schedule_impl(0);
+    }
 }

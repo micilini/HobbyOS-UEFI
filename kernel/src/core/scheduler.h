@@ -14,6 +14,11 @@ task_t *thread_create(void (*entry_point)(void *), void *arg);
 void schedule(void);
 void schedule_voluntary(void);
 
+/* Chamado pelo stub assembly irq_timer_entry DENTRO do contexto de IRQ.
+ * Checa need_resched + quantum e, se necessario, faz switch_context.
+ * Deve ser chamado com IRQs desabilitadas (estamos dentro de um IRQ handler). */
+void scheduler_preempt_from_irq(void);
+
 task_t *get_current_task(void);
 
 void thread_block(wait_queue_t *wq, task_state_t state);

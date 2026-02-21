@@ -6,10 +6,11 @@
 #include "panic.h"
 #include "../graphics/console.h"
 #include "../drivers/keyboard.h"
-#include "../drivers/timer.h"
 #include "../apic/lapic.h"
 #include "../drivers/serial.h"
 #include "../smp/smp_topology.h"
+#include "../drivers/timer.h"
+#include "../core/timers.h"
 
 static volatile uint8_t g_need_resched[MAX_CPUS] = {0};
 
@@ -171,10 +172,23 @@ void irq_timer_handler_inner(void)
 
     // timer_handler() só roda no BSP real
     if (id == g_bsp_apic_id)
+    {
         timer_handler();
 
+        // Roda trabalho deferido AQUI dentro do IRQ do BSP.
+        // Isso garante que shell_on_tick() e xhci_poll_events()
+        // SEMPRE rodam, mesmo quando workers CPU-bound estão
+        // monopolizando o BSP.
+        // É seguro porque: (1) IRQs estão desabilitadas (estamos
+        // dentro de um IRQ handler), (2) o worker interrompido não
+        // segura nenhum destes locks (shell_lock, console_lock).
+        timers_poll();
+        timer_run_deferred();
+    }
+
     // Sinaliza resched a cada tick.
-    // O schedule() decide se realmente troca baseado no quantum.
+    // O scheduler_preempt_from_irq() (chamado pelo stub asm)
+    // decide se realmente troca baseado no quantum.
     interrupts_request_reschedule();
 }
 

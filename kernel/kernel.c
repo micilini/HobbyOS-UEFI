@@ -161,11 +161,14 @@ if ((uintptr_t)boot_info < 0x1000) {
 
     for (;;)
     {
-        timers_poll();
-        timer_run_deferred();
-
         __asm__ volatile("sti; hlt");
 
+        /* A preempção agora acontece diretamente no retorno do timer IRQ
+         * via scheduler_preempt_from_irq() (chamado pelo stub asm).
+         * timers_poll() e timer_run_deferred() também rodam no IRQ do BSP.
+         *
+         * Este loop existe apenas para manter o BSP idle task vivo.
+         * O consume_reschedule aqui é um fallback de segurança. */
         if (interrupts_consume_reschedule())
         {
             schedule_voluntary();
