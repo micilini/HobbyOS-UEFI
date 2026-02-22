@@ -1129,36 +1129,7 @@ void xhci_configure_device(int port_id, int speed_id)
     console_print_dec_debug(speed_id);
     console_write_debug("\n");
 
-    int found_sync = 0;
-    for (uint64_t i = 0; i < xhci_driver.event_ring_size; i++)
-    {
-        volatile xhci_trb_t *evt = &xhci_driver.event_ring[i];
-        uint8_t cycle = evt->Control & 1;
-
-        if (i > 0)
-        {
-            volatile xhci_trb_t *prev = &xhci_driver.event_ring[i - 1];
-            uint8_t prev_cycle = prev->Control & 1;
-            if (prev_cycle == 1 && cycle == 0)
-            {
-                xhci_driver.event_ring_dequeue_idx = i;
-                xhci_driver.event_ring_cycle_bit = 1;
-                found_sync = 1;
-                break;
-            }
-        }
-    }
-
-    if (!found_sync)
-    {
-
-        xhci_driver.event_ring_dequeue_idx = 0;
-        xhci_driver.event_ring_cycle_bit = 1;
-    }
-
-    console_write_debug("[XHCI-DBG] EVT synced to idx=");
-    console_print_dec_debug(xhci_driver.event_ring_dequeue_idx);
-    console_write_debug("\n");
+    xhci_process_events();
 
     console_write_debug("[XHCI-DBG] CMD Ring: enq_idx=");
     console_print_dec_debug(xhci_driver.cmd_ring_enqueue_idx);
@@ -1189,8 +1160,18 @@ void xhci_configure_device(int port_id, int speed_id)
     console_write_debug("[XHCI-DBG] Sending NOOP...\n");
     if (xhci_send_command_wait(TRB_TYPE_NOOP, 0, 0) == 0)
     {
-        console_write_debug("[XHCI-DBG] NOOP FAILED!\n");
-        return;
+        console_write_debug("[XHCI-DBG] NOOP FAILED! Attempting recovery...\n");
+        if (!xhci_recover_command_ring())
+        {
+            console_write_debug("[XHCI-DBG] Recovery FAILED! Aborting.\n");
+            return;
+        }
+        console_write_debug("[XHCI-DBG] Recovery OK. Retrying NOOP...\n");
+        if (xhci_send_command_wait(TRB_TYPE_NOOP, 0, 0) == 0)
+        {
+            console_write_debug("[XHCI-DBG] NOOP still FAILED after recovery!\n");
+            return;
+        }
     }
     console_write_debug("[XHCI-DBG] NOOP OK\n");
 
@@ -1317,7 +1298,6 @@ void xhci_configure_device(int port_id, int speed_id)
                 0,
                 0,
                 is_usb3);
-
             return;
         }
 
@@ -1326,7 +1306,6 @@ void xhci_configure_device(int port_id, int speed_id)
 
         if (conf_buf)
         {
-
             usb_device_info_t info;
             memset(&info, 0, sizeof(info));
             xhci_parse_config(conf_buf, conf_len, &info);
@@ -1334,8 +1313,26 @@ void xhci_configure_device(int port_id, int speed_id)
             if (info.found)
             {
                 console_set_color_debug(CONSOLE_COLOR_GREEN, CONSOLE_COLOR_BLACK);
-                console_write_debug(" -> KEYBOARD DETECTED.\n");
+                console_write_debug("[XHCI][CFG] HID Boot Keyboard IF=");
+                console_print_dec_debug(info.interface_num);
+                console_write_debug(" ALT=");
+                console_print_dec_debug(info.interface_alt);
+                console_write_debug("\n");
                 console_set_color_debug(CONSOLE_COLOR_WHITE, CONSOLE_COLOR_BLACK);
+
+                console_write_debug("[XHCI][CFG]  EP cand: IF=");
+                console_print_dec_debug(info.interface_num);
+                console_write_debug(" ALT=");
+                console_print_dec_debug(info.interface_alt);
+                console_write_debug(" EP=0x");
+                console_print_hex_debug(info.endpoint_addr);
+                console_write_debug(" MPS=");
+                console_print_dec_debug(info.endpoint_mps);
+                console_write_debug(" INT=");
+                console_print_dec_debug(info.endpoint_interval);
+                console_write_debug("\n");
+
+                console_write_debug(" -> KEYBOARD DETECTED.\n");
 
                 if (xhci_set_configuration(slot_id, info.config_value))
                 {
@@ -1390,7 +1387,7 @@ void xhci_configure_device(int port_id, int speed_id)
     }
     else
     {
-        console_write_debug(" (Desc Fail)\n");
+        console_write_debug(" -> Device Descriptor Failed.\n");
     }
 }
 
@@ -3095,6 +3092,40 @@ uint8_t xhci_send_command_wait(uint32_t type, uint64_t param, uint32_t control_b
     console_write_debug("[XHCI] CMD TIMEOUT! Phys=0x");
     console_print_hex_debug((uint32_t)cmd_phys);
     console_write_debug("\n");
+
+    {
+        uint64_t op_base = (uint64_t)xhci_driver.op_regs;
+        uint64_t crcr_addr = op_base + 0x18;
+
+        volatile uint32_t *crcr_lo = (volatile uint32_t *)crcr_addr;
+        *crcr_lo = (1u << 2);
+        __asm__ volatile("mfence" ::: "memory");
+
+        for (int ab_wait = 0; ab_wait < 500; ab_wait++)
+        {
+            timer_sleep(1);
+            uint32_t crcr_val = *crcr_lo;
+            if (!(crcr_val & (1u << 3)))
+                break;
+        }
+
+        spin_unlock(&g_xhci_cmd_lock);
+        xhci_process_events();
+        spin_lock(&g_xhci_cmd_lock);
+
+        uint64_t ring_phys = paging_get_physical_address((uint64_t)xhci_driver.cmd_ring_base);
+        uint64_t new_crcr = (ring_phys + xhci_driver.cmd_ring_enqueue_idx * sizeof(xhci_trb_t));
+        new_crcr = (new_crcr & ~0x3FULL) | (xhci_driver.cmd_ring_cycle_bit & 1u);
+
+        volatile uint32_t *crcr_hi = (volatile uint32_t *)(crcr_addr + 4);
+        *crcr_lo = (uint32_t)(new_crcr & 0xFFFFFFFF);
+        __asm__ volatile("mfence" ::: "memory");
+        *crcr_hi = (uint32_t)(new_crcr >> 32);
+        __asm__ volatile("mfence" ::: "memory");
+
+        console_write_debug("[XHCI] Command ring aborted and re-synced.\n");
+    }
+
     ret = 0;
 
 out:

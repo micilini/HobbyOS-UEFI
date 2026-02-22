@@ -43,6 +43,7 @@ void usb_hotplug_init(void)
         g_port_ctx[i].state = HP_STATE_IDLE;
         g_port_ctx[i].root_port_1based = i;
         g_port_ctx[i].retries = 0;
+        g_port_ctx[i].slot_id = 0;
     }
 
     g_hp_initialized = 1;
@@ -112,6 +113,11 @@ static void hp_fsm_run(void *ctx)
         break;
 
     case HP_STATE_CONFIGURE_DEVICE:
+        if (p->slot_id != 0)
+        {
+            xhci_disable_slot(p->slot_id);
+            p->slot_id = 0;
+        }
 
         uint8_t speed = (sc >> 10) & 0xF;
 
@@ -172,7 +178,9 @@ void usb_hotplug_process_pending(void)
 
 void usb_hotplug_notify_root_device_configured(uint8_t root_port_1based, uint8_t slot_id)
 {
+    if (root_port_1based == 0 || root_port_1based > MAX_ROOT_PORTS)
+        return;
 
-    (void)root_port_1based;
-    (void)slot_id;
+    hp_port_context_t *p = &g_port_ctx[root_port_1based];
+    p->slot_id = slot_id;
 }
