@@ -15,6 +15,9 @@ static uint8_t g_hp_initialized = 0;
 static void hp_fsm_run(void *ctx);
 static void hp_timer_callback(void *ctx);
 
+static void hp_hub_poll_dpc(void *ctx);
+static void hp_hub_poll_timer_cb(void *ctx);
+
 static uint32_t hp_read_portsc(uint8_t port_1based)
 {
     if (port_1based == 0 || port_1based > xhci_driver.max_ports)
@@ -46,6 +49,7 @@ void usb_hotplug_init(void)
         g_port_ctx[i].slot_id = 0;
     }
 
+    timers_add(2000, hp_hub_poll_timer_cb, NULL);
     g_hp_initialized = 1;
     console_write_debug("[USB] Hotplug State Machine Initialized.\n");
 }
@@ -163,17 +167,41 @@ void usb_hotplug_handle_root_port_status(uint8_t root_port_1based, uint32_t port
     }
     else
     {
-
         console_write_debug("[HP] Disconnect detected.\n");
 
         p->state = HP_STATE_IDLE;
+       
+        if (p->slot_id != 0)
+        {
+            usb_hub_invalidate_by_slot(p->slot_id);
+        }
     }
 
     spin_unlock_irqrestore(&g_hp_lock, flags);
 }
 
+static void hp_hub_poll_dpc(void *ctx)
+{
+    (void)ctx;
+
+    if (usb_hub_get_count() > 0)
+    {
+        usb_hub_poll_all();
+    }
+
+   
+    timers_add(1000, hp_hub_poll_timer_cb, NULL);
+}
+
+static void hp_hub_poll_timer_cb(void *ctx)
+{
+    (void)ctx;
+    dpc_enqueue(hp_hub_poll_dpc, NULL);
+}
+
 void usb_hotplug_process_pending(void)
 {
+   
 }
 
 void usb_hotplug_notify_root_device_configured(uint8_t root_port_1based, uint8_t slot_id)
