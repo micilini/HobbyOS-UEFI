@@ -22,6 +22,7 @@ typedef struct
     uint8_t root_port_1based;
     uint8_t retries;
     uint32_t flags;
+    uint8_t slot_id;
 } hp_port_context_t;
 
 void usb_hotplug_init(void);
