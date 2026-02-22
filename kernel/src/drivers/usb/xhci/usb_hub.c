@@ -19,6 +19,9 @@ extern void *kmalloc_aligned(size_t size, size_t align);
 extern void memset(void *dst, int val, size_t n);
 extern void memcpy(void *dst, const void *src, size_t n);
 
+extern uint64_t timer_get_uptime_ms(void);
+extern void xhci_disable_slot(uint8_t slot_id);
+
 #define CONSOLE_COLOR_WHITE 0xFFFFFFFF
 #define CONSOLE_COLOR_BLACK 0xFF000000
 #define CONSOLE_COLOR_GREEN 0xFF00FF00
@@ -85,6 +88,47 @@ usb_hub_info_t *usb_hub_find_by_slot(uint8_t slot_id)
         }
     }
     return NULL;
+}
+
+void usb_hub_invalidate_by_slot(uint8_t slot_id)
+{
+    irq_flags_t flags = spin_lock_irqsave(&g_usb_hub_lock);
+
+    for (int i = 0; i < USB_HUB_MAX_HUBS; i++)
+    {
+        if (usb_hub_list[i].valid && usb_hub_list[i].slot_id == slot_id)
+        {
+           
+            for (int p = 1; p <= usb_hub_list[i].num_ports; p++)
+            {
+                uint8_t child = usb_hub_list[i].child_slot[p];
+                if (child != 0)
+                {
+                   
+                    for (int j = 0; j < USB_HUB_MAX_HUBS; j++)
+                    {
+                        if (usb_hub_list[j].valid && usb_hub_list[j].slot_id == child)
+                        {
+                            usb_hub_list[j].valid = 0;
+                            usb_hub_count--;
+                        }
+                    }
+                    usb_hub_list[i].child_slot[p] = 0;
+                   
+                }
+            }
+
+            usb_hub_list[i].valid = 0;
+            usb_hub_count--;
+
+            console_write_debug("[USB_HUB] Hub invalidated (slot ");
+            console_print_dec_debug(slot_id);
+            console_write_debug(")\n");
+            break;
+        }
+    }
+
+    spin_unlock_irqrestore(&g_usb_hub_lock, flags);
 }
 
 uint32_t usb_hub_calc_route_string(uint32_t parent_route, uint8_t port)
@@ -778,4 +822,171 @@ void usb_hub_print_tree(void)
     }
 
     console_write_debug("====================\n\n");
+}
+
+void usb_hub_poll_all(void)
+{
+    for (int i = 0; i < USB_HUB_MAX_HUBS; i++)
+    {
+        usb_hub_info_t hub_snap;
+
+        {
+            irq_flags_t flags = spin_lock_irqsave(&g_usb_hub_lock);
+            if (!usb_hub_list[i].valid)
+            {
+                spin_unlock_irqrestore(&g_usb_hub_lock, flags);
+                continue;
+            }
+            memcpy(&hub_snap, &usb_hub_list[i], sizeof(usb_hub_info_t));
+            spin_unlock_irqrestore(&g_usb_hub_lock, flags);
+        }
+
+       
+        if (xhci_driver.slot_ep0_rings[hub_snap.slot_id] == NULL)
+        {
+            console_write_debug("[HUB-HP] Hub slot ");
+            console_print_dec_debug(hub_snap.slot_id);
+            console_write_debug(" is dead, removing from poll list\n");
+            usb_hub_invalidate_by_slot(hub_snap.slot_id);
+            continue;
+        }
+
+       
+        {
+            usb_hub_port_status_t probe;
+            if (!usb_hub_get_port_status(hub_snap.slot_id, 1, &probe))
+            {
+                console_write_debug("[HUB-HP] Hub slot ");
+                console_print_dec_debug(hub_snap.slot_id);
+                console_write_debug(" unreachable, invalidating\n");
+                usb_hub_invalidate_by_slot(hub_snap.slot_id);
+                continue;
+            }
+        }
+
+        for (uint8_t port = 1; port <= hub_snap.num_ports; port++)
+        {
+            usb_hub_port_status_t status;
+            if (!usb_hub_get_port_status(hub_snap.slot_id, port, &status))
+                continue;
+
+            uint8_t connected = (status.wPortStatus & HUB_PORT_STATUS_CONNECTION) ? 1 : 0;
+            uint8_t had_device = (hub_snap.child_slot[port] != 0) ? 1 : 0;
+            uint8_t change = (status.wPortChange & 1) ? 1 : 0;
+
+           
+            if (!change && (connected == had_device))
+                continue;
+
+           
+            if (change)
+                usb_hub_clear_port_feature(hub_snap.slot_id, port, HUB_C_PORT_CONNECTION);
+
+            if (connected && !had_device)
+            {
+               
+                console_set_color_debug(CONSOLE_COLOR_CYAN, CONSOLE_COLOR_BLACK);
+                console_write_debug("[HUB-HP] Connect on hub slot=");
+                console_print_dec_debug(hub_snap.slot_id);
+                console_write_debug(" port=");
+                console_print_dec_debug(port);
+                console_write_debug("\n");
+                console_set_color_debug(CONSOLE_COLOR_WHITE, CONSOLE_COLOR_BLACK);
+
+                timer_sleep(100);
+
+               
+                if (!usb_hub_get_port_status(hub_snap.slot_id, port, &status))
+                    continue;
+                if (!(status.wPortStatus & HUB_PORT_STATUS_CONNECTION))
+                    continue;
+
+                if (!usb_hub_reset_port(hub_snap.slot_id, port))
+                {
+                    console_write_debug("[HUB-HP] Port reset failed\n");
+                    continue;
+                }
+
+                if (!usb_hub_get_port_status(hub_snap.slot_id, port, &status))
+                    continue;
+                if (!(status.wPortStatus & HUB_PORT_STATUS_ENABLE))
+                {
+                    console_write_debug("[HUB-HP] Port not enabled after reset\n");
+                    continue;
+                }
+
+                uint8_t speed = usb_hub_get_port_speed(status.wPortStatus, hub_snap.is_usb3);
+
+                console_write_debug("[HUB-HP] Device speed: ");
+                console_print_dec_debug(speed);
+                console_write_debug("\n");
+
+                usb_device_context_t dev_ctx;
+                dev_ctx.route_string = usb_hub_calc_route_string(hub_snap.route_string, port);
+                dev_ctx.root_port = hub_snap.root_port;
+                dev_ctx.hub_depth = hub_snap.hub_depth + 1;
+                dev_ctx.parent_hub_slot = hub_snap.slot_id;
+                dev_ctx.port_on_parent = port;
+                dev_ctx.speed = speed;
+                dev_ctx.slot_id = 0;
+
+                if ((speed == USB_SPEED_LOW || speed == USB_SPEED_FULL) && !hub_snap.is_usb3)
+                {
+                    dev_ctx.tt_hub_slot_id = hub_snap.slot_id;
+                    dev_ctx.tt_port_num = port;
+                }
+                else
+                {
+                    dev_ctx.tt_hub_slot_id = 0;
+                    dev_ctx.tt_port_num = 0;
+                }
+
+                int slot_id = xhci_configure_device_with_context(
+                    hub_snap.root_port - 1,
+                    speed,
+                    &dev_ctx);
+
+                if (slot_id > 0)
+                {
+                    irq_flags_t flags = spin_lock_irqsave(&g_usb_hub_lock);
+                    if (usb_hub_list[i].valid)
+                        usb_hub_list[i].child_slot[port] = (uint8_t)slot_id;
+                    spin_unlock_irqrestore(&g_usb_hub_lock, flags);
+
+                    console_set_color_debug(CONSOLE_COLOR_GREEN, CONSOLE_COLOR_BLACK);
+                    console_write_debug("[HUB-HP] Device configured at slot ");
+                    console_print_dec_debug(slot_id);
+                    console_write_debug("\n");
+                    console_set_color_debug(CONSOLE_COLOR_WHITE, CONSOLE_COLOR_BLACK);
+                }
+            }
+            else if (!connected && had_device)
+            {
+               
+                uint8_t old_slot = hub_snap.child_slot[port];
+
+                console_set_color_debug(CONSOLE_COLOR_ORANGE, CONSOLE_COLOR_BLACK);
+                console_write_debug("[HUB-HP] Disconnect on hub slot=");
+                console_print_dec_debug(hub_snap.slot_id);
+                console_write_debug(" port=");
+                console_print_dec_debug(port);
+                console_write_debug(" (slot ");
+                console_print_dec_debug(old_slot);
+                console_write_debug(")\n");
+                console_set_color_debug(CONSOLE_COLOR_WHITE, CONSOLE_COLOR_BLACK);
+
+                {
+                    irq_flags_t flags = spin_lock_irqsave(&g_usb_hub_lock);
+                    if (usb_hub_list[i].valid)
+                        usb_hub_list[i].child_slot[port] = 0;
+                    spin_unlock_irqrestore(&g_usb_hub_lock, flags);
+                }
+
+               
+                usb_hub_invalidate_by_slot(old_slot);
+
+                xhci_disable_slot(old_slot);
+            }
+        }
+    }
 }

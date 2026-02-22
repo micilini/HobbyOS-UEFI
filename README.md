@@ -91,15 +91,14 @@ If you are looking for the old/stable version (Bootloader/UEFI only), please vis
 
 ### 🛠️ To-Do (Planned — in rough priority order)
 
-1. **USB Hotplug Behind Hubs** — Currently hotplug only works on root ports. Devices connected/disconnected through USB hubs are not detected dynamically.
-2. **Task Manager** — Shell command to list running threads with ID, name, state, CPU affinity, class, and quantum stats.
-3. **Ring 0 Hardening** — The kernel currently runs everything in Ring 0 with a single address space. Audit and document this as an intentional design choice, enforce stack guards, and add kernel-only memory protections (NX on data, RO on code).
-4. **Topology-Aware Scheduling** — Use MADT/SRAT/cache topology to make scheduling decisions (prefer same-package CPUs, NUMA awareness, cache-affinity).
-5. **Support for UHD 770 (GPU)** — Create a Driver to support Intel GPU, AMD and for future NVIDIA (model by model).
-6. **Per-Process Virtual Memory** — Separate CR3 per task, private address spaces, copy-on-write fork, and kernel/user page table split.
-7. **User Space** — Ring 3 execution with syscall interface (SYSCALL/SYSRET), user-mode stacks, and privilege separation.
-8. **Filesystem** — FAT12/FAT16/FAT32 and exFAT read/write support with a VFS abstraction layer.
-9. **Graphical User Interface** — Windowed desktop environment with mouse support, window manager, and file explorer (inspired by Windows Explorer).
+1. **Task Manager** — Shell command to list running threads with ID, name, state, CPU affinity, class, and quantum stats.
+2. **Ring 0 Hardening** — The kernel currently runs everything in Ring 0 with a single address space. Audit and document this as an intentional design choice, enforce stack guards, and add kernel-only memory protections (NX on data, RO on code).
+3. **Topology-Aware Scheduling** — Use MADT/SRAT/cache topology to make scheduling decisions (prefer same-package CPUs, NUMA awareness, cache-affinity).
+4. **Support for UHD 770 (GPU)** — Create a Driver to support Intel GPU, AMD and for future NVIDIA (model by model).
+5. **Per-Process Virtual Memory** — Separate CR3 per task, private address spaces, copy-on-write fork, and kernel/user page table split.
+6. **User Space** — Ring 3 execution with syscall interface (SYSCALL/SYSRET), user-mode stacks, and privilege separation.
+7. **Filesystem** — FAT12/FAT16/FAT32 and exFAT read/write support with a VFS abstraction layer.
+8. **Graphical User Interface** — Windowed desktop environment with mouse support, window manager, and file explorer (inspired by Windows Explorer).
 
 ---
 
