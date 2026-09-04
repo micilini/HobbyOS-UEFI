@@ -3,8 +3,11 @@
 #include "../libc/string.h"
 #include "../shell/shell.h"
 #include "../core/io.h"
-#include "../core/spinlock.h"
-#include "../core/semaphore.h"
+#include "../core/input_queue.h"
+#include "../core/input_router.h"
+#include "../core/scheduler.h"
+#include "../graphics/console.h"
+#include "serial.h"
 
 static bool g_shift = false;
 static bool g_capslock = false;
@@ -12,73 +15,65 @@ static bool g_ctrl = false;
 static bool g_alt = false;
 static bool g_e0_prefix = false;
 
-static semaphore_t g_sem_kbd;
-
 static bool g_stop_repeating = false;
-
-typedef struct
-{
-    uint8_t value;
-    uint8_t is_special;
-} kbd_evt_t;
 
 #define USB_KBD_FIFO_SIZE 512
 
-static volatile kbd_evt_t g_usb_fifo[USB_KBD_FIFO_SIZE];
-static volatile uint32_t g_usb_fifo_head = 0;
-static volatile uint32_t g_usb_fifo_tail = 0;
-static volatile uint32_t g_usb_fifo_drops = 0;
+static input_queue_entry_t g_keyboard_storage[USB_KBD_FIFO_SIZE];
+static input_queue_t g_keyboard_queue;
 
-static spinlock_t g_usb_fifo_lock;
+static void kbd_trace_char_event(const char *stage, uint8_t raw, uint8_t ascii, uint8_t is_special)
+{
+    if (!(input_debug_get_trace_flags() & INPUT_TRACE_KEYBOARD))
+        return;
+    serial_write_all("[INPUT-TRACE][KBD]");
+    serial_write_all(stage ? stage : "");
+    serial_write_all(" raw=0x");
+    serial_write_hex64_all((uint64_t)raw);
+
+    serial_write_all(" type=");
+    serial_write_all(is_special ? "SPECIAL" : "CHAR");
+
+    serial_write_all(" val=");
+    if (!is_special)
+    {
+        if (ascii == '\n')
+            serial_write_all("<ENTER>");
+        else if (ascii == '\r')
+            serial_write_all("<CR>");
+        else if (ascii == '\b')
+            serial_write_all("<BKSP>");
+        else if (ascii == '\t')
+            serial_write_all("<TAB>");
+        else if (ascii == 27)
+            serial_write_all("<ESC>");
+        else if (ascii < 32 || ascii > 126)
+        {
+            serial_write_all("0x");
+            serial_write_hex64_all((uint64_t)ascii);
+        }
+        else
+        {
+            serial_putc_all('\'');
+            serial_putc_all((char)ascii);
+            serial_putc_all('\'');
+        }
+    }
+    else
+    {
+        serial_write_all("0x");
+        serial_write_hex64_all((uint64_t)ascii);
+    }
+
+    serial_write_all("\n");
+}
 
 static inline void usb_fifo_push(uint8_t value, uint8_t is_special)
 {
-    irq_flags_t flags = spin_lock_irqsave(&g_usb_fifo_lock);
-
-    uint32_t head = g_usb_fifo_head;
-    uint32_t next = (head + 1) % USB_KBD_FIFO_SIZE;
-
-    if (next == g_usb_fifo_tail)
-    {
-        g_usb_fifo_drops++;
-        spin_unlock_irqrestore(&g_usb_fifo_lock, flags);
-        return;
-    }
-
-    g_usb_fifo[head].value = value;
-    g_usb_fifo[head].is_special = is_special;
-    __asm__ volatile("" ::: "memory");
-
-    g_usb_fifo_head = next;
-
-    spin_unlock_irqrestore(&g_usb_fifo_lock, flags);
-
-    sem_signal(&g_sem_kbd);
-}
-
-static void drain_keyboard_buffer(void)
-{
-    while (1)
-    {
-        kbd_evt_t ev;
-        irq_flags_t flags = spin_lock_irqsave(&g_usb_fifo_lock);
-
-        if (g_usb_fifo_tail == g_usb_fifo_head)
-        {
-            spin_unlock_irqrestore(&g_usb_fifo_lock, flags);
-            break;
-        }
-
-        ev = g_usb_fifo[g_usb_fifo_tail];
-        g_usb_fifo_tail = (g_usb_fifo_tail + 1) % USB_KBD_FIFO_SIZE;
-
-        spin_unlock_irqrestore(&g_usb_fifo_lock, flags);
-
-        if (ev.is_special)
-            shell_receive_special(ev.value);
-        else
-            shell_receive_char((char)ev.value);
-    }
+    input_event_t event = is_special ? input_event_special(value)
+                                     : input_event_char((char)value);
+    (void)input_queue_push(&g_keyboard_queue, event, 1,
+                           INPUT_DEST_KEYBOARD_FIFO, NULL);
 }
 
 void input_thread_entry(void *arg)
@@ -88,18 +83,40 @@ void input_thread_entry(void *arg)
 
     while (1)
     {
-        sem_wait(&g_sem_kbd);
-
-        drain_keyboard_buffer();
+        input_event_t event;
+        input_queue_pop_result_t result = input_queue_wait_pop(&g_keyboard_queue,
+                                                               &event);
+        if (result == INPUT_QUEUE_POP_CANCELLED)
+            task_cancel_point();
+        if (result != INPUT_QUEUE_POP_OK)
+            continue;
+        input_router_dispatch_event(event);
+        while (input_queue_try_pop(&g_keyboard_queue, &event) == INPUT_QUEUE_POP_OK)
+            input_router_dispatch_event(event);
     }
 }
 
 uint32_t keyboard_usb_fifo_drops(void)
 {
-    irq_flags_t flags = spin_lock_irqsave(&g_usb_fifo_lock);
-    uint32_t v = (uint32_t)g_usb_fifo_drops;
-    spin_unlock_irqrestore(&g_usb_fifo_lock, flags);
-    return v;
+    input_queue_stats_t stats;
+    return input_queue_snapshot(&g_keyboard_queue, &stats)
+               ? (uint32_t)stats.drops : 0;
+}
+
+bool keyboard_input_queue_snapshot(input_queue_stats_t *out)
+{
+    return input_queue_snapshot(&g_keyboard_queue, out);
+}
+
+bool keyboard_input_queue_validate(input_queue_validation_t *out)
+{
+    return input_queue_validate(&g_keyboard_queue, out);
+}
+
+bool keyboard_test_enqueue_event(input_event_t event)
+{
+    return input_queue_push(&g_keyboard_queue, event, 1,
+                            INPUT_DEST_KEYBOARD_FIFO, NULL) == INPUT_QUEUE_PUSH_OK;
 }
 
 static char apply_modifiers_letter(char lower, char upper)
@@ -216,17 +233,16 @@ static const uint8_t usb_hid_map[128][2] = {
     {KEY_SPECIAL_LEFT, KEY_SPECIAL_LEFT},
     {KEY_SPECIAL_DOWN, KEY_SPECIAL_DOWN},
     {KEY_SPECIAL_UP, KEY_SPECIAL_UP},
+    [0x4A] = {KEY_SPECIAL_HOME, KEY_SPECIAL_HOME},
+    [0x4B] = {KEY_SPECIAL_PAGE_UP, KEY_SPECIAL_PAGE_UP},
+    [0x4D] = {KEY_SPECIAL_END, KEY_SPECIAL_END},
+    [0x4E] = {KEY_SPECIAL_PAGE_DOWN, KEY_SPECIAL_PAGE_DOWN},
 };
 
 void keyboard_init()
 {
-    spinlock_init(&g_usb_fifo_lock);
-
-    sem_init(&g_sem_kbd, 0);
-
-    g_usb_fifo_head = 0;
-    g_usb_fifo_tail = 0;
-    g_usb_fifo_drops = 0;
+    input_queue_init(&g_keyboard_queue, g_keyboard_storage,
+                     USB_KBD_FIFO_SIZE, "keyboard-fifo");
 
     g_shift = false;
     g_capslock = false;
@@ -246,6 +262,8 @@ void keyboard_push_usb_event(uint8_t modifiers, uint8_t keycode)
     if (keycode == 0x39)
     {
         g_capslock = !g_capslock;
+        if (input_debug_get_trace_flags() & INPUT_TRACE_KEYBOARD)
+            serial_write_all("[INPUT-TRACE][KBD] usb capslock toggle\n");
         return;
     }
 
@@ -261,15 +279,23 @@ void keyboard_push_usb_event(uint8_t modifiers, uint8_t keycode)
 
     if (ascii != 0)
     {
-        if (ascii >= KEY_SPECIAL_LEFT && ascii <= KEY_SPECIAL_DOWN)
+        if (ascii >= KEY_SPECIAL_LEFT && ascii <= KEY_SPECIAL_END)
         {
-
+            kbd_trace_char_event(" usb->fifo", keycode, ascii, 1);
             usb_fifo_push((uint8_t)ascii, 1);
         }
         else
         {
-
+            kbd_trace_char_event(" usb->fifo", keycode, ascii, 0);
             usb_fifo_push((uint8_t)ascii, 0);
+        }
+    }
+    else
+    {
+        if (input_debug_get_trace_flags() & INPUT_TRACE_KEYBOARD) {
+            serial_write_all("[INPUT-TRACE][KBD] usb unmapped keycode=0x");
+            serial_write_hex64_all((uint64_t)keycode);
+            serial_write_all("\n");
         }
     }
 }
@@ -336,6 +362,14 @@ static char scancode_to_ascii(uint8_t code)
             return KEY_SPECIAL_UP;
         case 0x50:
             return KEY_SPECIAL_DOWN;
+        case 0x47:
+            return KEY_SPECIAL_HOME;
+        case 0x4F:
+            return KEY_SPECIAL_END;
+        case 0x49:
+            return KEY_SPECIAL_PAGE_UP;
+        case 0x51:
+            return KEY_SPECIAL_PAGE_DOWN;
         }
         return 0;
     }

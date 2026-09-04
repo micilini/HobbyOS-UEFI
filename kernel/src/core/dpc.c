@@ -17,10 +17,14 @@ typedef struct dpc_job
 static queue_head_t g_dpc_queue;
 static spinlock_t g_dpc_lock;
 static semaphore_t g_dpc_sem;
+static volatile uint8_t g_dpc_initialized;
+static volatile uint8_t g_dpc_worker_started;
 
 static void dpc_worker_thread(void *arg)
 {
     (void)arg;
+
+    __atomic_store_n(&g_dpc_worker_started, 1, __ATOMIC_RELEASE);
 
     int printed_banner = 0;
 
@@ -58,14 +62,28 @@ static void dpc_worker_thread(void *arg)
 
 void dpc_init(void)
 {
+    __atomic_store_n(&g_dpc_initialized, 0, __ATOMIC_RELEASE);
+    __atomic_store_n(&g_dpc_worker_started, 0, __ATOMIC_RELEASE);
     spinlock_init(&g_dpc_lock);
     queue_init(&g_dpc_queue);
 
     sem_init(&g_dpc_sem, 0);
 
-    thread_create_with_class(dpc_worker_thread, NULL, TASK_CLASS_INTERACTIVE);
+    bool created = thread_create_named_with_class_flags(dpc_worker_thread, NULL, TASK_CLASS_INTERACTIVE, "dpc-worker", TASK_FLAG_SYSTEM | TASK_FLAG_KILL_PROTECTED);
+
+    __atomic_store_n(&g_dpc_initialized, created ? 1u : 0u,
+                     __ATOMIC_RELEASE);
 
     console_write_debug("[CORE] DPC subsystem initialized (Worker Mode).\n");
+}
+
+bool dpc_runtime_snapshot(dpc_runtime_snapshot_t *out)
+{
+    if (!out) return false;
+    out->initialized = __atomic_load_n(&g_dpc_initialized, __ATOMIC_ACQUIRE);
+    out->worker_started = __atomic_load_n(&g_dpc_worker_started,
+                                          __ATOMIC_ACQUIRE);
+    return true;
 }
 
 int dpc_enqueue(dpc_callback_t func, void *ctx)

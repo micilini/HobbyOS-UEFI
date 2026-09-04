@@ -7,10 +7,39 @@ static bool g_buffering_enabled = false;
 
 extern volatile int g_panic_in_progress;
 
+bool graphics_bind_framebuffer(Framebuffer *fb, void *back_buffer)
+{
+    if (!fb || !fb->BaseAddress || !fb->Width || !fb->Height ||
+        !fb->PixelsPerScanLine)
+        return false;
+    if (g_fb && g_fb != fb)
+        return false;
+    g_fb = fb;
+    if (back_buffer || !g_back_buffer)
+        g_back_buffer = (uint32_t *)back_buffer;
+    return true;
+}
+
 void init_graphics(Framebuffer *fb, void *back_buffer)
 {
-    g_fb = fb;
-    g_back_buffer = (uint32_t *)back_buffer;
+    (void)graphics_bind_framebuffer(fb, back_buffer);
+}
+
+bool graphics_framebuffer_is_bound(void)
+{
+    return g_fb != NULL;
+}
+
+Framebuffer *graphics_framebuffer(void)
+{
+    return g_fb;
+}
+
+bool graphics_binding_selftest(void)
+{
+    Framebuffer *bound = g_fb;
+    return bound && graphics_bind_framebuffer(bound, NULL) &&
+           g_fb == bound && !graphics_bind_framebuffer(NULL, NULL);
 }
 
 void graphics_enable_buffering(bool enable)

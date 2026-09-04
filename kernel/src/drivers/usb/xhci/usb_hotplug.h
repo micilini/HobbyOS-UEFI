@@ -2,6 +2,7 @@
 #define USB_HOTPLUG_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "../../../core/timers.h"
 #include "usb_hub.h"
 
@@ -24,7 +25,16 @@ typedef struct
     uint8_t retries;
     uint32_t flags;
     uint8_t slot_id;
+    uint8_t readiness_active;
 } hp_port_context_t;
+
+typedef struct
+{
+    uint8_t initialized;
+    uint32_t active_enumerations;
+    uint64_t activity_generation;
+    uint64_t last_activity_ns;
+} usb_hotplug_readiness_snapshot_t;
 
 void usb_hotplug_init(void);
 
@@ -34,5 +44,6 @@ void usb_hotplug_notify_root_device_configured(uint8_t root_port_1based, uint8_t
 
 void usb_hub_invalidate_by_slot(uint8_t slot_id);
 void usb_hotplug_process_pending(void);
+bool usb_hotplug_readiness_snapshot(usb_hotplug_readiness_snapshot_t *out);
 
 #endif

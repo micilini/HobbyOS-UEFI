@@ -2,32 +2,39 @@
 
 #include "idt.h"
 #include "irq_stats.h"
+#include "interrupt_context.h"
 #include "interrupts.h"
 #include "panic.h"
 #include "../graphics/console.h"
 #include "../drivers/keyboard.h"
 #include "../apic/lapic.h"
+#include "../apic/ioapic.h"
 #include "../drivers/serial.h"
 #include "../smp/smp_topology.h"
 #include "../drivers/timer.h"
 #include "../core/timers.h"
+#include "../core/scheduler.h"
+#include "../core/clock.h"
+#include "../timer/hpet.h"
 
-static volatile uint8_t g_need_resched[MAX_CPUS] = {0};
+static volatile uint8_t g_need_resched[HOBBYOS_MAX_CPUS] = {0};
 
 void interrupts_request_reschedule(void)
 {
-    uint32_t id = lapic_get_id();
-    if (id < MAX_CPUS)
-        g_need_resched[id] = 1;
+    cpu_slot_t slot = CPU_SLOT_INVALID;
+    if (!scheduler_is_started())
+        return;
+    if (smp_current_cpu_slot(&slot) && slot < HOBBYOS_MAX_CPUS)
+        g_need_resched[slot] = 1;
 }
 
 int interrupts_consume_reschedule(void)
 {
-    extern volatile int g_system_ready_for_scheduling;
-    uint32_t id = lapic_get_id();
-    if (g_system_ready_for_scheduling && id < MAX_CPUS && g_need_resched[id])
+    cpu_slot_t slot = CPU_SLOT_INVALID;
+    if (scheduler_is_started() && smp_current_cpu_slot(&slot) &&
+        slot < HOBBYOS_MAX_CPUS && g_need_resched[slot])
     {
-        g_need_resched[id] = 0;
+        g_need_resched[slot] = 0;
         return 1;
     }
     return 0;
@@ -128,31 +135,22 @@ __attribute__((interrupt)) void exc_generic_handler_err(InterruptFrame *frame, u
     kpanic("EXCEPTION: Unhandled CPU Exception (with error code)");
 }
 
-__attribute__((interrupt)) void irq_unhandled_handler(InterruptFrame *frame)
+static void irq_keyboard_handler_inner(void)
 {
-    (void)frame;
-    irq_stats_record_unhandled();
-    lapic_eoi();
-}
-
-__attribute__((interrupt)) void irq_spurious_handler(InterruptFrame *frame)
-{
-    (void)frame;
-
-    irq_stats_record(0xFF);
-}
-
-__attribute__((interrupt)) void irq_keyboard_handler(InterruptFrame *frame)
-{
-    (void)frame;
     irq_stats_record(INT_VECTOR_KEYBOARD);
     keyboard_handle_interrupt();
     lapic_eoi();
 }
 
-extern void irq_timer_entry(void);
+void irq_hpet_timer_handler_inner(void)
+{
+    irq_stats_record(INT_VECTOR_HPET_TIMER);
+    interrupt_context_mark_unexpected(INT_VECTOR_HPET_TIMER);
+    (void)hpet_timer0_quarantine_stray();
+    lapic_eoi();
+}
 
-void irq_timer_handler_inner(void)
+void irq_lapic_timer_handler_inner(void)
 {
     extern volatile int g_panic_in_progress;
     if (g_panic_in_progress)
@@ -161,29 +159,82 @@ void irq_timer_handler_inner(void)
         __asm__ volatile("cli; hlt");
         return;
     }
-
-    uint32_t id = lapic_get_id();
-    irq_stats_record(INT_VECTOR_TIMER);
-
-    lapic_eoi();
-
-    if (id == g_bsp_apic_id)
-    {
-        timer_handler();
-
-        timers_poll();
-        timer_run_deferred();
-    }
-
+    uint64_t now_ns = clock_monotonic_ns();
+    cpu_slot_t slot = CPU_SLOT_INVALID;
+    irq_stats_record(INT_VECTOR_LAPIC_TIMER);
+    lapic_timer_record_irq_at(now_ns);
+    scheduler_account_time(now_ns);
+    if (smp_current_cpu_slot(&slot) && slot == smp_bsp_cpu_slot())
+        timer_clockevent_on_lapic_tick(slot, now_ns);
     interrupts_request_reschedule();
+    lapic_eoi();
 }
 
-__attribute__((interrupt)) void irq_xhci_handler(InterruptFrame *frame)
+static void irq_xhci_handler_inner(void)
 {
-    (void)frame;
     irq_stats_record(INT_VECTOR_XHCI);
     xhci_handle_interrupt();
     lapic_eoi();
+}
+
+static void irq_runtime_rendezvous_wake_handler_inner(void)
+{
+    irq_stats_record(INT_VECTOR_RUNTIME_RENDEZVOUS_WAKE);
+    lapic_eoi();
+}
+
+void irq_external_dispatch(uint64_t vector_value)
+{
+    uint8_t vector = (uint8_t)vector_value;
+    interrupt_context_enter(vector);
+
+    if (vector == INT_VECTOR_HPET_TIMER)
+    {
+        irq_hpet_timer_handler_inner();
+    }
+    else if (vector == INT_VECTOR_KEYBOARD)
+    {
+        irq_keyboard_handler_inner();
+    }
+    else if (vector == INT_VECTOR_LAPIC_TIMER)
+    {
+        irq_lapic_timer_handler_inner();
+        bool preempt_epilogue = interrupt_context_exit_to_preempt(vector);
+        if (preempt_epilogue)
+            scheduler_preempt_from_irq();
+        return;
+    }
+    else if (vector == INT_VECTOR_RUNTIME_RENDEZVOUS_WAKE)
+    {
+        irq_runtime_rendezvous_wake_handler_inner();
+    }
+    else if (vector == INT_VECTOR_XHCI)
+    {
+        irq_xhci_handler_inner();
+    }
+    else if (vector == 0xFFu)
+    {
+        irq_stats_record(0xFFu);
+    }
+    else if (vector == 0xFDu)
+    {
+        irq_stats_record(vector);
+        lapic_eoi();
+        interrupt_context_exit(vector);
+        __asm__ volatile("cli");
+        while (1)
+            __asm__ volatile("hlt");
+    }
+    else
+    {
+        irq_stats_record(vector);
+        irq_stats_record_unhandled();
+        interrupt_context_mark_unexpected(vector);
+        (void)ioapic_disable_vector(vector);
+        lapic_eoi();
+    }
+
+    interrupt_context_exit(vector);
 }
 
 __attribute__((interrupt)) void exc_isr0(InterruptFrame *frame) { EXC_PANIC_NOERR(0); }
@@ -250,12 +301,3 @@ __attribute__((interrupt)) void exc_isr29(InterruptFrame *frame, uint64_t error_
 __attribute__((interrupt)) void exc_isr30(InterruptFrame *frame, uint64_t error_code) { EXC_PANIC_ERR(30); }
 
 __attribute__((interrupt)) void exc_isr31(InterruptFrame *frame) { EXC_PANIC_NOERR(31); }
-
-__attribute__((interrupt)) void irq_halt_handler(InterruptFrame *frame)
-{
-    (void)frame;
-    lapic_eoi();
-    __asm__ volatile("cli");
-    while (1)
-        __asm__ volatile("hlt");
-}

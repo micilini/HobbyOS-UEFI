@@ -23,8 +23,6 @@ void irq_stats_record(uint8_t vector)
 void irq_stats_record_unhandled(void)
 {
     irq_flags_t flags = spin_lock_irqsave(&g_stats_lock);
-    g_total++;
-    g_last_vec = 0xFE;
     g_unhandled++;
     spin_unlock_irqrestore(&g_stats_lock, flags);
 }
@@ -64,7 +62,7 @@ void irq_stats_dump(void)
     unhandled = g_unhandled;
     last_vec = g_last_vec;
 
-    timer_cnt = g_vec_counts[INT_VECTOR_TIMER];
+    timer_cnt = g_vec_counts[INT_VECTOR_HPET_TIMER] + g_vec_counts[INT_VECTOR_LAPIC_TIMER];
     kbd_cnt = g_vec_counts[INT_VECTOR_KEYBOARD];
     xhci_cnt = g_vec_counts[INT_VECTOR_XHCI];
     spurious_cnt = g_vec_counts[0xFF];
@@ -84,7 +82,7 @@ void irq_stats_dump(void)
     console_write("\n");
 
     console_write("Timer    (0x");
-    console_print_hex((uint64_t)INT_VECTOR_TIMER);
+    console_print_hex((uint64_t)INT_VECTOR_HPET_TIMER);
     console_write("): ");
     console_print_dec((uint64_t)timer_cnt);
     console_write("\n");

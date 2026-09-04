@@ -241,14 +241,14 @@ static int heap_expand_locked(uint64_t grow_bytes)
     uint64_t bytes_needed = align_up_u64(grow_bytes, PAGE_SIZE);
     uint64_t pages_needed = bytes_needed / PAGE_SIZE;
 
-    uint64_t phys = pmm_alloc_contiguous_frames((uint32_t)pages_needed);
+    void *phys = pmm_alloc_contiguous_frames((size_t)pages_needed);
     if (!phys)
     {
         console_write_debug("[HEAP] expand failed: pmm_alloc_contiguous_frames returned 0\n");
         return 0;
     }
 
-    HeapBlock *new_blk = (HeapBlock *)(uintptr_t)phys;
+    HeapBlock *new_blk = (HeapBlock *)phys;
     new_blk->free = true;
     new_blk->size = (size_t)(bytes_needed - sizeof(HeapBlock));
 

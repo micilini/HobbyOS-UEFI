@@ -1,4 +1,5 @@
 #include "cmd_smpstress.h"
+#include "cmd_killtest.h"
 #include "../../apic/lapic.h"
 #include "../../core/scheduler.h"
 #include "../../drivers/serial.h"
@@ -29,6 +30,8 @@ typedef struct
     uint32_t panic_check_ms;
     uint64_t next_panic_check_ms;
 } smpstress_ctx_t;
+static void serial_write_u32_dec_all(uint32_t v);
+static void smpstress_cleanup(void *ctx){smpstress_ctx_t*c=(smpstress_ctx_t*)ctx;task_t*t=get_current_task();if(c&&t&&killtest_ui_telemetry_enabled()){serial_write_all("[SMP][KILL] id=");serial_write_hex64_all(t->id);serial_write_all(" worker=");serial_write_u32_dec_all(c->worker_id);serial_write_all(" reason=");serial_write_all(scheduler_task_exit_reason_to_string(t->exit_reason));serial_write_all(" cleanup=1\n");}if(ctx)kfree(ctx);}
 
 static uint32_t parse_u32(const char *s, uint32_t def)
 {
@@ -83,6 +86,44 @@ static void serial_write_u32_dec_all(uint32_t v)
         char s[2] = {buf[i], 0};
         serial_write_all(s);
     }
+}
+
+static void smpstress_build_worker_name(char *dst, uint32_t dst_size, uint32_t worker_id)
+{
+    if (!dst || dst_size == 0)
+        return;
+
+    const char *prefix = "smpstress-";
+    uint32_t p = 0;
+    while (prefix[p] && p < (dst_size - 1))
+    {
+        dst[p] = prefix[p];
+        p++;
+    }
+
+    char tmp[16];
+    int n = 0;
+
+    if (worker_id == 0)
+    {
+        tmp[n++] = '0';
+    }
+    else
+    {
+        uint32_t v = worker_id;
+        while (v > 0 && n < (int)sizeof(tmp))
+        {
+            tmp[n++] = (char)('0' + (v % 10u));
+            v /= 10u;
+        }
+    }
+
+    while (n > 0 && p < (dst_size - 1))
+    {
+        dst[p++] = tmp[--n];
+    }
+
+    dst[p] = '\0';
 }
 
 static uint64_t stress_job_A(uint64_t x)
@@ -163,7 +204,10 @@ static void smpstress_worker(void *arg)
 
     while (1)
     {
+        task_cancel_point();
+
         uint64_t seed = ((uint64_t)rng_next_u32(c) << 32) | (uint64_t)rng_next_u32(c);
+
         seed ^= ((uint64_t)c->worker_id * 0x9E3779B97F4A7C15ULL);
 
         volatile uint64_t acc = 0;
@@ -175,6 +219,7 @@ static void smpstress_worker(void *arg)
             acc = stress_job_C(seed);
 
         c->iterations++;
+        task_cancel_point();
 
         uint64_t now = timer_get_ms();
 
@@ -194,6 +239,7 @@ static void smpstress_worker(void *arg)
             serial_write_all("\n");
         }
 
+        task_cancel_point();
         if (c->panic_pct > 0 && now >= c->warmup_until_ms)
         {
             if (now >= c->next_panic_check_ms)
@@ -225,6 +271,8 @@ static void smpstress_worker(void *arg)
         {
             if (c->yield_ms > 0)
                 timer_sleep(c->yield_ms);
+
+            task_cancel_point();
         }
     }
 }
@@ -303,7 +351,11 @@ int cmd_smpstress(int argc, char **argv)
         ctx->panic_check_ms = panic_check_ms;
         ctx->next_panic_check_ms = warmup_until;
 
-        thread_create(smpstress_worker, ctx);
+        char worker_name[32];
+        smpstress_build_worker_name(worker_name, sizeof(worker_name), i);
+
+        task_create_options_t options={.name=worker_name,.task_class=TASK_CLASS_NORMAL,.flags=TASK_FLAG_SYSTEM|TASK_FLAG_KILLABLE,.cleanup_fn=smpstress_cleanup,.cleanup_ctx=ctx};
+        if(!thread_create_ex(smpstress_worker,ctx,&options)){kfree(ctx);serial_write_all("[SMP] smpstress create failed\n");return -1;}
     }
 
     console_write("[SMP] Stress Started (interactive). Check SERIAL.\n");

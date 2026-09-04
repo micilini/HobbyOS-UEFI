@@ -5,12 +5,57 @@
 #include "../libc/string.h"
 #include "../core/idt.h"
 #include "../apic/lapic.h"
+#include "../smp/smp_topology.h"
 #include "../drivers/usb/xhci/xhci.h"
+#include "../drivers/timer.h"
+#include "../drivers/serial.h"
 
 #define CONSOLE_COLOR_CYAN 0xFF00FFFF
 #define CONSOLE_COLOR_DEBUG 0xFFAAAAAA
 #define CONSOLE_COLOR_RED 0xFFFF0000
 #define CONSOLE_COLOR_GREEN 0xFF00FF00
+
+static pci_msi_snapshot_t g_xhci_msi;
+
+static char *pci_progress_append_text(char *out, const char *text)
+{
+    while (*text)
+        *out++ = *text++;
+    return out;
+}
+
+static char *pci_progress_append_u64(char *out, uint64_t value)
+{
+    char reverse[21];
+    uint32_t count = 0;
+    do {
+        reverse[count++] = (char)('0' + value % 10u);
+        value /= 10u;
+    } while (value);
+    while (count)
+        *out++ = reverse[--count];
+    return out;
+}
+
+static void pci_progress(const char *stage, const char *detail)
+{
+    timer_clockevent_snapshot_t event = {0};
+    (void)timer_clockevent_snapshot(&event);
+    char line[208];
+    char *p = pci_progress_append_text(line, "[BOOT][PROGRESS] stage=");
+    p = pci_progress_append_text(p, stage);
+    p = pci_progress_append_text(p, " monotonic_ms=");
+    p = pci_progress_append_u64(p, timer_get_uptime_ms());
+    p = pci_progress_append_text(p, " clockevent_ticks=");
+    p = pci_progress_append_u64(p, event.total_ticks);
+    if (detail && *detail) {
+        p = pci_progress_append_text(p, " ");
+        p = pci_progress_append_text(p, detail);
+    }
+    *p++ = '\n';
+    *p = 0;
+    serial_write_all(line);
+}
 
 static inline void outl(uint16_t port, uint32_t val)
 {
@@ -59,15 +104,16 @@ uint64_t pci_get_capability(uint64_t device_addr, uint8_t cap_id)
     return 0;
 }
 
-uint32_t pci_enable_msi(uint64_t device_addr, uint8_t vector)
+bool pci_msi_prepare(uint64_t device_addr, uint8_t vector,
+                     uint32_t destination_apic_id)
 {
     uint64_t msi_addr = pci_get_capability(device_addr, 0x05);
 
-    if (!msi_addr)
+    if (!msi_addr || vector < 32u || destination_apic_id > UINT8_MAX)
     {
         console_set_color(CONSOLE_COLOR_RED, CONSOLE_COLOR_BLACK);
-        console_write_debug("[PCI] Warn: Device does not support MSI (Cap 0x05 not found).\n");
-        return 0;
+        console_write_debug("[PCI] MSI preparation rejected.\n");
+        return false;
     }
 
     volatile uint8_t *cap = (volatile uint8_t *)msi_addr;
@@ -81,25 +127,73 @@ uint32_t pci_enable_msi(uint64_t device_addr, uint8_t vector)
     volatile uint16_t *msg_data_p = is_64bit ? (volatile uint16_t *)(cap + 0x0C)
                                              : (volatile uint16_t *)(cap + 0x08);
 
-    uint32_t apic_id = lapic_get_id();
-
-    *msg_addr_lo_p = 0xFEE00000u | (apic_id << 12);
+    msg_ctl &= (uint16_t)~(PCI_MSI_CTL_ENABLE | PCI_MSI_CTL_MME_MASK);
+    *msg_ctl_p = msg_ctl;
+    *msg_addr_lo_p = 0xFEE00000u | (destination_apic_id << 12);
     if (msg_addr_hi_p)
         *msg_addr_hi_p = 0;
     *msg_data_p = (uint16_t)(vector & 0xFFu);
 
-    msg_ctl &= (uint16_t)~PCI_MSI_CTL_MME_MASK;
-    msg_ctl |= PCI_MSI_CTL_ENABLE;
-    *msg_ctl_p = msg_ctl;
+    g_xhci_msi = (pci_msi_snapshot_t){
+        .device_address = device_addr,
+        .capability_address = msi_addr,
+        .destination_apic_id = destination_apic_id,
+        .vector = vector,
+        .prepared = ((*msg_ctl_p & PCI_MSI_CTL_ENABLE) == 0)};
 
     console_set_color(CONSOLE_COLOR_GREEN, CONSOLE_COLOR_BLACK);
-    console_write_debug("[PCI] MSI Enabled: vector=");
+    console_write_debug("[PCI] MSI Prepared: vector=");
     console_print_dec_debug(vector);
     console_write_debug(" apic_id=");
-    console_print_dec_debug(apic_id);
+    console_print_dec_debug(destination_apic_id);
     console_write_debug("\n");
+    return g_xhci_msi.prepared != 0;
+}
 
-    return 1;
+bool pci_msi_enable(uint64_t device_addr)
+{
+    if (!g_xhci_msi.prepared || g_xhci_msi.device_address != device_addr ||
+        !g_xhci_msi.capability_address || !xhci_interrupt_state_ready())
+        return false;
+    volatile uint16_t *control = (volatile uint16_t *)(
+        g_xhci_msi.capability_address + 2u);
+    uint16_t value = *control;
+    value &= (uint16_t)~PCI_MSI_CTL_MME_MASK;
+    value |= PCI_MSI_CTL_ENABLE;
+    *control = value;
+    g_xhci_msi.enabled = ((*control & PCI_MSI_CTL_ENABLE) != 0);
+    return g_xhci_msi.enabled != 0;
+}
+
+bool pci_msi_disable(uint64_t device_addr)
+{
+    uint64_t capability = pci_get_capability(device_addr, 0x05);
+    if (!capability)
+        return false;
+    volatile uint16_t *control = (volatile uint16_t *)(capability + 2u);
+    *control = (uint16_t)(*control & ~PCI_MSI_CTL_ENABLE);
+    bool disabled = (*control & PCI_MSI_CTL_ENABLE) == 0;
+    if (g_xhci_msi.device_address == device_addr)
+        g_xhci_msi.enabled = disabled ? 0u : 1u;
+    return disabled;
+}
+
+bool pci_msi_enable_prepared(void)
+{
+    if (!g_xhci_msi.prepared)
+        return true;
+    if (!pci_msi_enable(g_xhci_msi.device_address))
+        return false;
+    console_write_debug("[PCI] MSI service release complete.\n");
+    return true;
+}
+
+bool pci_msi_snapshot(pci_msi_snapshot_t *out)
+{
+    if (!out)
+        return false;
+    *out = g_xhci_msi;
+    return true;
 }
 
 void pci_enumerate_function(uint64_t device_addr, uint64_t function, uint8_t bus, uint8_t slot)
@@ -159,14 +253,18 @@ void pci_enumerate_function(uint64_t device_addr, uint64_t function, uint8_t bus
             console_write_debug(" -> FATAL: Failed to set Bus Master! RAM is Unreachable.\n");
         }
 
-        console_write_debug("[PCI] Enabling MSI...\n");
-        pci_enable_msi(function_addr, INT_VECTOR_XHCI);
+        console_write_debug("[PCI] Preparing MSI in masked service state...\n");
+        if (!pci_msi_prepare(function_addr, INT_VECTOR_XHCI,
+                             g_bsp_apic_id))
+            console_write_debug("[PCI] MSI remains unavailable.\n");
 
         console_write_debug("Initializing XHCI Driver at 0x");
         console_print_hex_debug(base_addr);
         console_write_debug("...\n");
 
+        pci_progress("PCI_SCAN_PROGRESS", "component=xhci action=begin");
         xhci_init(base_addr);
+        pci_progress("PCI_SCAN_PROGRESS", "component=xhci action=complete");
     }
 }
 
@@ -202,6 +300,7 @@ void pci_enumerate_bus(uint64_t base_addr, uint64_t bus)
 
 void pci_init()
 {
+    pci_progress("PCI_BEGIN", "source=MCFG");
     console_set_color(CONSOLE_COLOR_DEBUG, CONSOLE_COLOR_BLACK);
     console_write_debug("PCI: Searching for ACPI MCFG table...\n");
 
@@ -211,6 +310,7 @@ void pci_init()
     {
         console_set_color(CONSOLE_COLOR_RED, CONSOLE_COLOR_BLACK);
         console_write_debug("[PCI] Error: ACPI MCFG Table not found!\n");
+        pci_progress("PCI_SCAN_COMPLETE", "status=MCFG_MISSING");
         return;
     }
 
@@ -231,6 +331,7 @@ void pci_init()
         McfgDeviceConfig *config = (McfgDeviceConfig *)((uint64_t)mcfg + sizeof(McfgHeader) + (sizeof(McfgDeviceConfig) * t));
 
         console_write_debug("PCI: Scanning Segment Group...\n");
+        pci_progress("PCI_SCAN_PROGRESS", "component=segment action=begin");
 
         for (uint64_t bus = config->StartBus; bus < config->EndBus; bus++)
         {
@@ -239,6 +340,7 @@ void pci_init()
     }
 
     console_write_debug("PCI: Scan complete.\n");
+    pci_progress("PCI_SCAN_COMPLETE", "status=COMPLETE");
 }
 
 static void pci_list_function(uint64_t device_addr, uint64_t function, uint8_t bus, uint8_t slot)

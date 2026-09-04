@@ -1,0 +1,6 @@
+#ifndef HOBBYOS_CPU_LIMITS_H
+#define HOBBYOS_CPU_LIMITS_H
+
+#define HOBBYOS_MAX_CPUS 32u
+
+#endif

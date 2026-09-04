@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define INT_VECTOR_RUNTIME_RENDEZVOUS_WAKE 35u
+
 typedef struct
 {
     uint64_t rip;
@@ -52,17 +54,9 @@ __attribute__((interrupt)) void exc_isr31(InterruptFrame *frame);
 __attribute__((interrupt)) void exc_generic_handler(InterruptFrame *frame);
 __attribute__((interrupt)) void exc_generic_handler_err(InterruptFrame *frame, uint64_t error_code);
 
-__attribute__((interrupt)) void irq_keyboard_handler(InterruptFrame *frame);
-
-extern void irq_timer_entry(void);
-void irq_timer_handler_inner(void);
-
-__attribute__((interrupt)) void irq_xhci_handler(InterruptFrame *frame);
-
-__attribute__((interrupt)) void irq_unhandled_handler(InterruptFrame *frame);
-__attribute__((interrupt)) void irq_spurious_handler(InterruptFrame *frame);
-
-__attribute__((interrupt)) void irq_halt_handler(InterruptFrame *frame);
+void irq_external_dispatch(uint64_t vector);
+void irq_hpet_timer_handler_inner(void);
+void irq_lapic_timer_handler_inner(void);
 
 void interrupts_request_reschedule(void);
 int interrupts_consume_reschedule(void);

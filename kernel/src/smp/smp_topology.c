@@ -14,9 +14,10 @@
 #define PAGE_SIZE 4096
 #define IST_STACK_SIZE (32 * 1024)
 
-SmpCpuInfo g_cpus[MAX_CPUS];
+SmpCpuInfo g_cpus[HOBBYOS_MAX_CPUS];
 uint32_t g_cpu_count = 0;
-uint8_t g_bsp_apic_id = 0;
+uint32_t g_bsp_apic_id = 0;
+static cpu_slot_t g_bsp_slot = CPU_SLOT_INVALID;
 
 static uint64_t align_down(uint64_t addr)
 {
@@ -85,44 +86,185 @@ static void serial_print_dec(uint32_t n)
     }
 }
 
-void smp_topology_init()
+bool smp_cpu_slot_from_apic_id(uint32_t apic_id, cpu_slot_t *out_slot)
 {
-    serial_write_all("[SMP] Init Topology...\n");
-    g_bsp_apic_id = (uint8_t)lapic_get_id();
-
-    serial_write_all("[SMP] BSP APIC ID = ");
-    serial_print_dec((uint32_t)g_bsp_apic_id);
-    serial_write_all("\n");
-
-    uint32_t madt_count = madt_get_cpu_count();
-    if (madt_count > MAX_CPUS)
+    if (!out_slot)
+        return false;
+    *out_slot = CPU_SLOT_INVALID;
+    for (cpu_slot_t slot = 0; slot < g_cpu_count; slot++)
     {
-        serial_write_all("[SMP] Limiting CPU count to MAX_CPUS\n");
-        madt_count = MAX_CPUS;
-    }
-
-    uint8_t apic_ids[MAX_CPUS];
-    g_cpu_count = madt_get_cpu_apic_ids(apic_ids, MAX_CPUS);
-
-    serial_write_all("[SMP] Scanning CPUs...\n");
-    for (uint32_t i = 0; i < g_cpu_count; i++)
-    {
-        g_cpus[i].apic_id = apic_ids[i];
-
-        if (g_cpus[i].apic_id == g_bsp_apic_id)
+        if (g_cpus[slot].apic_id == apic_id)
         {
-            g_cpus[i].is_bsp = true;
-            g_cpus[i].state = CPU_STATE_ONLINE;
-        }
-        else
-        {
-            g_cpus[i].is_bsp = false;
-            g_cpus[i].state = CPU_STATE_DEAD;
+            *out_slot = slot;
+            return true;
         }
     }
-    serial_write_all("[SMP] Topology Done.\n");
+    return false;
 }
 
+bool smp_current_cpu_slot(cpu_slot_t *out_slot)
+{
+    return smp_cpu_slot_from_apic_id(lapic_get_id(), out_slot);
+}
+
+SmpCpuInfo *smp_cpu_by_slot(cpu_slot_t slot)
+{
+    if (slot >= g_cpu_count || slot >= HOBBYOS_MAX_CPUS)
+        return NULL;
+    return &g_cpus[slot];
+}
+
+const SmpCpuInfo *smp_cpu_by_slot_const(cpu_slot_t slot)
+{
+    return smp_cpu_by_slot(slot);
+}
+
+cpu_slot_t smp_bsp_cpu_slot(void) { return g_bsp_slot; }
+
+uint32_t smp_online_cpu_count(void)
+{
+    uint32_t count = 0;
+    for (cpu_slot_t slot = 0; slot < g_cpu_count; slot++)
+        if (__atomic_load_n(&g_cpus[slot].state, __ATOMIC_ACQUIRE) == CPU_STATE_ONLINE)
+            count++;
+    return count;
+}
+
+uint32_t smp_failed_cpu_count(void)
+{
+    uint32_t count = 0;
+    for (cpu_slot_t slot = 0; slot < g_cpu_count; slot++)
+        if (__atomic_load_n(&g_cpus[slot].state, __ATOMIC_ACQUIRE) == CPU_STATE_FAILED)
+            count++;
+    return count;
+}
+
+bool smp_mark_cpu_online(cpu_slot_t slot)
+{
+    SmpCpuInfo *cpu = smp_cpu_by_slot(slot);
+    if (!cpu)
+        return false;
+    __atomic_store_n(&cpu->state, CPU_STATE_ONLINE, __ATOMIC_RELEASE);
+    return true;
+}
+
+static char *append_text(char *dst, const char *text)
+{
+    while (*text) *dst++ = *text++;
+    return dst;
+}
+
+static char *append_dec(char *dst, uint32_t value)
+{
+    char digits[10];
+    uint32_t count = 0;
+    if (value == 0) { *dst++ = '0'; return dst; }
+    while (value && count < sizeof(digits))
+    {
+        digits[count++] = (char)('0' + (value % 10));
+        value /= 10;
+    }
+    while (count) *dst++ = digits[--count];
+    return dst;
+}
+
+void smp_log_cpu_online(cpu_slot_t slot, const char *role)
+{
+    const SmpCpuInfo *cpu = smp_cpu_by_slot_const(slot);
+    if (!cpu) return;
+    char line[112];
+    char *out = line;
+    out = append_text(out, "[SMP][CPU] ONLINE slot=");
+    out = append_dec(out, slot);
+    out = append_text(out, " apic=");
+    out = append_dec(out, cpu->apic_id);
+    out = append_text(out, " role=");
+    out = append_text(out, role ? role : "UNKNOWN");
+    *out++ = '\n'; *out = '\0';
+    serial_write_all(line);
+}
+
+bool smp_topology_init(void)
+{
+    serial_write_all("[SMP] Init Topology...\n");
+    g_bsp_apic_id = lapic_get_id();
+    g_bsp_slot = CPU_SLOT_INVALID;
+
+    uint32_t madt_count = madt_get_cpu_count();
+    if (madt_count == 0 || madt_count > HOBBYOS_MAX_CPUS)
+    {
+        serial_write_all("[SMP][CPU] ERROR code=INVALID_CPU_COUNT\n");
+        return false;
+    }
+
+    uint32_t apic_ids[HOBBYOS_MAX_CPUS];
+    g_cpu_count = madt_get_cpu_apic_ids(apic_ids, HOBBYOS_MAX_CPUS);
+    if (g_cpu_count == 0 || g_cpu_count > HOBBYOS_MAX_CPUS || g_cpu_count != madt_count)
+    {
+        serial_write_all("[SMP][CPU] ERROR code=CPU_DISCOVERY_MISMATCH\n");
+        return false;
+    }
+
+    for (cpu_slot_t slot = 0; slot < g_cpu_count; slot++)
+    {
+        SmpCpuInfo *cpu = &g_cpus[slot];
+        cpu->slot = slot;
+        cpu->apic_id = apic_ids[slot];
+        madt_cpu_t madt_cpu;
+        if (!madt_cpu_at(slot, &madt_cpu) || madt_cpu.apic_id != cpu->apic_id)
+        {
+            serial_write_all("[SMP][CPU] ERROR code=MADT_CPU_LOOKUP\n");
+            return false;
+        }
+        cpu->acpi_id = madt_cpu.acpi_id;
+        cpu->state = CPU_STATE_PREPARE;
+        cpu->is_bsp = (cpu->apic_id == g_bsp_apic_id);
+        for (cpu_slot_t prior = 0; prior < slot; prior++)
+        {
+            if (g_cpus[prior].apic_id == cpu->apic_id)
+            {
+                serial_write_all("[SMP][CPU] ERROR code=DUPLICATE_APIC\n");
+                return false;
+            }
+        }
+        if (cpu->is_bsp)
+        {
+            if (g_bsp_slot != CPU_SLOT_INVALID)
+            {
+                serial_write_all("[SMP][CPU] ERROR code=MULTIPLE_BSP\n");
+                return false;
+            }
+            g_bsp_slot = slot;
+        }
+    }
+
+    if (g_bsp_slot == CPU_SLOT_INVALID)
+    {
+        serial_write_all("[SMP][CPU] ERROR code=MISSING_BSP\n");
+        return false;
+    }
+
+    for (cpu_slot_t slot = 0; slot < g_cpu_count; slot++)
+    {
+        cpu_slot_t roundtrip = CPU_SLOT_INVALID;
+        if (g_cpus[slot].slot != slot ||
+            !smp_cpu_slot_from_apic_id(g_cpus[slot].apic_id, &roundtrip) ||
+            roundtrip != slot)
+        {
+            serial_write_all("[SMP][CPU] ERROR code=ROUNDTRIP\n");
+            return false;
+        }
+    }
+    cpu_slot_t unknown = CPU_SLOT_INVALID;
+    if (smp_cpu_slot_from_apic_id(UINT32_MAX, &unknown))
+    {
+        serial_write_all("[SMP][CPU] ERROR code=UNKNOWN_APIC_LOOKUP\n");
+        return false;
+    }
+
+    serial_write_all("[SMP] Topology Done.\n");
+    return true;
+}
 void smp_prepare_cpu_structures()
 {
     serial_write_all("[SMP] Allocating CPU Structs (w/ Mapping)...\n");

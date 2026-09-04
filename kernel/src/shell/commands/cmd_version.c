@@ -8,6 +8,6 @@ int cmd_version(int argc, char **argv)
     (void)argv;
 
     console_set_color(CONSOLE_COLOR_YELLOW, CONSOLE_COLOR_HOBBYOS_BLUE);
-    console_write("HobbyOS 0.2\n");
+    console_write("HobbyOS 0.3\n");
     return 0;
 }

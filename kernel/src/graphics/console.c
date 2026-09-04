@@ -2,13 +2,14 @@
 #include "graphics.h"
 #include "../utils/utils.h"
 #include "../libc/memory.h"
+#include "../libc/string.h"
 #include "../core/spinlock.h"
 #include "../drivers/serial.h"
 
 extern volatile int g_panic_in_progress;
 
-static Framebuffer *g_fb = NULL;
 static Psf1_Font *g_font = NULL;
+static uint8_t g_early_clear_reported;
 
 volatile uint8_t g_console_debug_enabled = 1;
 
@@ -25,6 +26,14 @@ static uint32_t g_color_fg = CONSOLE_COLOR_WHITE;
 static uint32_t g_color_bg = CONSOLE_COLOR_HOBBYOS_BLUE;
 
 static int g_console_batch = 0;
+static console_region_stats_t g_region_stats;
+static bool g_status_visible;
+static uint32_t g_status_row;
+static uint32_t g_status_bg;
+static char g_status_message[CONSOLE_STATUS_MESSAGE_MAX];
+
+static void console_status_repaint_internal(void);
+static void console_status_restore_internal(void);
 
 static void console_begin_batch_internal()
 {
@@ -80,16 +89,17 @@ static uint32_t g_max_rows = 0;
 
 static void compute_max_dimensions(void)
 {
-    if (!g_fb || !g_font || !g_font->psf_header)
+    Framebuffer *fb = graphics_framebuffer();
+    if (!fb || !g_font || !g_font->psf_header)
         return;
 
-    uint32_t fb_width = g_fb->Width;
-    if (g_fb->PixelsPerScanLine && g_fb->PixelsPerScanLine < fb_width)
+    uint32_t fb_width = fb->Width;
+    if (fb->PixelsPerScanLine && fb->PixelsPerScanLine < fb_width)
     {
-        fb_width = g_fb->PixelsPerScanLine;
+        fb_width = fb->PixelsPerScanLine;
     }
 
-    uint32_t fb_height = g_fb->Height;
+    uint32_t fb_height = fb->Height;
 
     uint32_t usable_width = (fb_width > (CONSOLE_PAD_X * 2u)) ? (fb_width - (CONSOLE_PAD_X * 2u)) : fb_width;
     uint32_t usable_height = (fb_height > (CONSOLE_PAD_Y * 2u)) ? (fb_height - (CONSOLE_PAD_Y * 2u)) : fb_height;
@@ -147,6 +157,8 @@ static void draw_char_pixels_at(char c, uint32_t cx, uint32_t cy, uint32_t fg_co
 
 static void console_scroll()
 {
+
+    g_region_stats.scroll_count++;
 
     g_view_start_line = (g_view_start_line + 1) % CONSOLE_MAX_HISTORY;
 
@@ -209,6 +221,13 @@ static void console_scroll()
         g_cursor_x = 0;
     }
 
+    if (g_status_visible)
+    {
+        g_status_row = (g_cursor_y == (g_max_rows - 1) && g_max_rows > 1)
+            ? (g_max_rows - 2) : (g_max_rows - 1);
+        console_status_repaint_internal();
+    }
+
     console_flush_if_needed();
 }
 
@@ -216,8 +235,15 @@ void console_init(BootInfo *boot_info)
 {
     spinlock_init(&g_console_lock);
 
-    g_fb = boot_info->framebuffer;
+    if (!boot_info ||
+        !graphics_bind_framebuffer(boot_info->framebuffer, NULL))
+        return;
     g_font = boot_info->font;
+    g_early_clear_reported = 0;
+    g_status_visible = false;
+    g_status_row = 0;
+    g_status_bg = g_color_bg;
+    g_status_message[0] = '\0';
 
     compute_max_dimensions();
 
@@ -234,7 +260,7 @@ void console_init(BootInfo *boot_info)
 
 static void console_render_full_internal()
 {
-    if (!g_font || !g_fb)
+    if (!g_font || !graphics_framebuffer_is_bound())
         return;
 
     clear_screen(g_color_bg);
@@ -274,6 +300,8 @@ static void console_render_full_internal()
         }
     }
 
+    console_status_repaint_internal();
+
     console_flush_if_needed();
 }
 
@@ -291,6 +319,8 @@ void console_clear(uint32_t bg_color)
     g_color_bg = bg_color;
     g_cursor_x = 0;
     g_cursor_y = 0;
+    g_status_visible = false;
+    g_status_message[0] = '\0';
 
     g_view_start_line = 0;
 
@@ -307,12 +337,23 @@ void console_clear(uint32_t bg_color)
     console_render_full_internal();
 
     spin_unlock_irqrestore(&g_console_lock, flags);
+
+    Framebuffer *fb = graphics_framebuffer();
+    if (!g_early_clear_reported && fb && fb->BaseAddress &&
+        ((volatile uint32_t *)fb->BaseAddress)[0] == bg_color) {
+        g_early_clear_reported = 1;
+        serial_write_all("[GRAPHICS][EARLY_BIND] PASS clear=1 width=");
+        console_print_dec_debug(fb->Width);
+        serial_write_all(" height=");
+        console_print_dec_debug(fb->Height);
+        serial_write_all("\n[GRAPHICS][EARLY_CLEAR] PASS\n");
+    }
 }
 
 static void console_put_char_internal(char c)
 {
 
-    if (!g_font || !g_fb)
+    if (!g_font || !graphics_framebuffer_is_bound())
         return;
 
     if (c == '\r')
@@ -564,76 +605,82 @@ void console_move_right()
     spin_unlock_irqrestore(&g_console_lock, flags);
 }
 
-static bool g_status_visible = false;
-static uint32_t g_status_row = 0;
-
-static void status_clear_row(uint32_t row_y, uint32_t bg)
+static void console_status_restore_internal(void)
 {
-    if (!g_font || !g_fb || g_max_cols == 0 || g_max_rows == 0)
+    if (!g_status_visible || !g_font || !graphics_framebuffer_is_bound() ||
+        g_max_cols == 0 || g_max_rows == 0)
         return;
 
-    uint32_t actual_line = (g_view_start_line + row_y) % CONSOLE_MAX_HISTORY;
-
+    uint32_t actual_line = (g_view_start_line + g_status_row) %
+                           CONSOLE_MAX_HISTORY;
     uint32_t old_bg = g_color_bg;
-    g_color_bg = bg;
-
     for (uint32_t x = 0; x < g_max_cols; x++)
     {
-        g_history[actual_line][x].c = 0;
-        g_history[actual_line][x].bg = bg;
-        draw_char_pixels_at(' ', x, row_y, g_color_fg);
+        ConsoleCell *cell = &g_history[actual_line][x];
+        char value = cell->c ? cell->c : ' ';
+        g_color_bg = cell->bg;
+        draw_char_pixels_at(value, x, g_status_row, cell->fg);
     }
+    g_color_bg = old_bg;
+}
 
+static void console_status_repaint_internal(void)
+{
+    if (!g_status_visible || !g_font || !graphics_framebuffer_is_bound() ||
+        g_max_cols == 0 || g_max_rows == 0)
+        return;
+
+    uint32_t old_bg = g_color_bg;
+    g_color_bg = g_status_bg;
+    for (uint32_t x = 0; x < g_max_cols; x++)
+        draw_char_pixels_at(' ', x, g_status_row, CONSOLE_COLOR_YELLOW);
+    for (uint32_t x = 0; g_status_message[x] && x < g_max_cols; x++)
+        draw_char_pixels_at(g_status_message[x], x, g_status_row,
+                            CONSOLE_COLOR_YELLOW);
     g_color_bg = old_bg;
 }
 
 void console_status_set(const char *msg)
 {
-    if (!g_font || !g_fb || g_max_cols == 0 || g_max_rows == 0)
-        return;
-
     irq_flags_t flags = spin_lock_irqsave(&g_console_lock);
 
-    uint32_t row = (g_cursor_y == (g_max_rows - 1) && g_max_rows > 1) ? (g_max_rows - 2) : (g_max_rows - 1);
-    g_status_row = row;
-
-    console_begin_batch_internal();
-
-    uint32_t saved_x = g_cursor_x;
-    uint32_t saved_y = g_cursor_y;
-    uint32_t saved_fg = g_color_fg;
-    uint32_t saved_bg = g_color_bg;
-
-    uint32_t status_fg = CONSOLE_COLOR_YELLOW;
-    uint32_t status_bg = saved_bg;
-
-    g_color_fg = status_fg;
-    g_color_bg = status_bg;
-    status_clear_row(row, status_bg);
-
-    uint32_t actual_line = (g_view_start_line + row) % CONSOLE_MAX_HISTORY;
-    uint32_t x = 0;
-    if (!msg)
-        msg = "";
-
-    while (msg[x] && x < g_max_cols)
+    if (!g_font || !graphics_framebuffer_is_bound() ||
+        g_max_cols == 0 || g_max_rows == 0)
     {
-        char c = msg[x];
-        g_history[actual_line][x].c = c;
-        g_history[actual_line][x].bg = status_bg;
-        draw_char_pixels_at(c, x, row, status_fg);
-        x++;
+        spin_unlock_irqrestore(&g_console_lock, flags);
+        return;
     }
 
-    g_color_fg = saved_fg;
-    g_color_bg = saved_bg;
-    g_cursor_x = saved_x;
-    g_cursor_y = saved_y;
+    console_begin_batch_internal();
+    if (g_status_visible)
+        console_status_restore_internal();
 
+    g_status_row = (g_cursor_y == (g_max_rows - 1) && g_max_rows > 1)
+        ? (g_max_rows - 2) : (g_max_rows - 1);
+    g_status_bg = g_color_bg;
+
+    uint32_t length = 0;
+    bool truncated = false;
+    if (!msg)
+        msg = "";
+    while (msg[length] && length < CONSOLE_STATUS_MESSAGE_MAX - 1u)
+    {
+        char value = msg[length];
+        if (value == '\n' || value == '\r' || value == '\t')
+            value = ' ';
+        g_status_message[length++] = value;
+    }
+    truncated = msg[length] != '\0';
+    if (truncated && length >= 3u)
+    {
+        g_status_message[length - 3u] = '.';
+        g_status_message[length - 2u] = '.';
+        g_status_message[length - 1u] = '.';
+    }
+    g_status_message[length] = '\0';
     g_status_visible = true;
-
+    console_status_repaint_internal();
     console_end_batch_internal();
-
     spin_unlock_irqrestore(&g_console_lock, flags);
 }
 
@@ -641,36 +688,14 @@ void console_status_clear(void)
 {
     irq_flags_t flags = spin_lock_irqsave(&g_console_lock);
 
-    if (!g_status_visible)
+    if (g_status_visible)
     {
-        spin_unlock_irqrestore(&g_console_lock, flags);
-        return;
-    }
-
-    if (!g_font || !g_fb || g_max_cols == 0 || g_max_rows == 0)
-    {
+        console_begin_batch_internal();
+        console_status_restore_internal();
         g_status_visible = false;
-        spin_unlock_irqrestore(&g_console_lock, flags);
-        return;
+        g_status_message[0] = '\0';
+        console_end_batch_internal();
     }
-
-    console_begin_batch_internal();
-
-    uint32_t saved_x = g_cursor_x;
-    uint32_t saved_y = g_cursor_y;
-    uint32_t saved_fg = g_color_fg;
-    uint32_t saved_bg = g_color_bg;
-
-    status_clear_row(g_status_row, saved_bg);
-
-    g_color_fg = saved_fg;
-    g_color_bg = saved_bg;
-    g_cursor_x = saved_x;
-    g_cursor_y = saved_y;
-
-    g_status_visible = false;
-
-    console_end_batch_internal();
 
     spin_unlock_irqrestore(&g_console_lock, flags);
 }
@@ -679,7 +704,7 @@ void console_draw_cursor(char underlying_char)
 {
     irq_flags_t flags = spin_lock_irqsave(&g_console_lock);
 
-    if (!g_font || !g_fb)
+    if (!g_font || !graphics_framebuffer_is_bound())
     {
         spin_unlock_irqrestore(&g_console_lock, flags);
         return;
@@ -821,3 +846,205 @@ uint32_t console_get_max_rows(void)
 {
     return g_max_rows;
 }
+
+static bool region_valid(const console_region_t *r)
+{
+    if (!r || !r->width || !r->height || r->x >= g_max_cols || r->y >= g_max_rows)
+        return false;
+    if (r->width > g_max_cols - r->x || r->height > g_max_rows - r->y)
+        return false;
+    return true;
+}
+
+static void region_cell(uint32_t x, uint32_t y, char c, uint32_t fg, uint32_t bg)
+{
+    uint32_t history = (g_view_start_line + y) % CONSOLE_MAX_HISTORY;
+    g_history[history][x].c = c;
+    g_history[history][x].fg = fg;
+    g_history[history][x].bg = bg;
+    uint32_t saved_bg = g_color_bg;
+    g_color_bg = bg;
+    draw_char_pixels_at(c, x, y, fg);
+    g_color_bg = saved_bg;
+}
+
+bool console_region_clear(const console_region_t *region, uint32_t bg)
+{
+    irq_flags_t flags = spin_lock_irqsave(&g_console_lock);
+    if (!region_valid(region)) {
+        g_region_stats.rejected_regions++;
+        spin_unlock_irqrestore(&g_console_lock, flags);
+        return false;
+    }
+    for (uint32_t y = 0; y < region->height; y++)
+        for (uint32_t x = 0; x < region->width; x++)
+            region_cell(region->x + x, region->y + y, ' ', CONSOLE_COLOR_WHITE, bg);
+    g_region_stats.clears++;
+    console_flush_if_needed();
+    spin_unlock_irqrestore(&g_console_lock, flags);
+    return true;
+}
+
+bool console_region_write_line(const console_region_t *region, uint32_t row,
+                               const char *text, uint32_t fg, uint32_t bg)
+{
+    irq_flags_t flags = spin_lock_irqsave(&g_console_lock);
+    if (!region_valid(region) || row >= region->height || !text) {
+        g_region_stats.rejected_regions++;
+        spin_unlock_irqrestore(&g_console_lock, flags);
+        return false;
+    }
+    uint32_t n = 0;
+    while (text[n] && n < region->width) {
+        char c = text[n];
+        if (c == '\n' || c == '\r' || c == '\t') c = ' ';
+        region_cell(region->x + n, region->y + row, c, fg, bg);
+        n++;
+    }
+    if (text[n]) g_region_stats.clipped_writes++;
+    while (n < region->width) {
+        region_cell(region->x + n, region->y + row, ' ', fg, bg);
+        n++;
+    }
+    g_region_stats.writes++;
+    console_flush_if_needed();
+    spin_unlock_irqrestore(&g_console_lock, flags);
+    return true;
+}
+
+bool console_region_present_row(const console_region_t *region, uint32_t row,
+                                const ConsoleCell *cells, uint32_t cell_count,
+                                ConsoleCell fill,
+                                console_region_present_result_t *out)
+{
+    console_region_present_result_t result = {0};
+    irq_flags_t flags = spin_lock_irqsave(&g_console_lock);
+    if (!region_valid(region) || row >= region->height ||
+        (!cells && cell_count) || cell_count > region->width) {
+        g_region_stats.rejected_regions++;
+        spin_unlock_irqrestore(&g_console_lock, flags);
+        if (out) *out = result;
+        return false;
+    }
+
+    for (uint32_t x = 0; x < region->width; x++) {
+        ConsoleCell target = x < cell_count ? cells[x] : fill;
+        if (target.c == '\n' || target.c == '\r' || target.c == '\t' ||
+            target.c == 0)
+            target.c = ' ';
+        uint32_t history = (g_view_start_line + region->y + row) %
+                           CONSOLE_MAX_HISTORY;
+        ConsoleCell *current = &g_history[history][region->x + x];
+        bool glyph_changed = current->c != target.c;
+        bool style_changed = current->fg != target.fg ||
+                             current->bg != target.bg;
+        bool changed = glyph_changed || style_changed;
+#ifdef HOBBYOS_CONSOLE_NEGATIVE_PRESENT_ALWAYS_DIRTY
+        changed = true;
+#endif
+        result.cells_examined++;
+        if (changed) {
+            region_cell(region->x + x, region->y + row, target.c,
+                        target.fg, target.bg);
+            result.cells_changed++;
+            result.glyph_changes += glyph_changed;
+            result.style_changes += style_changed;
+            result.row_dirty = 1;
+        } else {
+            result.cells_unchanged++;
+        }
+    }
+
+    g_region_stats.present_rows++;
+    g_region_stats.present_cells += result.cells_examined;
+    g_region_stats.changed_cells += result.cells_changed;
+    g_region_stats.unchanged_cells += result.cells_unchanged;
+    g_region_stats.glyph_changes += result.glyph_changes;
+    g_region_stats.style_changes += result.style_changes;
+    if (!result.row_dirty) g_region_stats.zero_change_rows++;
+    if (result.row_dirty) console_flush_if_needed();
+    spin_unlock_irqrestore(&g_console_lock, flags);
+    if (out) *out = result;
+    return true;
+}
+
+void console_region_stats_snapshot(console_region_stats_t *out)
+{
+    if (!out) return;
+    irq_flags_t flags = spin_lock_irqsave(&g_console_lock);
+    *out = g_region_stats;
+    spin_unlock_irqrestore(&g_console_lock, flags);
+}
+
+uint64_t console_scroll_count(void)
+{
+    irq_flags_t flags = spin_lock_irqsave(&g_console_lock);
+    uint64_t value = g_region_stats.scroll_count;
+    spin_unlock_irqrestore(&g_console_lock, flags);
+    return value;
+}
+
+bool console_region_count_nonblank(const console_region_t *region,uint32_t*out_count)
+{
+    if(!out_count)return false;
+    irq_flags_t flags=spin_lock_irqsave(&g_console_lock);
+    if(!region_valid(region)){g_region_stats.rejected_regions++;spin_unlock_irqrestore(&g_console_lock,flags);return false;}
+    uint32_t n=0;
+    for(uint32_t y=0;y<region->height;y++)for(uint32_t x=0;x<region->width;x++){
+        uint32_t history=(g_view_start_line+region->y+y)%CONSOLE_MAX_HISTORY;
+        if(g_history[history][region->x+x].c!=' ')n++;
+    }
+    *out_count=n;spin_unlock_irqrestore(&g_console_lock,flags);return true;
+}
+
+#ifdef HOBBYOS_SELFTEST
+bool console_test_history_contains(const char *needle)
+{
+    if (!needle || !needle[0])
+        return false;
+    uint32_t needle_length = 0;
+    while (needle[needle_length] && needle_length < CONSOLE_STATUS_MESSAGE_MAX)
+        needle_length++;
+    if (!needle_length || needle[needle_length] || needle_length > g_max_cols)
+        return false;
+
+    irq_flags_t flags = spin_lock_irqsave(&g_console_lock);
+    bool found = false;
+    for (uint32_t y = 0; y < g_max_rows && !found; y++)
+    {
+        uint32_t history = (g_view_start_line + y) % CONSOLE_MAX_HISTORY;
+        for (uint32_t x = 0; x + needle_length <= g_max_cols; x++)
+        {
+            uint32_t index = 0;
+            while (index < needle_length &&
+                   g_history[history][x + index].c == needle[index])
+                index++;
+            if (index == needle_length)
+            {
+                found = true;
+                break;
+            }
+        }
+    }
+    spin_unlock_irqrestore(&g_console_lock, flags);
+    return found;
+}
+
+bool console_test_status_equals(const char *expected)
+{
+    if (!expected)
+        return false;
+    irq_flags_t flags = spin_lock_irqsave(&g_console_lock);
+    bool equal = g_status_visible && strcmp(g_status_message, expected) == 0;
+    spin_unlock_irqrestore(&g_console_lock, flags);
+    return equal;
+}
+
+bool console_test_status_visible(void)
+{
+    irq_flags_t flags = spin_lock_irqsave(&g_console_lock);
+    bool visible = g_status_visible;
+    spin_unlock_irqrestore(&g_console_lock, flags);
+    return visible;
+}
+#endif

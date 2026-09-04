@@ -18,3 +18,7 @@ hobbyos.img
 # (optional) if you generate temporary logs
 *.log
 *.zip
+# TMV1-CL-01 local build/QEMU runtime
+*.d
+artifacts/build/
+.qemu/
