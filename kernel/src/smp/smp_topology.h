@@ -4,12 +4,16 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define MAX_CPUS 32
+#include "cpu_limits.h"
+
+typedef uint32_t cpu_slot_t;
+#define CPU_SLOT_INVALID UINT32_MAX
 
 typedef struct
 {
-    uint8_t apic_id;
-    uint8_t acpi_id;
+    cpu_slot_t slot;
+    uint32_t apic_id;
+    uint32_t acpi_id;
     bool is_bsp;
 
     volatile uint32_t state;
@@ -20,11 +24,20 @@ typedef struct
 
 } SmpCpuInfo;
 
-extern SmpCpuInfo g_cpus[MAX_CPUS];
+extern SmpCpuInfo g_cpus[HOBBYOS_MAX_CPUS];
 extern uint32_t g_cpu_count;
-extern uint8_t g_bsp_apic_id;
+extern uint32_t g_bsp_apic_id;
 
-void smp_topology_init();
-void smp_prepare_cpu_structures();
+bool smp_topology_init(void);
+void smp_prepare_cpu_structures(void);
+bool smp_cpu_slot_from_apic_id(uint32_t apic_id, cpu_slot_t *out_slot);
+bool smp_current_cpu_slot(cpu_slot_t *out_slot);
+SmpCpuInfo *smp_cpu_by_slot(cpu_slot_t slot);
+const SmpCpuInfo *smp_cpu_by_slot_const(cpu_slot_t slot);
+cpu_slot_t smp_bsp_cpu_slot(void);
+uint32_t smp_online_cpu_count(void);
+uint32_t smp_failed_cpu_count(void);
+bool smp_mark_cpu_online(cpu_slot_t slot);
+void smp_log_cpu_online(cpu_slot_t slot, const char *role);
 
 #endif

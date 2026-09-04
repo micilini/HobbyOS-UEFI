@@ -11,6 +11,10 @@
 #define COLOR_GREEN 0x0000FF00
 
 void init_graphics(Framebuffer *fb, void *back_buffer);
+bool graphics_bind_framebuffer(Framebuffer *fb, void *back_buffer);
+bool graphics_framebuffer_is_bound(void);
+Framebuffer *graphics_framebuffer(void);
+bool graphics_binding_selftest(void);
 
 void *get_draw_buffer();
 

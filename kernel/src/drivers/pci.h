@@ -2,6 +2,7 @@
 #define PCI_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "../acpi/acpi.h"
 
 typedef struct
@@ -47,8 +48,23 @@ typedef struct
     uint64_t Reserved;
 } __attribute__((packed)) McfgHeader;
 
+typedef struct
+{
+    uint64_t device_address;
+    uint64_t capability_address;
+    uint32_t destination_apic_id;
+    uint8_t vector;
+    uint8_t prepared;
+    uint8_t enabled;
+} pci_msi_snapshot_t;
+
 void pci_init();
-uint32_t pci_enable_msi(uint64_t device_addr, uint8_t vector);
+bool pci_msi_prepare(uint64_t device_addr, uint8_t vector,
+                     uint32_t destination_apic_id);
+bool pci_msi_enable(uint64_t device_addr);
+bool pci_msi_disable(uint64_t device_addr);
+bool pci_msi_enable_prepared(void);
+bool pci_msi_snapshot(pci_msi_snapshot_t *out);
 
 void pci_list_devices(void);
 

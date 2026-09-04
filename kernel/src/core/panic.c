@@ -1,6 +1,8 @@
 #include "panic.h"
 #include "../graphics/console.h"
+#include "../graphics/graphics.h"
 #include "idt.h"
+#include "clock.h"
 #include "../timer/hpet.h"
 #include "../power/power.h"
 #include "io.h"
@@ -48,9 +50,9 @@ static void panic_force_8042_reset(void)
 static void panic_sleep_ms_best_effort(uint64_t ms)
 {
 
-    uint64_t t0 = hpet_time_ms();
+    uint64_t t0 = clock_monotonic_ms();
     hpet_usleep(2000);
-    uint64_t t1 = hpet_time_ms();
+    uint64_t t1 = clock_monotonic_ms();
 
     if (t1 != t0)
     {

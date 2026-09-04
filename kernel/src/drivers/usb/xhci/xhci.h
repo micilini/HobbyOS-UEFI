@@ -1,8 +1,10 @@
 #ifndef XHCI_H
 #define XHCI_H
+void xhci_configure_device(int port_id, int speed_id);
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #define XHCI_KBD_PIPE_DEPTH 8
 
@@ -346,6 +348,7 @@ void xhci_set_debug_flags(uint32_t flags);
 uint32_t xhci_get_debug_flags(void);
 
 void xhci_init(uint64_t base_address);
+bool xhci_interrupt_state_ready(void);
 void xhci_handle_interrupt(void);
 void xhci_process_events(void);
 void xhci_poll_events(void);

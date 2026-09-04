@@ -11,9 +11,9 @@
 #include "../memory/pmem.h"
 #include "../cpu/cpu.h"
 #include "../core/interrupts.h"
+#include "../core/irq_bootstrap.h"
 #include "../core/scheduler.h"
 
-volatile int g_system_ready_for_scheduling = 0;
 
 extern uint64_t smp_trampoline_cr4;
 extern uint64_t smp_trampoline_efer;
@@ -66,36 +66,29 @@ static void smp_print_hex(uint64_t n)
 
 void ap_kernel_entry(void)
 {
-    serial_write_all("A");
-
     extern PageTable *g_kernel_pml4;
     paging_load_map(g_kernel_pml4);
 
     idt_load();
-    serial_write_all("I");
-
     init_lapic_ap();
-    serial_write_all("L");
-
     uint32_t my_apic_id = lapic_get_id();
     serial_write_all("[AP] apic_id=0x");
     smp_print_hex(my_apic_id);
     serial_write_all("\n");
 
-    SmpCpuInfo *me = NULL;
-
-    for (uint32_t i = 0; i < g_cpu_count; i++)
+    cpu_slot_t slot = CPU_SLOT_INVALID;
+    if (!smp_cpu_slot_from_apic_id(my_apic_id, &slot))
     {
-        if (g_cpus[i].apic_id == my_apic_id)
-        {
-            me = &g_cpus[i];
-            break;
-        }
+        serial_write_all("[SMP][CPU] ERROR code=UNKNOWN_APIC apic=");
+        smp_print_dec(my_apic_id);
+        serial_write_all("\n");
+        while (1)
+            __asm__ volatile("cli; hlt");
     }
-
-    if (!me)
+    SmpCpuInfo *me = smp_cpu_by_slot(slot);
+    if (!me || me->is_bsp || !me->gdt_ptr || !me->tss_ptr)
     {
-        serial_write_all("PANIC-CPU\n");
+        serial_write_all("[SMP][CPU] ERROR code=INVALID_AP_STRUCTURES\n");
         while (1)
             __asm__ volatile("cli; hlt");
     }
@@ -107,29 +100,57 @@ void ap_kernel_entry(void)
     gdtr.offset = (uint64_t)me->gdt_ptr;
 
     gdt_flush((uint64_t)&gdtr);
-    serial_write_all("G");
-
     __asm__ volatile("mov $0x28, %%ax; ltr %%ax" ::: "ax");
-    serial_write_all("T");
+    if (scheduler_cpu_init_ap(slot) != SCHED_BOOT_OK)
+    {
+        serial_write_all("[SMP][CPU] ERROR code=SCHEDULER_AP_INIT apic=");
+        smp_print_dec(my_apic_id);
+        serial_write_all("\n");
+        me->state = CPU_STATE_FAILED;
+        while (1) __asm__ volatile("cli; hlt");
+    }
 
-    scheduler_init_ap();
-    serial_write_all("S");
+    lapic_timer_calibration_t ap_cal;
+    if (!lapic_timer_calibrate(1000, &ap_cal) ||
+        !lapic_timer_prepare_periodic(INT_VECTOR_LAPIC_TIMER, &ap_cal))
+    {
+        serial_write_all("[TIMER][LAPIC_CAL] status=FAIL\n");
+        me->state=CPU_STATE_FAILED;
+        while (1) __asm__ volatile("cli; hlt");
+    }
+    if (scheduler_cpu_mark_timer_ready(slot) != SCHED_BOOT_OK ||
+        !scheduler_cpu_is_ready(slot) || !irq_bootstrap_cpu_prepare(slot))
+    {
+        serial_write_all("[SMP][CPU] ERROR code=TIMER_READY apic=");
+        smp_print_dec(my_apic_id);
+        serial_write_all("\n");
+        me->state = CPU_STATE_FAILED;
+        while (1) __asm__ volatile("cli; hlt");
+    }
 
-    lapic_timer_set_periodic(32, 10000000);
-    serial_write_all("C");
+    if (!smp_mark_cpu_online(slot))
+    {
+        serial_write_all("[SMP][CPU] ERROR code=ONLINE_TRANSITION\n");
+        me->state = CPU_STATE_FAILED;
+        while (1) __asm__ volatile("cli; hlt");
+    }
+    smp_log_cpu_online(slot, "AP");
 
-    __asm__ volatile("mfence" ::: "memory");
-    me->state = CPU_STATE_ONLINE;
-    serial_write_all("!");
+    irq_cpu_ready_result_t runtime_result =
+        irq_bootstrap_cpu_run_runtime(slot);
+    if (runtime_result != IRQ_CPU_READY_OK)
+    {
+        irq_bootstrap_log_cpu_runtime_error(slot, runtime_result);
+        me->state = CPU_STATE_FAILED;
+        while (1) __asm__ volatile("cli; hlt");
+    }
 
     while (1)
     {
         __asm__ volatile("sti; hlt");
 
-        if (g_system_ready_for_scheduling && interrupts_consume_reschedule())
-        {
+        if (scheduler_is_started() && interrupts_consume_reschedule())
             schedule_voluntary();
-        }
     }
 }
 
@@ -200,18 +221,10 @@ void smp_boot_aps()
 
         SmpCpuInfo *cpu = &g_cpus[i];
 
-        serial_write_all("   -> Waking APIC ");
-        smp_print_dec(cpu->apic_id);
-        serial_write_all("... ");
-
         cpu->state = CPU_STATE_PREPARE;
 
         uint64_t stack_phys = cpu->stack_top & ~HHDM_OFFSET;
         *ptr_stack = stack_phys;
-
-        serial_write_all("StkPhys: ");
-        smp_print_hex(stack_phys);
-        serial_write_all(" ... ");
 
         __asm__ volatile("mfence" ::: "memory");
 
@@ -232,13 +245,8 @@ void smp_boot_aps()
             timeout--;
         }
 
-        if (online)
+        if (!online)
         {
-            serial_write_all("SUCCESS (Online)\n");
-        }
-        else
-        {
-            serial_write_all("Retry SIPI... ");
             lapic_send_sipi(cpu->apic_id, sipi_vec);
 
             timeout = 10000000;
@@ -253,14 +261,12 @@ void smp_boot_aps()
                 timeout--;
             }
 
-            if (online)
-            {
-                serial_write_all("SUCCESS\n");
-            }
-            else
+            if (!online)
             {
                 cpu->state = CPU_STATE_FAILED;
-                serial_write_all("FAILED\n");
+                serial_write_all("[SMP][CPU] ERROR code=AP_BOOT_TIMEOUT apic=");
+                smp_print_dec(cpu->apic_id);
+                serial_write_all("\n");
             }
         }
     }

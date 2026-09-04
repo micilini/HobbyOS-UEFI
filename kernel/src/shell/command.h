@@ -11,6 +11,7 @@ typedef struct ShellCommand
     const char *const *aliases;
     const char *desc;
     const char *usage;
+    const char *details;
     shell_command_handler_t handler;
 } ShellCommand;
 

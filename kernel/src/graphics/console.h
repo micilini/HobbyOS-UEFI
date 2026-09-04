@@ -1,6 +1,7 @@
 #ifndef CONSOLE_H
 #define CONSOLE_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "../../../shared/protocol.h"
 
@@ -9,6 +10,7 @@
 
 #define CONSOLE_MAX_HISTORY 2000
 #define CONSOLE_MAX_COLS_STORAGE 512
+#define CONSOLE_STATUS_MESSAGE_MAX 128
 
 #define CONSOLE_COLOR_WHITE 0xFFFFFFFF
 #define CONSOLE_COLOR_BLACK 0xFF000000
@@ -24,6 +26,21 @@ typedef struct
     uint32_t fg;
     uint32_t bg;
 } ConsoleCell;
+
+typedef struct { uint32_t x, y, width, height; } console_region_t;
+typedef struct {
+    uint32_t cells_examined;
+    uint32_t cells_changed;
+    uint32_t cells_unchanged;
+    uint32_t glyph_changes;
+    uint32_t style_changes;
+    uint8_t row_dirty;
+} console_region_present_result_t;
+typedef struct {
+    uint64_t writes, clears, clipped_writes, rejected_regions, scroll_count;
+    uint64_t present_rows, present_cells, changed_cells, unchanged_cells;
+    uint64_t glyph_changes, style_changes, zero_change_rows;
+} console_region_stats_t;
 
 void console_init(BootInfo *boot_info);
 void console_render_full();
@@ -67,8 +84,24 @@ void console_set_cursor(uint32_t x, uint32_t y);
 
 uint32_t console_get_max_cols(void);
 uint32_t console_get_max_rows(void);
+bool console_region_clear(const console_region_t *region, uint32_t bg);
+bool console_region_write_line(const console_region_t *region, uint32_t row,
+                               const char *text, uint32_t fg, uint32_t bg);
+bool console_region_present_row(const console_region_t *region, uint32_t row,
+                                const ConsoleCell *cells, uint32_t cell_count,
+                                ConsoleCell fill,
+                                console_region_present_result_t *out);
+void console_region_stats_snapshot(console_region_stats_t *out);
+uint64_t console_scroll_count(void);
+bool console_region_count_nonblank(const console_region_t *region,uint32_t *out_count);
 
 void console_set_render_suspended(uint8_t suspended);
 uint8_t console_is_render_suspended(void);
+
+#ifdef HOBBYOS_SELFTEST
+bool console_test_history_contains(const char *needle);
+bool console_test_status_equals(const char *expected);
+bool console_test_status_visible(void);
+#endif
 
 #endif

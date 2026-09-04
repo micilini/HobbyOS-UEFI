@@ -52,6 +52,11 @@ static volatile uint64_t xhci_last_successful_process_ms = 0;
 
 static volatile int xhci_driver_ready = 0;
 
+bool xhci_interrupt_state_ready(void)
+{
+    return __atomic_load_n(&xhci_driver_ready, __ATOMIC_ACQUIRE) != 0;
+}
+
 static inline int xhci_try_lock(void)
 {
     uint32_t old = 1;
@@ -2742,7 +2747,7 @@ void xhci_init(uint64_t base_address)
     spinlock_init(&g_xhci_cmd_lock);
 
     console_set_color_debug(CONSOLE_COLOR_CYAN, CONSOLE_COLOR_BLACK);
-    console_write_debug("\n=== XHCI DRIVER FASE 5 (INVERTED CYCLE) ===\n");
+    console_write_debug("\n=== xHCI DRIVER INITIALIZATION ===\n");
 
     xhci_driver.pci_base_address = base_address;
 

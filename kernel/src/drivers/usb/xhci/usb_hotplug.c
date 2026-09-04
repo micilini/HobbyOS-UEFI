@@ -4,6 +4,7 @@
 #include "../../../core/dpc.h"
 #include "../../../core/timers.h"
 #include "../../../graphics/console.h"
+#include "../../../core/clock.h"
 
 #define MAX_ROOT_PORTS 16
 #define HP_ENUM_COOLDOWN_MS 2000
@@ -11,6 +12,38 @@
 static spinlock_t g_hp_lock;
 static hp_port_context_t g_port_ctx[MAX_ROOT_PORTS + 1];
 static uint8_t g_hp_initialized = 0;
+static volatile uint32_t g_hp_active_enumerations;
+static volatile uint64_t g_hp_activity_generation;
+static volatile uint64_t g_hp_last_activity_ns;
+
+static void hp_readiness_activity(void)
+{
+    __atomic_add_fetch(&g_hp_activity_generation, 1, __ATOMIC_RELAXED);
+    __atomic_store_n(&g_hp_last_activity_ns, clock_monotonic_ns(),
+                     __ATOMIC_RELEASE);
+}
+
+static void hp_readiness_begin(hp_port_context_t *port)
+{
+    if (!port || __atomic_exchange_n(&port->readiness_active, 1,
+                                     __ATOMIC_ACQ_REL))
+        return;
+    __atomic_add_fetch(&g_hp_active_enumerations, 1, __ATOMIC_ACQ_REL);
+    hp_readiness_activity();
+}
+
+static void hp_readiness_end(hp_port_context_t *port)
+{
+    if (!port || !__atomic_exchange_n(&port->readiness_active, 0,
+                                      __ATOMIC_ACQ_REL))
+        return;
+    uint32_t active = __atomic_load_n(&g_hp_active_enumerations,
+                                      __ATOMIC_ACQUIRE);
+    while (active && !__atomic_compare_exchange_n(
+        &g_hp_active_enumerations, &active, active - 1u, false,
+        __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {}
+    hp_readiness_activity();
+}
 
 static void hp_fsm_run(void *ctx);
 static void hp_timer_callback(void *ctx);
@@ -40,6 +73,10 @@ void usb_hotplug_init(void)
         return;
 
     spinlock_init(&g_hp_lock);
+    __atomic_store_n(&g_hp_active_enumerations, 0, __ATOMIC_RELEASE);
+    __atomic_store_n(&g_hp_activity_generation, 0, __ATOMIC_RELEASE);
+    __atomic_store_n(&g_hp_last_activity_ns, clock_monotonic_ns(),
+                     __ATOMIC_RELEASE);
 
     for (int i = 0; i <= MAX_ROOT_PORTS; i++)
     {
@@ -47,6 +84,7 @@ void usb_hotplug_init(void)
         g_port_ctx[i].root_port_1based = i;
         g_port_ctx[i].retries = 0;
         g_port_ctx[i].slot_id = 0;
+        g_port_ctx[i].readiness_active = 0;
     }
 
     timers_add(2000, hp_hub_poll_timer_cb, NULL);
@@ -71,6 +109,7 @@ static void hp_fsm_run(void *ctx)
     {
         console_write_debug("[HP] Device disconnected during enum. Resetting state.\n");
         p->state = HP_STATE_IDLE;
+        hp_readiness_end(p);
         return;
     }
 
@@ -82,6 +121,8 @@ static void hp_fsm_run(void *ctx)
 
     case HP_STATE_WAIT_CONNECTION_STABLE:
 
+        hp_readiness_activity();
+
         console_write_debug("[HP] Connection stable. Starting Reset.\n");
 
         hp_write_portsc(port, (sc & (1 << 9)) | (1 << 4));
@@ -92,6 +133,8 @@ static void hp_fsm_run(void *ctx)
         break;
 
     case HP_STATE_WAIT_RESET:
+
+        hp_readiness_activity();
 
         if (sc & (1 << 1))
         {
@@ -112,11 +155,13 @@ static void hp_fsm_run(void *ctx)
             {
                 console_write_debug("[HP] Reset TIMEOUT. Aborting.\n");
                 p->state = HP_STATE_ERROR;
+                hp_readiness_end(p);
             }
         }
         break;
 
     case HP_STATE_CONFIGURE_DEVICE:
+        hp_readiness_activity();
         if (p->slot_id != 0)
         {
             xhci_disable_slot(p->slot_id);
@@ -131,11 +176,13 @@ static void hp_fsm_run(void *ctx)
         console_write_debug("[HP] Enumeration DONE.\n");
 
         p->state = HP_STATE_IDLE;
+        hp_readiness_end(p);
         break;
 
     case HP_STATE_ERROR:
     case HP_STATE_DONE:
         p->state = HP_STATE_IDLE;
+        hp_readiness_end(p);
         break;
     }
 }
@@ -160,6 +207,7 @@ void usb_hotplug_handle_root_port_status(uint8_t root_port_1based, uint32_t port
             console_write_debug("[HP] Connect detected. Waiting debounce (150ms)...\n");
 
             p->state = HP_STATE_WAIT_CONNECTION_STABLE;
+            hp_readiness_begin(p);
             p->retries = 0;
 
             timers_add(150, hp_timer_callback, p);
@@ -170,6 +218,7 @@ void usb_hotplug_handle_root_port_status(uint8_t root_port_1based, uint32_t port
         console_write_debug("[HP] Disconnect detected.\n");
 
         p->state = HP_STATE_IDLE;
+        hp_readiness_end(p);
        
         if (p->slot_id != 0)
         {
@@ -211,4 +260,18 @@ void usb_hotplug_notify_root_device_configured(uint8_t root_port_1based, uint8_t
 
     hp_port_context_t *p = &g_port_ctx[root_port_1based];
     p->slot_id = slot_id;
+    hp_readiness_activity();
+}
+
+bool usb_hotplug_readiness_snapshot(usb_hotplug_readiness_snapshot_t *out)
+{
+    if (!out) return false;
+    out->initialized = __atomic_load_n(&g_hp_initialized, __ATOMIC_ACQUIRE);
+    out->active_enumerations = __atomic_load_n(&g_hp_active_enumerations,
+                                               __ATOMIC_ACQUIRE);
+    out->activity_generation = __atomic_load_n(&g_hp_activity_generation,
+                                               __ATOMIC_ACQUIRE);
+    out->last_activity_ns = __atomic_load_n(&g_hp_last_activity_ns,
+                                            __ATOMIC_ACQUIRE);
+    return out->active_enumerations <= MAX_ROOT_PORTS;
 }

@@ -2,14 +2,16 @@
 #define IDT_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define IDT_ENTRIES 256
 
 #define IDT_TA_INTERRUPT_GATE 0x8E
 #define IDT_TA_TRAP_GATE 0x8F
 
-#define INT_VECTOR_TIMER 32
+#define INT_VECTOR_HPET_TIMER 32
 #define INT_VECTOR_KEYBOARD 33
+#define INT_VECTOR_LAPIC_TIMER 34
 
 #define INT_VECTOR_XHCI 64
 
@@ -39,6 +41,7 @@ void disable_interrupts();
 
 irq_flags_t irq_save(void);
 void irq_restore(irq_flags_t flags);
+bool irq_is_enabled(void);
 
 static inline void irq_disable(void)
 {

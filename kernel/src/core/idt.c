@@ -4,6 +4,7 @@
 
 static IdtEntry g_idt[IDT_ENTRIES];
 static IdtPtr g_idtr;
+extern void *irq_vector_stub_table[];
 
 static void set_idt_gate_ex(int vector, void *handler, uint8_t type, uint8_t ist_index)
 {
@@ -70,16 +71,9 @@ void init_idt()
 
     for (int v = 32; v < IDT_ENTRIES; v++)
     {
-        set_idt_gate(v, irq_unhandled_handler, IDT_TA_INTERRUPT_GATE);
+        set_idt_gate(v, irq_vector_stub_table[v - 32],
+                     IDT_TA_INTERRUPT_GATE);
     }
-
-    set_idt_gate(INT_VECTOR_TIMER, irq_timer_entry, IDT_TA_INTERRUPT_GATE);
-    set_idt_gate(INT_VECTOR_KEYBOARD, irq_keyboard_handler, IDT_TA_INTERRUPT_GATE);
-    set_idt_gate(INT_VECTOR_XHCI, irq_xhci_handler, IDT_TA_INTERRUPT_GATE);
-
-    set_idt_gate(0xFF, irq_spurious_handler, IDT_TA_INTERRUPT_GATE);
-
-    set_idt_gate(0xFD, irq_halt_handler, IDT_TA_INTERRUPT_GATE);
 
     g_idtr.limit = (sizeof(IdtEntry) * IDT_ENTRIES) - 1;
     g_idtr.base = (uint64_t)&g_idt;
@@ -123,4 +117,11 @@ void irq_restore(irq_flags_t flags)
         :
         : "r"(flags)
         : "memory", "cc");
+}
+
+bool irq_is_enabled(void)
+{
+    irq_flags_t flags;
+    __asm__ volatile("pushfq; popq %0" : "=r"(flags) : : "memory");
+    return (flags & (1ULL << 9)) != 0;
 }

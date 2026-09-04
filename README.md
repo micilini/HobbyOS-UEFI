@@ -24,9 +24,17 @@ If you are looking for the old/stable version (Bootloader/UEFI only), please vis
 * **Watchdog Disable** — Intel TCO, ACPI WDAT, WDDT, and WDRT watchdog timers are detected and disabled at boot to prevent unwanted reboots.
 
 #### Interrupt Controller & Timers
-* **Local APIC** — Per-CPU LAPIC initialization, EOI, IPI (Inter-Processor Interrupt) support, broadcast halt for panic.
-* **I/O APIC** — IRQ routing with MADT-based GSI mapping.
-* **HPET** — High Precision Event Timer for system tick (1ms), `hpet_usleep()` busy-wait, and `timer_sleep()` with scheduler integration.
+* **Safe controller acquisition** — Legacy PIC quarantine, bounded MADT parsing
+  with PCAT/ISO metadata, all-IOAPIC GSI registries, masked route preparation,
+  neutral LAPIC LVT state, and deliberate enter/return probes before release.
+* **Local APIC** — Per-CPU 1000 us timer calibration, masked preparation,
+  coordinated activation, EOI, IPI support, and broadcast halt for panic.
+* **I/O APIC** — Multi-controller routing by GSI range with firmware entries
+  masked before known routes are installed; the HPET Timer0 route stays absent
+  or masked.
+* **Clocksource/clockevent split** — HPET is the monotonic clocksource with
+  Timer0 quiescent. Per-CPU LAPIC timers stay at 1000 us, and only the BSP
+  LAPIC drives global software timers and released deferred services.
 
 #### Memory Management
 * **PMM** — Physical Memory Manager using bitmap allocator with contiguous frame allocation support.
@@ -46,6 +54,12 @@ If you are looking for the old/stable version (Bootloader/UEFI only), please vis
 * **Synchronization Primitives** — Spinlocks (with `irqsave`/`irqrestore` and `trylock` variants), Semaphores (counting, with wait queues), Wait Queues (intrusive linked list).
 * **DPC (Deferred Procedure Call)** — Lock-free MPSC queue with dedicated interactive worker thread for bottom-half processing (used by xHCI).
 * **Software Timers** — Sorted deadline list, callback-based, driven from timer IRQ. Supports `timer_sleep()` for blocking delays.
+* **TASKMAN V1 (complete and certified)** — Paginated `ps`, cooperative `kill`, modal
+  `taskman`, read-only `taskdiag`, hardened task identity/lifecycle/reaper,
+  windowed CPU accounting, and generation-bound snapshots.
+* **Lifecycle & Test Hardening** — Exactly-once cleanup/notification,
+  timer-reference-safe reap, modal/input ownership, and bounded selftest/fault
+  injection infrastructure for SMP certification.
 
 #### Graphics & UI
 * **Framebuffer** — GOP-based pixel rendering with configurable resolution.
@@ -70,7 +84,12 @@ If you are looking for the old/stable version (Bootloader/UEFI only), please vis
 
 #### Shell
 * Interactive command-line shell with real-time keystroke processing, cursor display (blinking via `shell_on_tick` with trylock for IRQ safety), command history buffer, and atomic command execution.
-* **Built-in commands:** `help`, `echo`, `clear`, `version`, `mem`, `cpu`, `pci`, `irq`, `acpi`, `power` (shutdown/restart/sleep), `panic`, `smpstress`, `usbdiag`.
+* **Built-in commands:** `help`, `echo`, `clear`, `version`, `mem`, `cpu`,
+  `pci`, `irq`, `acpi`, `power` (shutdown/restart/sleep), `panic`, `smpstress`,
+  `usbdiag`, `ps`, `kill`, `taskman`, and `taskdiag`.
+* **Test/diagnostic commands:** `schedtest`, `synctest`, `accounttest`,
+  `killtest`, `reaptest`, `inputtest`, `modaltest`, and `taskmantest` support
+  development builds. `tasktest` is registered only when `SELFTEST=1`.
 
 #### PCI
 * MCFG-based PCIe configuration space scanning, vendor/device/class name lookup, MSI (Message Signaled Interrupts) configuration, Bus Master enable.
@@ -89,16 +108,49 @@ If you are looking for the old/stable version (Bootloader/UEFI only), please vis
 
 ---
 
+## Bare-metal production image
+
+Use `make production-image` as the canonical command for physical media. Task
+diagnostics remain available as manual shell commands and are not run at boot.
+
+Interrupt bring-up diagnostics are available through `irq check`,
+`irq controllers`, `irq routes`, and `irq boot`. The complete host/QEMU gate is
+`scripts/test-timer-clockevent.sh all`; architecture and operator guidance are
+in [the timer clockevent document](docs/timer-clocksource-clockevent.md). The
+controller acquisition protocol remains documented in
+[the interrupt bring-up document](docs/interrupt-controller-bringup.md).
+
+---
+
+## TASKMAN V1 documentation
+
+* [Public contract](docs/taskman-v1-contract.md)
+* [Architecture](docs/taskman-v1-architecture.md)
+* [Task lifecycle](docs/task-lifecycle.md)
+* [Input/modal ownership](docs/input-modal-architecture.md)
+* [User guide](docs/taskman-v1-user-guide.md)
+* [Command reference](docs/taskman-v1-command-reference.md)
+* [Known limitations](docs/taskman-v1-known-limitations.md)
+* [Test plan](docs/taskman-v1-test-plan.md)
+* [Homologation](docs/taskman-v1-homologation.md)
+* [File inventory](docs/taskman-v1-file-inventory.md)
+* [Maintainer handoff](docs/taskman-v1-handoff-checklist.md)
+* [V2 entry criteria](docs/taskman-v2-entry-criteria.md)
+* [Release notes](docs/releases/TASKMAN_V1_RELEASE_NOTES.md)
+* [Release manifest](docs/releases/TASKMAN_V1_RELEASE_MANIFEST.md)
+
+---
+
 ### 🛠️ To-Do (Planned — in rough priority order)
 
-1. **Task Manager** — Shell command to list running threads with ID, name, state, CPU affinity, class, and quantum stats.
-2. **Ring 0 Hardening** — The kernel currently runs everything in Ring 0 with a single address space. Audit and document this as an intentional design choice, enforce stack guards, and add kernel-only memory protections (NX on data, RO on code).
+1. **Ring 0 Hardening** — The kernel currently runs everything in Ring 0 with a single address space. Audit and document this as an intentional design choice, enforce stack guards, and add kernel-only memory protections (NX on data, RO on code).
+2. **TASKMAN V2** — Add real per-task CPU affinity and memory
+   ownership/accounting, then evolve the monitor toward process-aware identity
+   and reusable modal system interfaces.
 3. **Topology-Aware Scheduling** — Use MADT/SRAT/cache topology to make scheduling decisions (prefer same-package CPUs, NUMA awareness, cache-affinity).
 4. **Support for UHD 770 (GPU)** — Create a Driver to support Intel GPU, AMD and for future NVIDIA (model by model).
-5. **Per-Process Virtual Memory** — Separate CR3 per task, private address spaces, copy-on-write fork, and kernel/user page table split.
-6. **User Space** — Ring 3 execution with syscall interface (SYSCALL/SYSRET), user-mode stacks, and privilege separation.
-7. **Filesystem** — FAT12/FAT16/FAT32 and exFAT read/write support with a VFS abstraction layer.
-8. **Graphical User Interface** — Windowed desktop environment with mouse support, window manager, and file explorer (inspired by Windows Explorer).
+5. **Filesystem** — FAT12/FAT16/FAT32 and exFAT read/write support with a VFS abstraction layer.
+6. **Graphical User Interface** — Windowed desktop environment with mouse support, window manager, and file explorer (inspired by Windows Explorer).
 
 ---
 
