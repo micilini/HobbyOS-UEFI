@@ -1,6 +1,5 @@
 #include "console.h"
 #include "graphics.h"
-#include "../utils/utils.h"
 #include "../libc/memory.h"
 #include "../libc/string.h"
 #include "../core/spinlock.h"

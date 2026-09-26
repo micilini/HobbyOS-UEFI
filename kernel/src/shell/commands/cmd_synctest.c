@@ -2182,26 +2182,33 @@ static void timer_cancel_controller(void *arg)
               claim_result == TIMER_CANCEL_ALREADY_CLAIMED &&
               callback_complete && callbacks == 1 && !late && !errors &&
               !residual && !ticket_active;
-    serial_write_all("[SYNC][TIMER_CANCEL] "); serial_write_all(ok ? "PASS" : "FAIL");
-    if (!ok) {
-        if (late) serial_write_all(" reason=late-callback");
-        else if (!reached_claimed) serial_write_all(" reason=claim-timeout");
-        else if (!callback_complete) serial_write_all(" reason=callback-timeout");
-        else if (residual) serial_write_all(" reason=claimed-residual");
-        else serial_write_all(" reason=contract");
+    const char *reason = ok ? NULL
+                            : late ? "late-callback"
+                            : !reached_claimed ? "claim-timeout"
+                            : !callback_complete ? "callback-timeout"
+                            : residual ? "claimed-residual"
+                                       : "contract";
+    char marker[384];
+    int marker_length = ksnprintf(
+        marker, sizeof(marker),
+        "[SYNC][TIMER_CANCEL] %s%s%s pending_cancel=%u "
+        "duplicate_cancel=%u claimed_cancel=%u callbacks=%u "
+        "claimed_before_release=%llu claimed_after=%llu residual=%u "
+        "late=%u errors=%u generation=%llu\n",
+        ok ? "PASS" : "FAIL", reason ? " reason=" : "",
+        reason ? reason : "", (unsigned)first, (unsigned)duplicate,
+        (unsigned)claim_result, callbacks,
+        (unsigned long long)before_release.claimed_now,
+        (unsigned long long)after.claimed_now, residual ? 1u : 0u,
+        late, errors, (unsigned long long)generation);
+    if (marker_length < 0 || (size_t)marker_length >= sizeof(marker)) {
+        ok = false;
+        serial_write_all(
+            "[SYNC][TIMER_CANCEL] FAIL reason=marker-format-overflow\n");
+    } else {
+        /* One serial call keeps this structured record atomic with peers. */
+        serial_write_all(marker);
     }
-    serial_write_all(" pending_cancel="); print_u64(first);
-    serial_write_all(" duplicate_cancel="); print_u64(duplicate);
-    serial_write_all(" claimed_cancel="); print_u64(claim_result);
-    serial_write_all(" callbacks="); print_u64(callbacks);
-    serial_write_all(" claimed_before_release=");
-    print_u64(before_release.claimed_now);
-    serial_write_all(" claimed_after="); print_u64(after.claimed_now);
-    serial_write_all(" residual="); print_u64(residual);
-    serial_write_all(" late="); print_u64(late);
-    serial_write_all(" errors="); print_u64(errors);
-    serial_write_all(" generation="); print_u64(generation);
-    serial_write_all("\n");
     sync_async_finish(run, ok, ok ? 3 : 0, ok ? 0 : 1,
                       first, claim_result);
 }

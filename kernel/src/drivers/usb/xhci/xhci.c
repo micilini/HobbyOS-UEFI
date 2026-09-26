@@ -112,67 +112,31 @@ int xhci_configure_endpoint_irq(uint8_t slot_id, int port_id, int speed_id, uint
 void xhci_configure_device(int port_id, int speed_id);
 void xhci_queue_kbd_request(uint8_t slot_id);
 void xhci_poll_keyboard_test(uint8_t slot_id);
-void xhci_process_events();
+void xhci_process_events(void);
 
-static void xhci_ep0_wait_begin(uint8_t slot)
+_Static_assert(offsetof(xhci_op_regs_t, UsbCmd) % sizeof(uint32_t) == 0,
+               "xHCI UsbCmd must be naturally aligned");
+_Static_assert(offsetof(xhci_op_regs_t, UsbSts) % sizeof(uint32_t) == 0,
+               "xHCI UsbSts must be naturally aligned");
+_Static_assert(offsetof(xhci_op_regs_t, Config) % sizeof(uint32_t) == 0,
+               "xHCI Config must be naturally aligned");
+_Static_assert(offsetof(xhci_doorbell_regs_t, Target) % sizeof(uint32_t) == 0,
+               "xHCI doorbell must be naturally aligned");
+
+static volatile uint32_t *xhci_mmio32_at(volatile void *base, size_t offset)
 {
-    static volatile uint8_t active = 0;
-    static volatile uint8_t wait_slot = 0;
-    static volatile uint8_t done = 0;
-    static volatile uint8_t cc = 0;
-
-    wait_slot = slot;
-    done = 0;
-    cc = 0;
-    active = 1;
+    return (volatile uint32_t *)((volatile uint8_t *)base + offset);
 }
 
-static int xhci_ep0_wait_is_active_for(uint8_t slot)
+#define XHCI_OP_REG(member) \
+    xhci_mmio32_at(xhci_driver.op_regs, offsetof(xhci_op_regs_t, member))
+
+static volatile uint32_t *xhci_doorbell_reg(uint8_t slot_id)
 {
-    static volatile uint8_t active = 0;
-    static volatile uint8_t wait_slot = 0;
-    static volatile uint8_t done = 0;
-    static volatile uint8_t cc = 0;
-
-    (void)done;
-    (void)cc;
-    return (active && wait_slot == slot);
-}
-
-static void xhci_ep0_wait_complete(uint8_t slot, uint8_t cc_value)
-{
-    static volatile uint8_t active = 0;
-    static volatile uint8_t wait_slot = 0;
-    static volatile uint8_t done = 0;
-    static volatile uint8_t cc = 0;
-
-    if (active && wait_slot == slot)
-    {
-        cc = cc_value;
-        done = 1;
-    }
-}
-
-static int xhci_ep0_wait_take_result(uint8_t *out_cc)
-{
-    static volatile uint8_t active = 0;
-    static volatile uint8_t wait_slot = 0;
-    static volatile uint8_t done = 0;
-    static volatile uint8_t cc = 0;
-
-    (void)wait_slot;
-
-    if (!active)
-        return 0;
-    if (!done)
-        return 0;
-
-    if (out_cc)
-        *out_cc = cc;
-
-    active = 0;
-    done = 0;
-    return 1;
+    return xhci_mmio32_at(
+        xhci_driver.db_regs,
+        (size_t)slot_id * sizeof(xhci_doorbell_regs_t) +
+            offsetof(xhci_doorbell_regs_t, Target));
 }
 
 static volatile int *xhci_kbd_led_pending_ptr(void)
@@ -199,7 +163,10 @@ static volatile uint8_t *xhci_kbd_led_value_ptr(void)
     return &leds;
 }
 
-static void xhci_kbd_led_schedule(uint8_t slot, uint8_t interface_num, uint8_t leds_bitmap)
+/* Kept for the frozen xHCI fence inventory; the legacy LED queue is dormant. */
+static void __attribute__((unused))
+xhci_kbd_led_schedule(uint8_t slot, uint8_t interface_num,
+                      uint8_t leds_bitmap)
 {
     volatile int *p_pending = xhci_kbd_led_pending_ptr();
     volatile uint8_t *p_slot = xhci_kbd_led_slot_ptr();
@@ -215,7 +182,9 @@ static void xhci_kbd_led_schedule(uint8_t slot, uint8_t interface_num, uint8_t l
     __asm__ volatile("mfence" ::: "memory");
 }
 
-static int xhci_kbd_led_take(uint8_t *out_slot, uint8_t *out_iface, uint8_t *out_leds)
+static int __attribute__((unused))
+xhci_kbd_led_take(uint8_t *out_slot, uint8_t *out_iface,
+                  uint8_t *out_leds)
 {
     volatile int *p_pending = xhci_kbd_led_pending_ptr();
     volatile uint8_t *p_slot = xhci_kbd_led_slot_ptr();
@@ -308,7 +277,7 @@ xhci_controller_t xhci_driver;
 #define MK_EP_CTX_DW1(max_packet, error_count, type) \
     (((max_packet & 0xFFFF) << 16) | ((type & 0x7) << 3) | ((error_count & 0x3) << 1))
 
-void xhci_delay(uint32_t count)
+static void xhci_delay(uint32_t count)
 {
     for (volatile uint32_t i = 0; i < count * 10000; i++)
     {
@@ -318,7 +287,7 @@ void xhci_delay(uint32_t count)
 
 static uint32_t g_diag_counter = 0;
 
-static void xhci_diag_print(const char *where)
+static void __attribute__((unused)) xhci_diag_print(const char *where)
 {
     g_diag_counter++;
 
@@ -406,7 +375,7 @@ int xhci_set_configuration(uint8_t slot_id, uint8_t config_value)
     }
 }
 
-int xhci_clear_endpoint_halt(uint8_t slot_id, uint8_t ep_addr)
+static int xhci_clear_endpoint_halt(uint8_t slot_id, uint8_t ep_addr)
 {
     usb_setup_packet_t setup;
 
@@ -663,7 +632,6 @@ static void xhci_drain_events(void)
             break;
         }
 
-        uint32_t trb_type = (ctrl >> 10) & 0x3F;
         drained++;
 
         xhci_driver.event_ring_dequeue_idx++;
@@ -683,7 +651,7 @@ static void xhci_drain_events(void)
         uint64_t ir0 = (uint64_t)xhci_driver.run_regs + 0x20;
         xhci_write64(ir0 + 0x18, erdp_phys | (1ULL << 3));
 
-        xhci_write32(&xhci_driver.op_regs->UsbSts, USBSTS_EINT);
+        xhci_write32(XHCI_OP_REG(UsbSts), USBSTS_EINT);
         volatile uint32_t *iman = (volatile uint32_t *)(ir0 + 0x00);
         xhci_write32(iman, xhci_read32(iman) | XHCI_IMAN_IP);
 
@@ -823,7 +791,7 @@ void xhci_hotplug_enumerate_port(uint8_t port_0based)
 
     xhci_drain_events();
 
-    uint32_t status = xhci_read32(&xhci_driver.op_regs->UsbSts);
+    uint32_t status = xhci_read32(XHCI_OP_REG(UsbSts));
     if (status & USBSTS_HC_HALTED)
     {
         console_write_debug("[XHCI][HOTPLUG] Controller HALTED! Recovery needed.\n");
@@ -904,7 +872,7 @@ void xhci_hotplug_enumerate_port(uint8_t port_0based)
     }
 }
 
-void xhci_dpc_handler(void *ctx)
+static void xhci_dpc_handler(void *ctx)
 {
     (void)ctx;
 
@@ -975,7 +943,7 @@ static void xhci_queue_kbd_request_buf(uint8_t slot, uint8_t *buf)
         if (need_db)
         {
             xhci_ring_ep_doorbell(slot, dci);
-            (void)xhci_read32(&xhci_driver.op_regs->UsbSts);
+            (void)xhci_read32(XHCI_OP_REG(UsbSts));
         }
 
         return;
@@ -997,7 +965,7 @@ static void xhci_queue_kbd_request_buf(uint8_t slot, uint8_t *buf)
     if (need_db)
     {
         xhci_ring_ep_doorbell(slot, dci);
-        (void)xhci_read32(&xhci_driver.op_regs->UsbSts);
+        (void)xhci_read32(XHCI_OP_REG(UsbSts));
     }
 }
 
@@ -1006,7 +974,8 @@ void xhci_queue_kbd_request(uint8_t slot_id)
     xhci_queue_kbd_request_buf(slot_id, xhci_driver.slot_kbd_buffer[slot_id]);
 }
 
-int xhci_set_leds(uint8_t slot_id, uint8_t interface_num, uint8_t leds_bitmap)
+static int xhci_set_leds(uint8_t slot_id, uint8_t interface_num,
+                         uint8_t leds_bitmap)
 {
 
     if (!xhci_driver.slot_led_buffer[slot_id])
@@ -1036,10 +1005,6 @@ int xhci_set_leds(uint8_t slot_id, uint8_t interface_num, uint8_t leds_bitmap)
 
     return xhci_control_transfer(slot_id, &setup, buf);
 }
-
-static uint8_t caps_lock_state = 0;
-
-static uint8_t kbd_led_state = 0;
 
 void xhci_poll_keyboard_test(uint8_t ignored_slot_id)
 {
@@ -1148,8 +1113,8 @@ void xhci_configure_device(int port_id, int speed_id)
     console_print_dec_debug(xhci_driver.event_ring_cycle_bit);
     console_write_debug("\n");
 
-    uint32_t sts = xhci_read32(&xhci_driver.op_regs->UsbSts);
-    uint32_t cmd = xhci_read32(&xhci_driver.op_regs->UsbCmd);
+    uint32_t sts = xhci_read32(XHCI_OP_REG(UsbSts));
+    uint32_t cmd = xhci_read32(XHCI_OP_REG(UsbCmd));
     console_write_debug("[XHCI-DBG] STS=0x");
     console_print_hex_debug(sts);
     console_write_debug(" CMD=0x");
@@ -1485,6 +1450,7 @@ static void xhci_build_port_protocol_lists(
 
 int xhci_port_reset_hs_style(volatile xhci_port_regs_t *port, int port_index, int is_usb3)
 {
+    (void)port_index;
     const uint32_t PORT_POWER = (1u << 9);
 
     const uint32_t CHG = (1u << 17) | (1u << 18) | (1u << 20) | (1u << 21) | (1u << 22);
@@ -1539,10 +1505,11 @@ int xhci_port_reset_hs_style(volatile xhci_port_regs_t *port, int port_index, in
     return 0;
 }
 
-void xhci_bios_handoff(uint64_t mmio_base)
+static void xhci_bios_handoff(uint64_t mmio_base)
 {
     console_write_debug("[XHCI] Checking for BIOS Handoff...\n");
-    xhci_cap_regs_t *caps = (xhci_cap_regs_t *)mmio_base;
+    volatile xhci_cap_regs_t *caps =
+        (volatile xhci_cap_regs_t *)mmio_base;
     uint32_t hccparams1 = caps->HccParams1;
     uint32_t xecp = (hccparams1 >> 16) & 0xFFFF;
 
@@ -1594,7 +1561,7 @@ void xhci_bios_handoff(uint64_t mmio_base)
     }
 }
 
-void xhci_alloc_dcbaa()
+static void xhci_alloc_dcbaa(void)
 {
     console_write_debug("[XHCI] Allocating DCBAA... ");
 
@@ -1673,7 +1640,7 @@ void xhci_alloc_dcbaa()
     console_write_debug("OK.\n");
 }
 
-void xhci_init_command_ring()
+static void xhci_init_command_ring(void)
 {
     console_write_debug("[XHCI] Initializing Command Ring... ");
 
@@ -1712,7 +1679,7 @@ void xhci_init_command_ring()
     console_write_debug("OK (RCS=1).\n");
 }
 
-void xhci_init_event_ring()
+static void xhci_init_event_ring(void)
 {
     console_write_debug("[XHCI] Initializing Event Ring... ");
 
@@ -1758,117 +1725,7 @@ void xhci_init_event_ring()
     console_write_debug("OK (IMOD=0).\n");
 }
 
-int xhci_reset_port(volatile xhci_port_regs_t *port, int port_id)
-{
-    const uint32_t CCS = (1u << 0);
-    const uint32_t PED = (1u << 1);
-    const uint32_t PR = (1u << 4);
-    const uint32_t PP = (1u << 9);
-    const uint32_t WPR = (1u << 31);
-
-    const uint32_t CHG_BASE = (1u << 17) | (1u << 18) | (1u << 19) | (1u << 20) | (1u << 21);
-
-    uint32_t sc = port->PortSC;
-    if ((sc & CCS) == 0)
-        return 0;
-
-    uint8_t speed = (sc >> 10) & 0xF;
-    uint8_t pls = (sc >> 5) & 0xF;
-
-    uint32_t CHG = CHG_BASE;
-    if (speed == 4)
-        CHG |= (1u << 22) | (1u << 23);
-
-    port->PortSC = port->PortSC | CHG;
-    (void)port->PortSC;
-
-    sc = port->PortSC;
-    if ((sc & PP) == 0)
-    {
-        port->PortSC = sc | PP;
-        (void)port->PortSC;
-        timer_sleep(20);
-    }
-
-    sc = port->PortSC;
-    pls = (sc >> 5) & 0xF;
-    if (pls == 7)
-        timer_sleep(50);
-
-    console_write_debug(" -> Reset(PR)... ");
-
-    sc = port->PortSC;
-    port->PortSC = sc | PP | PR | CHG;
-    (void)port->PortSC;
-
-    int t = 3000;
-    while (t--)
-    {
-        sc = port->PortSC;
-        if ((sc & PR) == 0)
-            break;
-        xhci_delay(1);
-    }
-
-    port->PortSC = port->PortSC | (1u << 21);
-    (void)port->PortSC;
-
-    t = 3000;
-    while (t--)
-    {
-        sc = port->PortSC;
-        if (sc & PED)
-        {
-            timer_sleep(200);
-            port->PortSC = port->PortSC | CHG;
-            (void)port->PortSC;
-            console_write_debug("OK! (Enabled)\n");
-            return 1;
-        }
-        xhci_delay(1);
-    }
-
-    sc = port->PortSC;
-    speed = (sc >> 10) & 0xF;
-    if (speed == 4)
-    {
-        console_write_debug("Failed (PED=0). -> Reset(WPR)... ");
-
-        port->PortSC = port->PortSC | WPR | CHG;
-        (void)port->PortSC;
-
-        t = 4000;
-        while (t--)
-        {
-            sc = port->PortSC;
-            if ((sc & WPR) == 0)
-                break;
-            xhci_delay(1);
-        }
-
-        t = 4000;
-        while (t--)
-        {
-            sc = port->PortSC;
-            if (sc & PED)
-            {
-                timer_sleep(50);
-                port->PortSC = port->PortSC | CHG;
-                (void)port->PortSC;
-                console_write_debug("OK! (Enabled)\n");
-                return 1;
-            }
-            xhci_delay(1);
-        }
-    }
-
-    console_write_debug("Failed (PED never set). PortSC=0x");
-    console_print_hex_debug(port->PortSC);
-    console_write_debug("\n");
-    return 0;
-}
-
-void xhci_probe_ports()
+static void xhci_probe_ports(void)
 {
     console_write_debug("\n[XHCI] Probing Ports ...\n");
 
@@ -2033,7 +1890,7 @@ void xhci_kbd_recover_poll(void)
         return;
     }
 
-    xhci_trb_t *ring = xhci_driver.slot_kbd_rings[slot];
+    volatile xhci_trb_t *ring = xhci_driver.slot_kbd_rings[slot];
     if (!ring)
     {
         console_write_debug("[XHCI][KBD] ring NULL. is not possible to dequeue.\n");
@@ -2059,7 +1916,9 @@ void xhci_kbd_recover_poll(void)
     xhci_queue_kbd_request(slot);
 }
 
-static int xhci_event_ring_try_resync(uint64_t ev_ring_phys_base)
+/* Kept for the frozen xHCI fence inventory; resync is not currently called. */
+static int __attribute__((unused))
+xhci_event_ring_try_resync(uint64_t ev_ring_phys_base)
 {
     if (!xhci_driver.event_ring || !xhci_driver.event_ring_size)
         return 0;
@@ -2096,55 +1955,6 @@ static int xhci_event_ring_try_resync(uint64_t ev_ring_phys_base)
     __asm__ volatile("mfence" ::: "memory");
 
     return 1;
-}
-
-static void xhci_dbg_dump_state(const char *tag)
-{
-    console_write_debug("\n====================\n");
-    console_write_debug("ERROR BUG: ");
-    console_write_debug(tag);
-    console_write_debug("\n");
-    console_write_debug("ISR#=");
-    console_print_dec_debug((uint32_t)xhci_dbg_isr_count);
-    console_write_debug("\n");
-    console_write_debug("evt_processed=");
-    console_print_dec_debug(xhci_dbg_last_evt_processed);
-    console_write_debug(" kbd_processed=");
-    console_print_dec_debug(xhci_dbg_last_kbd_processed);
-    console_write_debug("\n");
-
-    uint32_t usbsts = xhci_read32(&xhci_driver.op_regs->UsbSts);
-    uint32_t usbcmd = xhci_read32(&xhci_driver.op_regs->UsbCmd);
-    console_write_debug("UsbSts=0x");
-    console_print_hex_debug(usbsts);
-    console_write_debug(" UsbCmd=0x");
-    console_print_hex_debug(usbcmd);
-    console_write_debug("\n");
-
-    uint64_t ir0 = (uint64_t)xhci_driver.run_regs + 0x20;
-    volatile uint32_t *iman = (volatile uint32_t *)(ir0 + 0x00);
-    volatile uint32_t *imod = (volatile uint32_t *)(ir0 + 0x04);
-    volatile uint64_t *erdp = (volatile uint64_t *)(ir0 + 0x18);
-
-    console_write_debug("IMAN=0x");
-    console_print_hex_debug(xhci_read32(iman));
-    console_write_debug(" IMOD=0x");
-    console_print_hex_debug(xhci_read32(imod));
-    console_write_debug("\n");
-
-    uint64_t erdpv = xhci_read64((uint64_t)erdp);
-    console_write_debug("ERDP=0x");
-    console_print_hex_debug((uint32_t)(erdpv >> 32));
-    console_write_debug("_");
-    console_print_hex_debug((uint32_t)(erdpv & 0xFFFFFFFF));
-    console_write_debug("\n");
-
-    console_write_debug("deq_idx=");
-    console_print_dec_debug(xhci_driver.event_ring_dequeue_idx);
-    console_write_debug(" cycle=");
-    console_print_dec_debug(xhci_driver.event_ring_cycle_bit);
-    console_write_debug("\n");
-    console_write_debug("====================\n");
 }
 
 void xhci_process_events(void)
@@ -2428,11 +2238,11 @@ void xhci_handle_interrupt(void)
             (void)xhci_read32(iman);
         }
 
-        uint32_t usbsts = xhci_read32(&xhci_driver.op_regs->UsbSts);
+        uint32_t usbsts = xhci_read32(XHCI_OP_REG(UsbSts));
         if (usbsts & USBSTS_EINT)
         {
-            xhci_write32(&xhci_driver.op_regs->UsbSts, USBSTS_EINT);
-            (void)xhci_read32(&xhci_driver.op_regs->UsbSts);
+            xhci_write32(XHCI_OP_REG(UsbSts), USBSTS_EINT);
+            (void)xhci_read32(XHCI_OP_REG(UsbSts));
         }
     }
 
@@ -2530,7 +2340,9 @@ static volatile uint32_t *xhci_get_output_ep_ctx_dw(uint8_t slot, uint8_t dci)
     return (volatile uint32_t *)(out + (uint64_t)ctx_size * (uint64_t)dci);
 }
 
-static void xhci_dump_kbd_endpoint_state(uint8_t slot)
+/* Kept for the frozen xHCI fence inventory used by the diagnostic dump. */
+static void __attribute__((unused))
+xhci_dump_kbd_endpoint_state(uint8_t slot)
 {
 
     if (!xhci_dbg_on(XHCI_DBG_DUMP))
@@ -2547,9 +2359,9 @@ static void xhci_dump_kbd_endpoint_state(uint8_t slot)
     console_write_debug(" ====================\n");
 
     console_write_debug("USBSTS=0x");
-    console_print_hex_debug(xhci_read32(&xhci_driver.op_regs->UsbSts));
+    console_print_hex_debug(xhci_read32(XHCI_OP_REG(UsbSts)));
     console_write_debug(" USBCMD=0x");
-    console_print_hex_debug(xhci_read32(&xhci_driver.op_regs->UsbCmd));
+    console_print_hex_debug(xhci_read32(XHCI_OP_REG(UsbCmd)));
     console_write_debug("\n");
 
     if (xhci_driver.run_regs)
@@ -2717,25 +2529,25 @@ void xhci_poll_events(void)
     spin_unlock(&g_xhci_event_lock);
 }
 
-void xhci_reset_controller()
+static void xhci_reset_controller(void)
 {
     console_write_debug("[XHCI] Stopping... ");
 
-    uint32_t cmd = xhci_read32(&xhci_driver.op_regs->UsbCmd);
+    uint32_t cmd = xhci_read32(XHCI_OP_REG(UsbCmd));
     cmd &= ~USBCMD_RUN_STOP;
-    xhci_write32(&xhci_driver.op_regs->UsbCmd, cmd);
+    xhci_write32(XHCI_OP_REG(UsbCmd), cmd);
 
-    while (!(xhci_read32(&xhci_driver.op_regs->UsbSts) & USBSTS_HC_HALTED))
+    while (!(xhci_read32(XHCI_OP_REG(UsbSts)) & USBSTS_HC_HALTED))
         xhci_delay(1);
 
     console_write_debug("Resetting... ");
-    cmd = xhci_read32(&xhci_driver.op_regs->UsbCmd);
+    cmd = xhci_read32(XHCI_OP_REG(UsbCmd));
     cmd |= USBCMD_HC_RESET;
-    xhci_write32(&xhci_driver.op_regs->UsbCmd, cmd);
+    xhci_write32(XHCI_OP_REG(UsbCmd), cmd);
 
-    while (xhci_read32(&xhci_driver.op_regs->UsbCmd) & USBCMD_HC_RESET)
+    while (xhci_read32(XHCI_OP_REG(UsbCmd)) & USBCMD_HC_RESET)
         xhci_delay(1);
-    while (xhci_read32(&xhci_driver.op_regs->UsbSts) & (1 << 11))
+    while (xhci_read32(XHCI_OP_REG(UsbSts)) & (1 << 11))
         xhci_delay(1);
 
     console_write_debug("Ready.\n");
@@ -2763,7 +2575,7 @@ void xhci_init(uint64_t base_address)
 
     xhci_bios_handoff(base_address);
 
-    xhci_driver.cap_regs = (xhci_cap_regs_t *)base_address;
+    xhci_driver.cap_regs = (volatile xhci_cap_regs_t *)base_address;
 
     xhci_driver.op_regs = (xhci_op_regs_t *)(base_address + xhci_driver.cap_regs->CapLength);
 
@@ -2827,27 +2639,27 @@ void xhci_init(uint64_t base_address)
 
     xhci_reset_controller();
 
-    xhci_write32(&xhci_driver.op_regs->UsbSts, 0xFFFFFFFF);
+    xhci_write32(XHCI_OP_REG(UsbSts), 0xFFFFFFFF);
 
-    xhci_write32(&xhci_driver.op_regs->Config, xhci_driver.max_slots);
+    xhci_write32(XHCI_OP_REG(Config), xhci_driver.max_slots);
 
     xhci_alloc_dcbaa();
     xhci_init_command_ring();
     xhci_init_event_ring();
 
     console_write_debug("[XHCI] Starting Controller... ");
-    uint32_t cmd = xhci_read32(&xhci_driver.op_regs->UsbCmd);
+    uint32_t cmd = xhci_read32(XHCI_OP_REG(UsbCmd));
     cmd |= (USBCMD_INTE | USBCMD_RUN_STOP);
-    xhci_write32(&xhci_driver.op_regs->UsbCmd, cmd);
+    xhci_write32(XHCI_OP_REG(UsbCmd), cmd);
 
     int timeout = 100;
-    while ((xhci_read32(&xhci_driver.op_regs->UsbSts) & USBSTS_HC_HALTED) && timeout > 0)
+    while ((xhci_read32(XHCI_OP_REG(UsbSts)) & USBSTS_HC_HALTED) && timeout > 0)
     {
         timer_sleep(1);
         timeout--;
     }
 
-    if (xhci_read32(&xhci_driver.op_regs->UsbSts) & USBSTS_HC_HALTED)
+    if (xhci_read32(XHCI_OP_REG(UsbSts)) & USBSTS_HC_HALTED)
     {
         console_write_debug("FAILED (Halted).\n");
     }
@@ -2873,7 +2685,7 @@ void xhci_init(uint64_t base_address)
 
 void xhci_ring_ep_doorbell(uint8_t slot_id, uint8_t endpoint_id)
 {
-    volatile uint32_t *db = (volatile uint32_t *)&xhci_driver.db_regs[slot_id].Target;
+    volatile uint32_t *db = xhci_doorbell_reg(slot_id);
 
     __asm__ volatile("sfence" ::: "memory");
 
@@ -2969,7 +2781,9 @@ int xhci_evaluate_context(uint8_t slot_id, uint16_t new_mps, int port_id, int sp
     }
 }
 
-void xhci_queue_trb(uint8_t slot_id, uint32_t p_low, uint32_t p_high, uint32_t status, uint32_t control)
+static void xhci_queue_trb(uint8_t slot_id, uint32_t p_low,
+                           uint32_t p_high, uint32_t status,
+                           uint32_t control)
 {
     xhci_trb_t *ring = xhci_driver.slot_ep0_rings[slot_id];
     uint16_t idx = xhci_driver.slot_ep0_enqueue[slot_id];
@@ -3001,7 +2815,7 @@ void xhci_queue_trb(uint8_t slot_id, uint32_t p_low, uint32_t p_high, uint32_t s
 void xhci_ring_command_doorbell(void)
 {
 
-    volatile uint32_t *db = (volatile uint32_t *)&xhci_driver.db_regs[0].Target;
+    volatile uint32_t *db = xhci_doorbell_reg(0);
 
     __asm__ volatile("mfence" ::: "memory");
     *db = 0;
@@ -3010,7 +2824,7 @@ void xhci_ring_command_doorbell(void)
 
 uint8_t xhci_send_command_wait(uint32_t type, uint64_t param, uint32_t control_bits)
 {
-    if (xhci_read32(&xhci_driver.op_regs->UsbSts) & USBSTS_HC_HALTED)
+    if (xhci_read32(XHCI_OP_REG(UsbSts)) & USBSTS_HC_HALTED)
     {
         console_write_debug("[XHCI] HC Halted before cmd.\n");
         return 0;
@@ -3737,8 +3551,8 @@ void xhci_diag_latency(void)
 {
     console_write_debug("\n========== XHCI LATENCY DIAGNOSTIC ==========\n");
 
-    uint32_t usbsts = xhci_read32(&xhci_driver.op_regs->UsbSts);
-    uint32_t usbcmd = xhci_read32(&xhci_driver.op_regs->UsbCmd);
+    uint32_t usbsts = xhci_read32(XHCI_OP_REG(UsbSts));
+    uint32_t usbcmd = xhci_read32(XHCI_OP_REG(UsbCmd));
 
     console_write_debug("UsbCmd = 0x");
     console_print_hex_debug(usbcmd);

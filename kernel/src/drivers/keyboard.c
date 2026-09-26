@@ -132,23 +132,6 @@ static char apply_modifiers_symbol(char normal, char shifted)
     return g_shift ? shifted : normal;
 }
 
-static char ps2_scancode_to_ascii(uint8_t code)
-{
-
-    if (code == 0x1E)
-        return 'a';
-    if (code == 0x30)
-        return 'b';
-    if (code == 0x1C)
-        return '\n';
-    if (code == 0x39)
-        return ' ';
-    if (code == 0x0E)
-        return '\b';
-
-    return 0;
-}
-
 static const uint8_t usb_hid_map[128][2] = {
     {0, 0},
     {0, 0},
@@ -224,22 +207,18 @@ static const uint8_t usb_hid_map[128][2] = {
     {0, 0},
     {0, 0},
     {0, 0},
+    {KEY_SPECIAL_HOME, KEY_SPECIAL_HOME},
+    {KEY_SPECIAL_PAGE_UP, KEY_SPECIAL_PAGE_UP},
     {0, 0},
-    {0, 0},
-    {0, 0},
-    {0, 0},
-    {0, 0},
+    {KEY_SPECIAL_END, KEY_SPECIAL_END},
+    {KEY_SPECIAL_PAGE_DOWN, KEY_SPECIAL_PAGE_DOWN},
     {KEY_SPECIAL_RIGHT, KEY_SPECIAL_RIGHT},
     {KEY_SPECIAL_LEFT, KEY_SPECIAL_LEFT},
     {KEY_SPECIAL_DOWN, KEY_SPECIAL_DOWN},
     {KEY_SPECIAL_UP, KEY_SPECIAL_UP},
-    [0x4A] = {KEY_SPECIAL_HOME, KEY_SPECIAL_HOME},
-    [0x4B] = {KEY_SPECIAL_PAGE_UP, KEY_SPECIAL_PAGE_UP},
-    [0x4D] = {KEY_SPECIAL_END, KEY_SPECIAL_END},
-    [0x4E] = {KEY_SPECIAL_PAGE_DOWN, KEY_SPECIAL_PAGE_DOWN},
 };
 
-void keyboard_init()
+void keyboard_init(void)
 {
     input_queue_init(&g_keyboard_queue, g_keyboard_storage,
                      USB_KBD_FIFO_SIZE, "keyboard-fifo");
@@ -487,7 +466,7 @@ static char scancode_to_ascii(uint8_t code)
     }
 }
 
-void keyboard_handle_interrupt()
+void keyboard_handle_interrupt(void)
 {
     while (inb(0x64) & 1)
     {

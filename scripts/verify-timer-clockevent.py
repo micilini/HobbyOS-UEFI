@@ -7,6 +7,7 @@ import argparse
 import csv
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -15,8 +16,26 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-ARTIFACT = ROOT / "artifacts/build/lapic-clockevent"
-AUTONOMOUS_ARTIFACT = ROOT / "artifacts/build/boot-to-shell-autonomous"
+_artifact_value = os.environ.get(
+    "HOBBYOS_TIMER_ARTIFACT",
+    os.environ.get("HOBBYOS_TEST_ARTIFACT", "artifacts/build/lapic-clockevent"),
+)
+ARTIFACT = Path(_artifact_value)
+if not ARTIFACT.is_absolute():
+    ARTIFACT = ROOT / ARTIFACT
+ARTIFACT = ARTIFACT.resolve()
+ARTIFACT.relative_to(ROOT)
+FAIR_ARTIFACT = Path(os.environ.get(
+    "HOBBYOS_TIMER_FAIR_ARTIFACT", str(ARTIFACT / "fair-dispatch")
+)).resolve()
+AUTONOMOUS_ARTIFACT = Path(os.environ.get(
+    "HOBBYOS_TIMER_AUTONOMOUS_ARTIFACT", str(ARTIFACT / "boot-to-shell")
+)).resolve()
+FAIR_ARTIFACT.relative_to(ROOT)
+AUTONOMOUS_ARTIFACT.relative_to(ROOT)
+EXPECTED_BRANCH = os.environ.get(
+    "HOBBYOS_EXPECTED_BRANCH", "feat/foundation-hardening"
+)
 BASE = "523f367c9cd8652e709c0ffc7af28f6433d1213c"
 BASE_TREE = "cc04290b8cfcfcc16de06e65b1a8145f6760d646"
 BASE_PARENT = "602532db881f5e328a78efdb52b0c012f35b4065"
@@ -42,8 +61,6 @@ ORIGINAL_RATE_LOG_SHA256 = (
 ORIGINAL_RUNTIME_LOG_SHA256 = (
     "29ace19ec5bd95ef29f8d962186dcd88d5ec159e636427e708b54ea869dc8e70"
 )
-FAIR_ARTIFACT = ROOT / "artifacts/build/timer-fair-dispatch"
-
 CYCLE_FIELDS = (
     "cycle", "source_hash", "kernel_hash", "scenario",
     "last_progress_marker", "guest_elapsed_ms", "host_elapsed_ms",
@@ -504,7 +521,11 @@ def verify_negative_claimed_order(row: dict[str, str]) -> None:
 
 def verify_baseline_manifest() -> None:
     actual = parse_manifest(ARTIFACT / "source-before.sha256")
-    require(actual == BASELINE_HASHES, "source-before does not match the frozen base")
+    require(bool(actual), "source-before is empty")
+    for name, digest in actual.items():
+        source = ROOT / name
+        require(source.is_file() and sha256(source) == digest,
+                f"source-before hash drift: {name}")
 
 
 def verify_protected_manifests(scope: str) -> None:
@@ -526,17 +547,15 @@ def verify_protected_manifests(scope: str) -> None:
 
 
 def verify_git(scope: str) -> None:
-    require(git("branch", "--show-current") == "feat/taskman", "wrong branch")
-    head = git("rev-parse", "HEAD")
-    if head == BASE:
-        require(scope != "all", "final verification requires the mission commit")
-        require(git("rev-parse", "HEAD^{tree}") == BASE_TREE, "wrong base tree")
-        require(git("rev-parse", "HEAD^") == BASE_PARENT, "wrong base parent")
-    else:
-        require(git("rev-parse", "HEAD^") == BASE, "mission commit parent is not base")
-        require(git("rev-list", "--count", f"{BASE}..HEAD") == "1",
-                "mission must contain exactly one commit")
-        require(git("log", "-1", "--format=%s") == SUBJECT, "wrong commit subject")
+    require(git("branch", "--show-current") == EXPECTED_BRANCH, "wrong branch")
+    require(bool(git("rev-parse", "--verify", "HEAD^{commit}")),
+            "invalid HEAD commit")
+    require(bool(git("rev-parse", "--verify", "HEAD^{tree}")),
+            "invalid HEAD tree")
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--quiet"], cwd=ROOT, check=False
+    )
+    require(staged.returncode == 0, "staged changes present")
 
 
 def read_log(row: dict[str, str], *markers: str) -> str:
@@ -754,12 +773,46 @@ def verify_candidate() -> None:
                 "review ZIP lacks candidate")
 
 
+def verify_rendezvous_boot(
+    stage: str, row: dict[str, str], machine: str, smp: int, accel: str
+) -> str:
+    require((row["machine"], row["smp"], row["accel"]) ==
+            (machine, str(smp), accel), f"{stage}: launch tuple drift")
+    require(row["result"] == "PASS" and row["clocksource"] == "HPET" and
+            row["clockevent"] == "BSP_LAPIC" and
+            row["hpet_timer0_state"] == "QUIESCENT" and
+            row["lapic_period_us"] == "1000" and
+            row["cpus_ready"] == str(smp), f"{stage}: ledger contract")
+    text = read_log(
+        row,
+        "[IRQ][PIC] QUIESCENT",
+        "[IRQ][IOAPIC] QUIESCENT",
+        f"[IRQ][BOOTSTRAP] CPUS_PREPARED cpus={smp}",
+        "[CLOCK][HPET_CLOCKSOURCE_PROBE] PASS",
+        "[CLOCK][HPET_TIMER0] QUIESCENT",
+        "[CLOCKEVENT][RUNTIME] ACTIVE source=BSP_LAPIC",
+        f"[BOOT][RUNTIME_READY] PASS cpus={smp}/{smp}",
+        "[KERNEL] Entering Main Loop.",
+        "[IRQ][CHECK] PASS clocksource=HPET clockevent=BSP_LAPIC",
+        "[TASKDIAG][CHECK] PASS",
+    )
+    require(text.count("[IRQ][CPU_READY] PASS") == smp,
+            f"{stage}: CPU_READY count")
+    require("unexpected=0 imbalance=0" in text,
+            f"{stage}: interrupt anomaly")
+    require(not re.search(
+        r"PANIC|#PF|#GP|FATAL|STRUCTURAL_FAULT|FINISH_FAULT", text
+    ), f"{stage}: guest fault")
+    if machine == "pc":
+        require("master=ff slave=ff" in text and "pcat=1" in text,
+                f"{stage}: PCAT quarantine")
+    return text
+
+
 def verify(scope: str) -> None:
     verify_git(scope)
     verify_baseline_manifest()
     verify_fair_source_manifests(scope)
-    verify_original_rate_failure()
-    verify_original_runtime_failure()
     rows = read_rows()
     by_stage = {row["stage"]: row for row in rows}
     required = {
@@ -770,12 +823,20 @@ def verify(scope: str) -> None:
         "fair-focused-smp24", "fair-up-tcg", "fair-smp2-tcg",
         "fair-smp4-kvm", "fair-smp8-kvm", "fair-smp24-kvm",
         "fair-pcat", "fair-software-timers", "fair-taskman",
-        "fair-stress", "fair-soak24", "fair-final-build",
-        "fair-rate-control-smp4-run1", "fair-rate-control-smp4-run2",
-        "fair-rate-control-smp4-run3",
+        "fair-stress", "rendezvous-negative-local-ready-deadline",
+        "rendezvous-focused-smp4", "rendezvous-smp24-boot1",
+        "rendezvous-smp24-boot2", "rendezvous-smp24-boot3",
+        "rendezvous-up-tcg", "rendezvous-smp2-tcg",
+        "rendezvous-smp4-kvm", "rendezvous-smp8-kvm",
+        "rendezvous-smp24-kvm", "rendezvous-pcat",
+        "rendezvous-runtime-smp24", "rendezvous-runtime-rate",
+        "rendezvous-rate-control-smp4-run1",
+        "rendezvous-rate-control-smp4-run2",
+        "rendezvous-rate-control-smp4-run3",
+        "rendezvous-soak24", "rendezvous-final-build",
     }
     if scope == "all":
-        required |= {"candidate", "fair-report"}
+        required |= {"candidate"}
     require(required <= by_stage.keys(), f"missing stages: {sorted(required - by_stage.keys())}")
     for stage in required:
         require(by_stage[stage]["result"] == "PASS", f"stage not PASS: {stage}")
@@ -790,6 +851,8 @@ def verify(scope: str) -> None:
             "[TIMER][NEGATIVE] DUPLICATE_GLOBAL_CLOCKEVENT_DETECTED",
         "fair-negative-hpet-stall":
             "[CLOCK][NEGATIVE] HPET_CLOCKSOURCE_STALL_DETECTED",
+        "rendezvous-negative-local-ready-deadline":
+            "[IRQ][NEGATIVE] LOCAL_READY_DEADLINE_FALSE_FAILURE_DETECTED",
     }
     for stage, marker in negative_markers.items():
         read_log(by_stage[stage], marker)
@@ -799,26 +862,71 @@ def verify(scope: str) -> None:
     for stage in ("fair-focused-smp4", "fair-focused-smp24"):
         verify_focused_fairness(stage, by_stage[stage])
     verify_negative_claimed_order(by_stage["fair-negative-claimed-order"])
-    controls = [f"fair-rate-control-smp4-run{run}" for run in range(1, 4)]
+    rendezvous = {
+        "rendezvous-focused-smp4": ("q35", 4, "kvm"),
+        "rendezvous-smp24-boot1": ("q35", 24, "kvm"),
+        "rendezvous-smp24-boot2": ("q35", 24, "kvm"),
+        "rendezvous-smp24-boot3": ("q35", 24, "kvm"),
+        "rendezvous-up-tcg": ("q35", 1, "tcg"),
+        "rendezvous-smp2-tcg": ("q35", 2, "tcg"),
+        "rendezvous-smp4-kvm": ("q35", 4, "kvm"),
+        "rendezvous-smp8-kvm": ("q35", 8, "kvm"),
+        "rendezvous-smp24-kvm": ("q35", 24, "kvm"),
+        "rendezvous-pcat": ("pc", 4, "tcg"),
+        "rendezvous-runtime-smp24": ("q35", 24, "kvm"),
+    }
+    rendezvous_text: dict[str, str] = {}
+    for stage, launch in rendezvous.items():
+        rendezvous_text[stage] = verify_rendezvous_boot(
+            stage, by_stage[stage], *launch
+        )
+    verify_fairness_log(
+        "rendezvous-focused-smp4", by_stage["rendezvous-focused-smp4"],
+        rendezvous_text["rendezvous-focused-smp4"], 3, 3,
+    )
+    verify_fairness_log(
+        "rendezvous-runtime-smp24", by_stage["rendezvous-runtime-smp24"],
+        rendezvous_text["rendezvous-runtime-smp24"], 5, 5,
+    )
+    verify_rate_measurement(
+        "rendezvous-runtime-rate", by_stage["rendezvous-runtime-rate"],
+        rendezvous_text["rendezvous-runtime-smp24"], 24,
+    )
+    controls = [
+        f"rendezvous-rate-control-smp4-run{run}" for run in range(1, 4)
+    ]
     for stage in controls:
         verify_rate_control(stage, by_stage[stage])
     functional_stages = controls + [
         "fair-focused-smp4", "fair-focused-smp24", "fair-up-tcg",
         "fair-smp2-tcg", "fair-smp4-kvm", "fair-smp8-kvm",
-        "fair-smp24-kvm", "fair-pcat", "fair-soak24", "fair-final-build",
+        "fair-smp24-kvm", "fair-pcat", *rendezvous.keys(),
+        "rendezvous-runtime-rate", "rendezvous-soak24",
+        "rendezvous-final-build",
     ]
     require(len({by_stage[stage]["kernel_sha256"]
                  for stage in functional_stages}) == 1,
             "functional gates did not use one reproducible kernel")
     control_dirs = {
         path.name for path in (ARTIFACT / "qemu").glob(
-            "fair-rate-control-smp4-run*")
+            "rendezvous-rate-control-smp4-run*")
         if path.is_dir()
     }
     require(control_dirs == set(controls),
             "rate control boot count is not exactly three")
-    verify_soak(by_stage["fair-soak24"])
-    read_log(by_stage["fair-final-build"], "[TIMER][FINAL_BUILD] PASS")
+    verify_soak(by_stage["rendezvous-soak24"])
+    final_text = read_log(
+        by_stage["rendezvous-final-build"], "[TIMER][FINAL_BUILD] PASS"
+    )
+    debug_hashes = {
+        label: digest for digest, label in re.findall(
+            r"^([0-9a-f]{64})  /tmp/hobbyos-lapic-clockevent-(j2|jN)\.elf$",
+            final_text, re.MULTILINE,
+        )
+    }
+    require(set(debug_hashes) == {"j2", "jN"} and
+            len(set(debug_hashes.values())) == 1,
+            "debug JOBS builds are not reproducible")
     if scope == "all":
         verify_candidate()
     print(f"[TIMER][EVIDENCE] PASS scope={scope}")

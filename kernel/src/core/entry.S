@@ -8,6 +8,7 @@
 
 _start:
     cli
+    cld
 
     mov r15, rdi
     mov r14, rcx
@@ -72,7 +73,16 @@ _start:
     mov rax, offset boot_pml4
     mov cr3, rax
     mov rdi, r15
-    
+
+    /* Enter C with the SysV state produced by a call: RSP % 16 == 8. */
+    sub rsp, 8
+    mov rsi, rsp
+    and esi, 15
+    pushfq
+    pop rdx
+    shr rdx, 10
+    and edx, 1
+
     mov rax, offset kernel_main_high
     jmp rax
 
@@ -109,3 +119,5 @@ boot_pd3:
 .align 16
 .skip 16384
 boot_stack_top:
+
+.section .note.GNU-stack,"",@progbits

@@ -58,7 +58,7 @@ typedef struct
     uint8_t enabled;
 } pci_msi_snapshot_t;
 
-void pci_init();
+void pci_init(void);
 bool pci_msi_prepare(uint64_t device_addr, uint8_t vector,
                      uint32_t destination_apic_id);
 bool pci_msi_enable(uint64_t device_addr);

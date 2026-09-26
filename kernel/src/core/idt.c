@@ -32,7 +32,7 @@ static void set_idt_gate(int vector, void *handler, uint8_t type)
     g_idt[vector].reserved = 0;
 }
 
-void init_idt()
+void init_idt(void)
 {
     memset(&g_idt, 0, sizeof(g_idt));
 
@@ -81,17 +81,17 @@ void init_idt()
     __asm__ volatile("lidt %0" : : "m"(g_idtr));
 }
 
-void idt_load()
+void idt_load(void)
 {
     __asm__ volatile("lidt %0" : : "m"(g_idtr));
 }
 
-void enable_interrupts()
+void enable_interrupts(void)
 {
     __asm__ volatile("sti\n\t" ::: "memory");
 }
 
-void disable_interrupts()
+void disable_interrupts(void)
 {
     __asm__ volatile("cli\n\t" ::: "memory");
 }

@@ -42,7 +42,6 @@ void usb_hotplug_handle_root_port_status(uint8_t root_port_1based, uint32_t port
 
 void usb_hotplug_notify_root_device_configured(uint8_t root_port_1based, uint8_t slot_id);
 
-void usb_hub_invalidate_by_slot(uint8_t slot_id);
 void usb_hotplug_process_pending(void);
 bool usb_hotplug_readiness_snapshot(usb_hotplug_readiness_snapshot_t *out);
 

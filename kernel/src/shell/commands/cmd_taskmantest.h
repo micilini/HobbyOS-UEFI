@@ -2,6 +2,7 @@
 #define CMD_TASKMANTEST_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "cmd_taskman.h"
@@ -64,5 +65,17 @@ bool taskmantest_auto_session_result_valid(
 bool taskmantest_auto_session_selftest_case(
     taskmantest_auto_session_selftest_id_t test);
 int cmd_taskmantest(int argc,char **argv);
+
+#if defined(HOBBYOS_TASKMAN_MODAL_CHECKPOINT_HOST_TEST)
+void taskmantest_memory_checkpoint_test_reset(void);
+void taskmantest_memory_checkpoint_test_limits(uint32_t timeout_ms,
+                                               size_t record_capacity);
+bool taskmantest_memory_checkpoint_begin_for_test(uint32_t cycles,
+                                                  uint32_t workers);
+bool taskmantest_memory_checkpoint_track_for_test(void);
+bool taskmantest_memory_checkpoint_progress_for_test(void);
+bool taskmantest_memory_checkpoint_end_for_test(void);
+#define TASKMANTEST_MEMORY_CHECKPOINT_TEST_RECORD_CAPACITY 1536u
+#endif
 
 #endif

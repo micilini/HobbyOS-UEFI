@@ -2,48 +2,94 @@
 #include "../graphics/console.h"
 #include "idt.h"
 #include "interrupts.h"
-#include "spinlock.h"
+#include "../smp/smp_topology.h"
 
-static volatile uint64_t g_vec_counts[256];
-static volatile uint64_t g_unhandled;
-static volatile uint64_t g_total;
+typedef struct __attribute__((aligned(64)))
+{
+    volatile uint64_t vec_counts[256];
+    volatile uint64_t unhandled;
+    volatile uint64_t total;
+} irq_cpu_stats_t;
+
+/* The final row records interrupts observed before the CPU topology can map
+   the current APIC ID.  Runtime IRQs use one cache-private row per CPU, so a
+   1 ms LAPIC tick never queues every vCPU behind one global lock. */
+static irq_cpu_stats_t g_cpu_stats[HOBBYOS_MAX_CPUS + 1u];
 static volatile uint8_t g_last_vec;
 
-static spinlock_t g_stats_lock = {0};
+static irq_cpu_stats_t *irq_stats_current(void)
+{
+    cpu_slot_t slot = CPU_SLOT_INVALID;
+    if (!smp_current_cpu_slot(&slot) || slot >= HOBBYOS_MAX_CPUS)
+        slot = HOBBYOS_MAX_CPUS;
+    return &g_cpu_stats[slot];
+}
+
+static uint64_t irq_stats_sum_vector(uint8_t vector)
+{
+    uint64_t total = 0;
+    for (uint32_t slot = 0; slot <= HOBBYOS_MAX_CPUS; slot++)
+        total += __atomic_load_n(&g_cpu_stats[slot].vec_counts[vector],
+                                 __ATOMIC_RELAXED);
+    return total;
+}
+
+static uint64_t irq_stats_sum_unhandled(void)
+{
+    uint64_t total = 0;
+    for (uint32_t slot = 0; slot <= HOBBYOS_MAX_CPUS; slot++)
+        total += __atomic_load_n(&g_cpu_stats[slot].unhandled,
+                                 __ATOMIC_RELAXED);
+    return total;
+}
+
+static uint64_t irq_stats_sum_total(void)
+{
+    uint64_t total = 0;
+    for (uint32_t slot = 0; slot <= HOBBYOS_MAX_CPUS; slot++)
+        total += __atomic_load_n(&g_cpu_stats[slot].total,
+                                 __ATOMIC_RELAXED);
+    return total;
+}
 
 void irq_stats_record(uint8_t vector)
 {
-    irq_flags_t flags = spin_lock_irqsave(&g_stats_lock);
-    g_total++;
-    g_last_vec = vector;
-    g_vec_counts[vector]++;
-    spin_unlock_irqrestore(&g_stats_lock, flags);
+    irq_cpu_stats_t *stats = irq_stats_current();
+    __atomic_add_fetch(&stats->total, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&stats->vec_counts[vector], 1, __ATOMIC_RELAXED);
+    __atomic_store_n(&g_last_vec, vector, __ATOMIC_RELAXED);
 }
 
 void irq_stats_record_unhandled(void)
 {
-    irq_flags_t flags = spin_lock_irqsave(&g_stats_lock);
-    g_unhandled++;
-    spin_unlock_irqrestore(&g_stats_lock, flags);
+    irq_cpu_stats_t *stats = irq_stats_current();
+    __atomic_add_fetch(&stats->unhandled, 1, __ATOMIC_RELAXED);
 }
 
 void irq_stats_reset(void)
 {
     irq_flags_t flags = irq_save();
 
-    for (int i = 0; i < 256; i++)
-        g_vec_counts[i] = 0;
-
-    g_unhandled = 0;
-    g_total = 0;
-    g_last_vec = 0;
+    for (uint32_t slot = 0; slot <= HOBBYOS_MAX_CPUS; slot++)
+    {
+        for (uint32_t vector = 0; vector < 256u; vector++)
+            __atomic_store_n(&g_cpu_stats[slot].vec_counts[vector], 0,
+                             __ATOMIC_RELAXED);
+        __atomic_store_n(&g_cpu_stats[slot].unhandled, 0,
+                         __ATOMIC_RELAXED);
+        __atomic_store_n(&g_cpu_stats[slot].total, 0, __ATOMIC_RELAXED);
+    }
+    __atomic_store_n(&g_last_vec, 0, __ATOMIC_RELAXED);
 
     irq_restore(flags);
 }
 
-uint64_t irq_stats_get(uint8_t vector) { return g_vec_counts[vector]; }
-uint64_t irq_stats_get_unhandled(void) { return g_unhandled; }
-uint8_t irq_stats_last_vector(void) { return g_last_vec; }
+uint64_t irq_stats_get(uint8_t vector) { return irq_stats_sum_vector(vector); }
+uint64_t irq_stats_get_unhandled(void) { return irq_stats_sum_unhandled(); }
+uint8_t irq_stats_last_vector(void)
+{
+    return __atomic_load_n(&g_last_vec, __ATOMIC_RELAXED);
+}
 
 void irq_stats_dump(void)
 {
@@ -56,18 +102,15 @@ void irq_stats_dump(void)
     uint64_t xhci_cnt;
     uint64_t spurious_cnt;
 
-    irq_flags_t flags = irq_save();
+    total = irq_stats_sum_total();
+    unhandled = irq_stats_sum_unhandled();
+    last_vec = irq_stats_last_vector();
 
-    total = g_total;
-    unhandled = g_unhandled;
-    last_vec = g_last_vec;
-
-    timer_cnt = g_vec_counts[INT_VECTOR_HPET_TIMER] + g_vec_counts[INT_VECTOR_LAPIC_TIMER];
-    kbd_cnt = g_vec_counts[INT_VECTOR_KEYBOARD];
-    xhci_cnt = g_vec_counts[INT_VECTOR_XHCI];
-    spurious_cnt = g_vec_counts[0xFF];
-
-    irq_restore(flags);
+    timer_cnt = irq_stats_sum_vector(INT_VECTOR_HPET_TIMER) +
+                irq_stats_sum_vector(INT_VECTOR_LAPIC_TIMER);
+    kbd_cnt = irq_stats_sum_vector(INT_VECTOR_KEYBOARD);
+    xhci_cnt = irq_stats_sum_vector(INT_VECTOR_XHCI);
+    spurious_cnt = irq_stats_sum_vector(0xFF);
 
     console_set_color(CONSOLE_COLOR_YELLOW, CONSOLE_COLOR_HOBBYOS_BLUE);
     console_write("IRQ / INT stats\n");

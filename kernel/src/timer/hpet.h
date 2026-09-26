@@ -115,7 +115,7 @@ typedef struct
     uint64_t quarantine_failures;
 } hpet_runtime_snapshot_t;
 
-void init_hpet();
+void init_hpet(void);
 
 void hpet_usleep(uint64_t microseconds);
 

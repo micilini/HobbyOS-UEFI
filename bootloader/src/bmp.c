@@ -29,8 +29,6 @@ typedef struct
 
 SimpleImage *load_bmp_image(EFI_FILE *directory, CHAR16 *path)
 {
-    EFI_STATUS status;
-
     EFI_FILE *file = load_file(directory, path);
     if (file == NULL)
         return NULL;

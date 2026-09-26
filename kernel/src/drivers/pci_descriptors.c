@@ -1,8 +1,9 @@
 #include "pci_descriptors.h"
 #include "../libc/string.h"
 
-const char *hex_str(uint16_t val)
+static const char *hex_str(uint16_t val)
 {
+    (void)val;
     return "Unknown ID";
 }
 

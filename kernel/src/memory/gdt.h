@@ -49,7 +49,7 @@ typedef struct
 
 extern GdtTable g_gdt;
 
-void init_gdt();
+void init_gdt(void);
 void gdt_flush(uint64_t gdtr_addr);
 
 GdtTable *gdt_create_per_cpu(void *tss_ptr);

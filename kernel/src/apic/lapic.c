@@ -19,6 +19,17 @@ static lapic_quiescent_snapshot_t g_lapic_quiescent[HOBBYOS_MAX_CPUS];
 static lapic_quiescent_snapshot_t g_lapic_early_quiescent;
 static uint64_t g_timer_programming_generation;
 
+#define LAPIC_CALIBRATION_WINDOW_NS 10000000ULL
+#define LAPIC_CALIBRATION_EDGE_MAX_NS 500000ULL
+#define LAPIC_CALIBRATION_EDGE_ATTEMPTS 32u
+
+typedef struct
+{
+    uint64_t before_ns;
+    uint64_t after_ns;
+    uint32_t counter;
+} lapic_calibration_sample_t;
+
 void lapic_write(uint32_t reg, uint32_t value)
 {
     if (g_x2apic)
@@ -315,31 +326,87 @@ bool lapic_timer_calibration_math(uint32_t elapsed_ticks, uint64_t elapsed_ns,
     return out->valid;
 }
 
+static bool lapic_timer_calibration_from_samples(
+    const lapic_calibration_sample_t *start,
+    const lapic_calibration_sample_t *end, uint32_t desired_period_us,
+    lapic_timer_calibration_t *out)
+{
+    if (!start || !end || !out || start->after_ns < start->before_ns ||
+        end->after_ns < end->before_ns ||
+        start->after_ns - start->before_ns >
+            LAPIC_CALIBRATION_EDGE_MAX_NS ||
+        end->after_ns - end->before_ns >
+            LAPIC_CALIBRATION_EDGE_MAX_NS ||
+        start->counter <= end->counter)
+        return false;
+
+    uint64_t start_ns = start->before_ns +
+        (start->after_ns - start->before_ns) / 2ULL;
+    uint64_t end_ns = end->before_ns +
+        (end->after_ns - end->before_ns) / 2ULL;
+    if (!start_ns || end_ns <= start_ns)
+        return false;
+
+    return lapic_timer_calibration_math(start->counter - end->counter,
+                                        end_ns - start_ns,
+                                        desired_period_us, out);
+}
+
+static bool lapic_timer_calibration_sample(lapic_calibration_sample_t *out)
+{
+    if (!out)
+        return false;
+    for (uint32_t attempt = 0; attempt < LAPIC_CALIBRATION_EDGE_ATTEMPTS;
+         attempt++)
+    {
+        uint64_t before = clock_monotonic_ns();
+        uint32_t counter = lapic_read(LAPIC_TCCR);
+        uint64_t after = clock_monotonic_ns();
+        if (!before || after < before)
+            return false;
+        if (after - before <= LAPIC_CALIBRATION_EDGE_MAX_NS)
+        {
+            out->before_ns = before;
+            out->after_ns = after;
+            out->counter = counter;
+            return true;
+        }
+        __asm__ volatile("pause");
+    }
+    return false;
+}
+
 bool lapic_timer_calibrate(uint32_t desired_period_us,
                            lapic_timer_calibration_t *out)
 {
     if (!out || !clock_monotonic_is_ready())
         return false;
+    memset(out, 0, sizeof(*out));
     lapic_write(LAPIC_LVT_TIMER,
                 APIC_TIMER_MASKED | APIC_TIMER_ONE_SHOT);
     lapic_write(LAPIC_TDCR, 0x3u);
     lapic_write(LAPIC_TICR, UINT32_MAX);
-    uint64_t start = clock_monotonic_ns();
-    uint64_t now = start;
-    if (!start)
-        return false;
-    while (now - start < 10000000ULL)
+
+    lapic_calibration_sample_t start;
+    lapic_calibration_sample_t end;
+    bool ok = lapic_timer_calibration_sample(&start);
+    uint64_t start_ns = ok ? start.before_ns +
+        (start.after_ns - start.before_ns) / 2ULL : 0;
+    uint64_t now = start_ns;
+    while (ok && now - start_ns < LAPIC_CALIBRATION_WINDOW_NS)
     {
         __asm__ volatile("pause");
         now = clock_monotonic_ns();
-        if (now < start)
-            return false;
+        if (now < start_ns)
+            ok = false;
     }
-    uint32_t elapsed = UINT32_MAX - lapic_read(LAPIC_TCCR);
+    if (ok)
+        ok = lapic_timer_calibration_sample(&end);
     lapic_write(LAPIC_LVT_TIMER, APIC_TIMER_MASKED);
     lapic_write(LAPIC_TICR, 0);
-    bool ok = lapic_timer_calibration_math(elapsed, now - start,
-                                            desired_period_us, out);
+    if (ok)
+        ok = lapic_timer_calibration_from_samples(&start, &end,
+                                                   desired_period_us, out);
     cpu_slot_t slot = CPU_SLOT_INVALID;
     if (ok && smp_current_cpu_slot(&slot) && slot < HOBBYOS_MAX_CPUS)
     {
@@ -610,6 +677,27 @@ bool lapic_timer_model_selftest(void)
          calibration.divisor == 16u && calibration.valid;
     ok = ok && !lapic_timer_calibration_math(0, 1000, 1000,
                                               &calibration);
+
+    lapic_calibration_sample_t start = {
+        .before_ns = 1000ULL,
+        .after_ns = 1100ULL,
+        .counter = 1000000u,
+    };
+    lapic_calibration_sample_t end = {
+        .before_ns = 10001000ULL,
+        .after_ns = 10001100ULL,
+        .counter = 375000u,
+    };
+    ok = ok && lapic_timer_calibration_from_samples(&start, &end, 1000u,
+                                                     &calibration) &&
+         calibration.periodic_initial_count == 62500u;
+    start.after_ns = start.before_ns + LAPIC_CALIBRATION_EDGE_MAX_NS + 1ULL;
+    ok = ok && !lapic_timer_calibration_from_samples(&start, &end, 1000u,
+                                                      &calibration);
+    start.after_ns = 1100ULL;
+    end.counter = start.counter;
+    ok = ok && !lapic_timer_calibration_from_samples(&start, &end, 1000u,
+                                                      &calibration);
     ok = ok && LAPIC_TIMER_OFF < LAPIC_TIMER_CALIBRATED &&
          LAPIC_TIMER_CALIBRATED < LAPIC_TIMER_PREPARED_MASKED &&
          LAPIC_TIMER_PREPARED_MASKED < LAPIC_TIMER_ACTIVE_PERIODIC;

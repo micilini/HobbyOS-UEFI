@@ -28,9 +28,9 @@ typedef struct
     uint64_t deferred_polls;
 } timer_clockevent_snapshot_t;
 
-void timer_init();
+void timer_init(void);
 
-uint64_t timer_get_uptime_ms();
+uint64_t timer_get_uptime_ms(void);
 
 task_wait_result_t timer_sleep_interruptible(uint64_t ms);
 void timer_sleep(uint64_t ms);

@@ -6,6 +6,7 @@
 #include "../../drivers/timer.h"
 #include "../../memory/heap.h"
 #include "../../graphics/console.h"
+#include "../../libc/string.h"
 
 static uint64_t timer_get_ms(void)
 {
@@ -194,13 +195,13 @@ static void smpstress_worker(void *arg)
 
     uint64_t last_log = timer_get_ms();
 
-    serial_write_all("[SMP] Task ");
-    serial_write_u32_dec_all(c->worker_id);
-    serial_write_all(" started on CPU ");
-    serial_write_u32_dec_all(lapic_get_id());
-    serial_write_all(" test=");
-    serial_write_all(test_name);
-    serial_write_all("\n");
+    char start_record[80];
+    int start_required = ksnprintf(
+        start_record, sizeof(start_record),
+        "[SMP] Task %u started on CPU %u test=%s\n",
+        c->worker_id, lapic_get_id(), test_name);
+    if (start_required > 0 && (size_t)start_required < sizeof(start_record))
+        serial_write_all(start_record);
 
     while (1)
     {

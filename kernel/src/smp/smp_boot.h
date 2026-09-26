@@ -12,6 +12,7 @@ enum
     CPU_STATE_FAILED
 };
 
-void smp_boot_aps();
+void ap_kernel_entry(uint64_t entry_rsp_mod16, uint64_t entry_df);
+void smp_boot_aps(void);
 
 #endif

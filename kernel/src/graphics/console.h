@@ -43,7 +43,7 @@ typedef struct {
 } console_region_stats_t;
 
 void console_init(BootInfo *boot_info);
-void console_render_full();
+void console_render_full(void);
 
 void console_redraw_char(char c);
 
@@ -62,15 +62,15 @@ void console_print_dec_debug(uint64_t n);
 void console_set_color_debug(uint32_t fg, uint32_t bg);
 void console_put_char_debug(char c);
 
-void console_backspace();
-void console_move_left();
-void console_move_right();
+void console_backspace(void);
+void console_move_left(void);
+void console_move_right(void);
 
 void console_status_set(const char *msg);
 void console_status_clear(void);
 
-void console_begin_batch();
-void console_end_batch();
+void console_begin_batch(void);
+void console_end_batch(void);
 
 void console_draw_cursor(char underlying_char);
 

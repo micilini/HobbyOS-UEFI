@@ -1,7 +1,7 @@
 #include "ps2.h"
 #include "../core/io.h"
 
-int ps2_has_data()
+int ps2_has_data(void)
 {
     return (inb(PS2_STATUS_PORT) & 1);
 }
@@ -15,7 +15,7 @@ static void ps2_wait_write()
     }
 }
 
-uint8_t ps2_read_data()
+uint8_t ps2_read_data(void)
 {
 
     while (!ps2_has_data())

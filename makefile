@@ -34,23 +34,91 @@ LDFLAGS_EFI = -nostdlib -znocombreloc -shared -Bsymbolic -L $(EFILIB) -L /usr/li
 
 # Flags Kernel
 KERNEL_COMMON_FLAGS = -ffreestanding -mno-red-zone -mgeneral-regs-only -mcmodel=kernel -fno-pic -fno-pie
+KERNEL_C_POLICY_FLAGS = -O2 -fno-strict-aliasing -fno-stack-protector -fno-delete-null-pointer-checks -fno-omit-frame-pointer
+KERNEL_WARNING_FLAGS = -Wall -Wextra -Wundef -Wmissing-prototypes -Wvla -Wframe-larger-than=2048 -Werror
 KERNEL_EXTRA_CFLAGS ?=
 SELFTEST ?= 0
 SELFTEST_AUTORUN ?= 0
+FORMAT_TEST ?= 0
+DEBUG_ASSERT ?= 1
+ASSERT_TEST ?= 0
+ARCH_TEST ?= 0
+ARCH_NEGATIVE_GP ?= 0
+ifeq ($(DEBUG_ASSERT),1)
+else ifneq ($(DEBUG_ASSERT),0)
+$(error DEBUG_ASSERT must be 0 or 1)
+endif
 ifeq ($(SELFTEST_AUTORUN),1)
 ifneq ($(SELFTEST),1)
 $(error SELFTEST_AUTORUN=1 requires SELFTEST=1)
 endif
 endif
+ifeq ($(FORMAT_TEST),1)
+ifneq ($(SELFTEST),1)
+$(error FORMAT_TEST=1 requires SELFTEST=1)
+endif
+endif
+ifeq ($(ASSERT_TEST),1)
+ifneq ($(SELFTEST),1)
+$(error ASSERT_TEST=1 requires SELFTEST=1)
+endif
+ifneq ($(DEBUG_ASSERT),1)
+$(error ASSERT_TEST=1 requires DEBUG_ASSERT=1)
+endif
+endif
+ifeq ($(ARCH_TEST),1)
+ifneq ($(SELFTEST),1)
+$(error ARCH_TEST=1 requires SELFTEST=1)
+endif
+ifneq ($(DEBUG_ASSERT),1)
+$(error ARCH_TEST=1 requires DEBUG_ASSERT=1)
+endif
+else ifneq ($(ARCH_TEST),0)
+$(error ARCH_TEST must be 0 or 1)
+endif
+ifeq ($(ARCH_NEGATIVE_GP),1)
+ifneq ($(ARCH_TEST),1)
+$(error ARCH_NEGATIVE_GP=1 requires ARCH_TEST=1)
+endif
+else ifneq ($(ARCH_NEGATIVE_GP),0)
+$(error ARCH_NEGATIVE_GP must be 0 or 1)
+endif
 SELFTEST_CFLAGS =
+SELFTEST_CFLAGS += -DHOBBYOS_DEBUG_ASSERT=$(DEBUG_ASSERT)
 ifeq ($(SELFTEST),1)
 SELFTEST_CFLAGS += -DHOBBYOS_SELFTEST=1
 endif
 ifeq ($(SELFTEST_AUTORUN),1)
 SELFTEST_CFLAGS += -DHOBBYOS_SELFTEST_AUTORUN=1
 endif
-CFLAGS_KERNEL = $(KERNEL_COMMON_FLAGS) -std=gnu11 -MMD -MP -Wall -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -Werror=int-conversion $(KERNEL_EXTRA_CFLAGS) $(SELFTEST_CFLAGS)
-ASFLAGS_KERNEL = $(KERNEL_COMMON_FLAGS)
+FORMAT_TEST_SRCS =
+ifeq ($(FORMAT_TEST),1)
+SELFTEST_CFLAGS += -DHOBBYOS_FORMAT_TEST=1
+FORMAT_TEST_SRCS += $(KERNEL_DIR)/src/libc/format_selftest.c
+endif
+ASSERT_TEST_SRCS =
+ifeq ($(ASSERT_TEST),1)
+SELFTEST_CFLAGS += -DHOBBYOS_ASSERT_TEST=1
+ASSERT_TEST_SRCS += $(KERNEL_DIR)/src/core/assert_selftest.c
+endif
+ARCH_TEST_SRCS =
+ifeq ($(ARCH_TEST),1)
+SELFTEST_CFLAGS += -DHOBBYOS_ARCH_TEST=1
+ARCH_TEST_SRCS += $(KERNEL_DIR)/src/cpu/arch_selftest.c
+endif
+LOCK_TEST_SRCS =
+ALLOC_TEST_SRCS =
+BUILD_PROFILE_TEST_SRCS =
+ifeq ($(SELFTEST),1)
+LOCK_TEST_SRCS += $(KERNEL_DIR)/src/shell/commands/cmd_locktest.c
+ALLOC_TEST_SRCS += $(KERNEL_DIR)/src/shell/commands/cmd_alloctest.c
+BUILD_PROFILE_TEST_SRCS += $(KERNEL_DIR)/src/shell/commands/cmd_profiletest.c
+endif
+ifeq ($(ARCH_NEGATIVE_GP),1)
+SELFTEST_CFLAGS += -DHOBBYOS_ARCH_NEGATIVE_GP=1
+endif
+CFLAGS_KERNEL = $(KERNEL_COMMON_FLAGS) $(KERNEL_C_POLICY_FLAGS) -std=gnu11 -MMD -MP $(KERNEL_WARNING_FLAGS) -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -Werror=int-conversion $(KERNEL_EXTRA_CFLAGS) $(SELFTEST_CFLAGS)
+ASFLAGS_KERNEL = $(KERNEL_COMMON_FLAGS) -DHOBBYOS_DEBUG_ASSERT=$(DEBUG_ASSERT)
 LDFLAGS_KERNEL = -T $(KERNEL_DIR)/link.ld -static -Bsymbolic -nostdlib -z max-page-size=0x1000
 
 # Cores COnfiguration for SMP
@@ -104,9 +172,9 @@ KERNEL_SRCS = $(KERNEL_DIR)/src/core/entry.S \
 			  $(KERNEL_DIR)/src/core/task_format.c \
 			  $(KERNEL_DIR)/src/core/selftest.c \
 			  $(KERNEL_DIR)/src/core/runtime_ready.c \
+			  $(KERNEL_DIR)/src/core/build_profile.c \
 			  $(KERNEL_DIR)/src/core/task_lifecycle.c \
               $(KERNEL_DIR)/src/graphics/splash.c \
-              $(KERNEL_DIR)/src/utils/utils.c \
               $(KERNEL_DIR)/src/utils/bitmap.c \
               $(KERNEL_DIR)/src/memory/gdt.c \
               $(KERNEL_DIR)/src/memory/pmem.c \
@@ -117,6 +185,7 @@ KERNEL_SRCS = $(KERNEL_DIR)/src/core/entry.S \
               $(KERNEL_DIR)/src/acpi/madt.c \
               $(KERNEL_DIR)/src/apic/legacy_pic.c \
               $(KERNEL_DIR)/src/cpu/cpu.c \
+              $(KERNEL_DIR)/src/cpu/mmio.c \
               $(KERNEL_DIR)/src/apic/lapic.c \
               $(KERNEL_DIR)/src/apic/ioapic.c \
               $(KERNEL_DIR)/src/timer/hpet.c \
@@ -130,7 +199,10 @@ KERNEL_SRCS = $(KERNEL_DIR)/src/core/entry.S \
 			  $(KERNEL_DIR)/src/libc/memory.c \
 			  $(KERNEL_DIR)/src/drivers/ps2.c \
               $(KERNEL_DIR)/src/drivers/keyboard.c \
-              $(KERNEL_DIR)/src/libc/string.c \
+				  $(KERNEL_DIR)/src/libc/string.c \
+				  $(FORMAT_TEST_SRCS) \
+				  $(ASSERT_TEST_SRCS) \
+				  $(ARCH_TEST_SRCS) \
 			  $(KERNEL_DIR)/src/shell/shell.c \
 			  $(KERNEL_DIR)/src/shell/diagnostic_result.c \
 			  $(KERNEL_DIR)/src/shell/commands/registry.c \
@@ -155,6 +227,9 @@ KERNEL_SRCS = $(KERNEL_DIR)/src/core/entry.S \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_schedtest.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_synctest.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_accounttest.c \
+			  $(LOCK_TEST_SRCS) \
+			  $(ALLOC_TEST_SRCS) \
+			  $(BUILD_PROFILE_TEST_SRCS) \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_killtest.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_reaptest.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_inputtest.c \
@@ -183,6 +258,7 @@ KERNEL_SRCS = $(KERNEL_DIR)/src/core/entry.S \
 			  $(KERNEL_DIR)/src/core/semaphore.c \
 			  $(KERNEL_DIR)/src/drivers/serial.c \
 			  $(KERNEL_DIR)/src/smp/smp_boot.c \
+			  $(KERNEL_DIR)/src/smp/ap_entry.S \
 			  $(KERNEL_DIR)/src/smp/trampoline.S \
 			  $(KERNEL_DIR)/src/smp/smp_topology.c \
 			  $(KERNEL_DIR)/src/core/input_queue.c \
@@ -198,6 +274,13 @@ KERNEL_ASM_SRCS = $(filter %.S, $(KERNEL_SRCS))
 KERNEL_OBJS = $(KERNEL_C_SRCS:.c=.o) $(KERNEL_ASM_SRCS:.S=.o)
 KERNEL_DEPS = $(KERNEL_OBJS:.o=.d)
 BOOT_DEPS = $(BOOT_OBJS:.o=.d)
+
+# graphics.c/.h are protected by the TASKMAN visual-maintenance contract.
+# Keep their two legacy public definitions untouched until that maintenance.
+$(KERNEL_DIR)/src/graphics/graphics.o: CFLAGS_KERNEL += -Wno-missing-prototypes
+
+# Prevent GCC from recognizing the kernel's own byte loops as libc calls.
+$(KERNEL_DIR)/src/libc/memory.o: CFLAGS_KERNEL += -fno-tree-loop-distribute-patterns
 
 # Regra para compilar .c
 $(KERNEL_DIR)/%.o: $(KERNEL_DIR)/%.c
@@ -260,7 +343,9 @@ image: hobbyos.img
 
 production-image:
 	+$(MAKE) clean
-	+$(MAKE) hobbyos.img SELFTEST=0 SELFTEST_AUTORUN=0 KERNEL_EXTRA_CFLAGS=
+	+$(MAKE) hobbyos.img SELFTEST=0 SELFTEST_AUTORUN=0 FORMAT_TEST=0 \
+		ASSERT_TEST=0 ARCH_TEST=0 ARCH_NEGATIVE_GP=0 DEBUG_ASSERT=0 \
+		KERNEL_EXTRA_CFLAGS=
 	@bash scripts/verify-production-test-policy.sh
 
 production-test-policy:

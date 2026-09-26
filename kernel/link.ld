@@ -24,7 +24,9 @@ SECTIONS
 
     .text : AT(ADDR(.text) - VIRT_TO_PHYS_OFFSET) {
         _kernel_start = .;
+        _text_start = .;
         *(.text .text.*)
+        _text_end = .;
     }
 
     . = ALIGN(4096);
@@ -36,10 +38,21 @@ SECTIONS
     . = ALIGN(4096);
 
     .rodata : AT(ADDR(.rodata) - VIRT_TO_PHYS_OFFSET) {
+        _rodata_start = .;
         *(.rodata .rodata.*)
+        _rodata_end = .;
     }
 
+    . = ALIGN(16);
+    .cpu_msr_fixup : AT(ADDR(.cpu_msr_fixup) - VIRT_TO_PHYS_OFFSET) {
+        _cpu_msr_fixup_start = .;
+        KEEP(*(.cpu_msr_fixup))
+        _cpu_msr_fixup_end = .;
+    }
+
+    . = ALIGN(4096);
     .data : AT(ADDR(.data) - VIRT_TO_PHYS_OFFSET) {
+        _data_start = .;
         *(.data .data.*)
     }
 
@@ -50,15 +63,11 @@ SECTIONS
         _bss_end = .;
     }
 
-    .extra : AT(ADDR(.extra) - VIRT_TO_PHYS_OFFSET) {
-        *(.*) 
-    }
-
     _kernel_end = .;
 
     /DISCARD/ : {
-        *(.eh_frame)
+        *(.eh_frame .eh_frame.*)
         *(.note .note.*)
-        *(.comment)
+        *(.comment .comment.*)
     }
 }

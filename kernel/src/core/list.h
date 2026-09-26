@@ -1,6 +1,7 @@
 #pragma once
 #include <stddef.h>
 #include <stdint.h>
+#include "panic.h"
 
 struct list_head
 {
@@ -30,6 +31,15 @@ static inline void __list_add(struct list_head *new_node,
                               struct list_head *prev,
                               struct list_head *next)
 {
+    KBUG_ON(new_node == NULL);
+    KBUG_ON(prev == NULL);
+    KBUG_ON(next == NULL);
+    KBUG_ON(new_node == prev || new_node == next);
+    KBUG_ON(!((new_node->next == new_node && new_node->prev == new_node) ||
+              (new_node->next == NULL && new_node->prev == NULL)));
+    KBUG_ON(prev->next != next);
+    KBUG_ON(next->prev != prev);
+
     next->prev = new_node;
     new_node->next = next;
     new_node->prev = prev;
@@ -38,11 +48,15 @@ static inline void __list_add(struct list_head *new_node,
 
 static inline void list_add(struct list_head *new_node, struct list_head *head)
 {
+    KBUG_ON(new_node == NULL);
+    KBUG_ON(head == NULL);
     __list_add(new_node, head, head->next);
 }
 
 static inline void list_add_tail(struct list_head *new_node, struct list_head *head)
 {
+    KBUG_ON(new_node == NULL);
+    KBUG_ON(head == NULL);
     __list_add(new_node, head->prev, head);
 }
 
@@ -54,7 +68,14 @@ static inline void __list_del(struct list_head *prev, struct list_head *next)
 
 static inline void list_del(struct list_head *entry)
 {
-    __list_del(entry->prev, entry->next);
+    KBUG_ON(entry == NULL);
+    struct list_head *prev = entry->prev;
+    struct list_head *next = entry->next;
+    KBUG_ON(prev == NULL || next == NULL);
+    KBUG_ON(prev->next != entry);
+    KBUG_ON(next->prev != entry);
+
+    __list_del(prev, next);
     entry->next = NULL;
     entry->prev = NULL;
 }

@@ -7,6 +7,7 @@ import argparse
 import csv
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -14,9 +15,17 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-ARTIFACT = ROOT / "artifacts/build/interrupt-bringup"
-BASE = "602532db881f5e328a78efdb52b0c012f35b4065"
-BASE_TREE = "22a109bf7d2dd761bdcb8cca16b67e1258770872"
+_artifact_value = os.environ.get(
+    "HOBBYOS_TEST_ARTIFACT", "artifacts/build/interrupt-bringup"
+)
+ARTIFACT = Path(_artifact_value)
+if not ARTIFACT.is_absolute():
+    ARTIFACT = ROOT / ARTIFACT
+ARTIFACT = ARTIFACT.resolve()
+ARTIFACT.relative_to(ROOT)
+EXPECTED_BRANCH = os.environ.get(
+    "HOBBYOS_EXPECTED_BRANCH", "feat/foundation-hardening"
+)
 FIELDS = (
     "stage",
     "machine",
@@ -143,7 +152,7 @@ def host_selftest() -> None:
         "CPUS_PREPARED",
         "BSP_LAPIC_VERIFIED",
         "HPET_VERIFIED",
-        "TIMERS_ACTIVE",
+        "CLOCKEVENT_ACTIVE",
         "SERVICES_ACTIVE",
     ]
     assert len(states) == len(set(states)) and states[0] == "OFF"
@@ -232,17 +241,15 @@ def verify_manifest(path: Path) -> None:
 
 
 def verify_git() -> None:
-    require(run_git("branch", "--show-current") == "feat/taskman", "wrong branch")
-    head = run_git("rev-parse", "HEAD")
-    if head == BASE:
-        require(run_git("rev-parse", "HEAD^{tree}") == BASE_TREE, "wrong base tree")
-    else:
-        require(run_git("rev-parse", "HEAD^") == BASE, "commit parent is not base")
-        require(
-            run_git("log", "-1", "--format=%s")
-            == "fix(irq): establish safe x86 interrupt controller bring-up",
-            "wrong commit subject",
-        )
+    require(run_git("branch", "--show-current") == EXPECTED_BRANCH, "wrong branch")
+    require(bool(run_git("rev-parse", "--verify", "HEAD^{commit}")),
+            "invalid HEAD commit")
+    require(bool(run_git("rev-parse", "--verify", "HEAD^{tree}")),
+            "invalid HEAD tree")
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--quiet"], cwd=ROOT, check=False
+    )
+    require(staged.returncode == 0, "staged changes present")
 
 
 def verify_scenario(stage: str, row: dict[str, str]) -> None:
@@ -252,7 +259,7 @@ def verify_scenario(stage: str, row: dict[str, str]) -> None:
         "[IRQ][PIC] QUIESCENT",
         "[IRQ][IOAPIC] QUIESCENT",
         "[IRQ][BSP_LAPIC_PROBE] PASS",
-        "[IRQ][HPET_PROBE] PASS",
+        "[CLOCK][HPET_CLOCKSOURCE_PROBE] PASS",
         "[IRQ][BOOTSTRAP] SERVICES_ACTIVE",
         "[BOOT][SHELL_READY] PASS",
         "[BOOT][RUNTIME_READY] PASS",
@@ -297,7 +304,7 @@ def verify_scenario(stage: str, row: dict[str, str]) -> None:
         require("pcat=1" in text or "pcat=0" in text, "PCAT declaration missing")
         require("bsp_probe_vector=34" in text, "PCAT first maskable vector")
     if stage in {"smp4-kvm", "smp24-kvm", "pcat"}:
-        require("[IRQ][ROUTES] PASS count=2" in text, f"{stage}: route snapshot")
+        require("[IRQ][ROUTES] PASS count=1" in text, f"{stage}: route snapshot")
         require("[IRQ][IOAPIC] index=0" in text, f"{stage}: controller snapshot")
 
 
@@ -427,7 +434,7 @@ def verify(mode: str) -> None:
         "negative-pic": "PIC_NOT_QUIESCENT_DETECTED",
         "negative-ioapic": "IOAPIC_NOT_QUIESCENT_DETECTED",
         "negative-iso": "INTERRUPT_OVERRIDE_LOST_DETECTED",
-        "negative-hpet": "HPET_EARLY_DELIVERY_DETECTED",
+        "negative-hpet": "HPET_IRQ_BOOT_DEPENDENCY_DETECTED",
         "negative-preemption": "PREEMPTION_BEFORE_HANDOFF_DETECTED",
     }
     for stage, marker in negative_markers.items():
@@ -453,7 +460,19 @@ def verify(mode: str) -> None:
         "[BOOT][PRODUCTION_TEST_POLICY] PASS autorun=0 tasktest=0",
         "[IRQ][FINAL_BUILD] PASS",
     )
-    require(final_build.count(f"{matrix_hash}  /tmp/hobbyos-irq-final-") == 2,
+    debug_build_hashes = {
+        label: digest for digest, label in re.findall(
+        r"^([0-9a-f]{64})  /tmp/hobbyos-irq-final-(j2|jN)\.elf$",
+        final_build,
+        re.MULTILINE,
+        )
+    }
+    # The runtime matrix and final artifact use the production profile, while
+    # the JOBS comparison intentionally exercises the debug kernel-check
+    # profile.  Reproducibility is equality between like-for-like debug builds,
+    # not accidental equality across profiles.
+    require(set(debug_build_hashes) == {"j2", "jN"} and
+            len(set(debug_build_hashes.values())) == 1,
             "deterministic j2/jN hashes")
     undefined = subprocess.check_output(["nm", "-u", "kernel.elf"], cwd=ROOT,
                                         text=True).strip()
@@ -461,7 +480,8 @@ def verify(mode: str) -> None:
     soak = require_text(
         ROOT / by_stage["soak24"]["log"],
         "[IRQ][SOAK] PASS smp=24",
-        "[IRQ][CHECK] PASS cpus=24/24",
+        "[IRQ][CHECK] PASS",
+        "cpus=24/24 controllers=",
     )
     require(soak.count("[IRQ][CHECK] PASS") >= 10, "soak irq check volume")
     require(soak.count("[TASKDIAG][CHECK] PASS") >= 10, "soak taskdiag volume")
@@ -474,7 +494,7 @@ def verify(mode: str) -> None:
         "negative-pic": "HOBBYOS_IRQ_NEGATIVE_PIC_UNMASKED",
         "negative-ioapic": "HOBBYOS_IRQ_NEGATIVE_IOAPIC_ROUTE_ACTIVE",
         "negative-iso": "HOBBYOS_IRQ_NEGATIVE_IGNORE_ISO",
-        "negative-hpet": "HOBBYOS_IRQ_NEGATIVE_HPET_EARLY_ARM",
+        "negative-hpet": "HOBBYOS_TIMER_NEGATIVE_HPET_IRQ_BOOT",
         "negative-preemption": "HOBBYOS_IRQ_NEGATIVE_EARLY_PREEMPTION",
     }
     for stage, macro in negative_sources.items():

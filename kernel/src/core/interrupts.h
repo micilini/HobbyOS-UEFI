@@ -54,9 +54,9 @@ __attribute__((interrupt)) void exc_isr31(InterruptFrame *frame);
 __attribute__((interrupt)) void exc_generic_handler(InterruptFrame *frame);
 __attribute__((interrupt)) void exc_generic_handler_err(InterruptFrame *frame, uint64_t error_code);
 
-void irq_external_dispatch(uint64_t vector);
+void irq_external_dispatch(uint64_t vector, uint64_t entry_df);
 void irq_hpet_timer_handler_inner(void);
-void irq_lapic_timer_handler_inner(void);
+uint64_t irq_lapic_timer_handler_inner(void);
 
 void interrupts_request_reschedule(void);
 int interrupts_consume_reschedule(void);

@@ -150,7 +150,7 @@ bool hpet_read_counter_sample(hpet_counter_sample_t *out)
     return ok;
 }
 
-void init_hpet()
+void init_hpet(void)
 {
     spinlock_init(&g_hpet_lock);
     g_hpet_timer0 = (hpet_timer_snapshot_t){0};

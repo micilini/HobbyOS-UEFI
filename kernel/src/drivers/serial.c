@@ -1,5 +1,6 @@
 #include "serial.h"
 #include <stddef.h>
+#include <stdbool.h>
 #include "../core/spinlock.h"
 
 #ifndef HOBBYOS_MAX_SERIAL_PORTS
@@ -9,6 +10,10 @@
 #ifndef HOBBYOS_KERNEL_SERIAL_DEV_PORTS
 #define HOBBYOS_KERNEL_SERIAL_DEV_PORTS 0
 #endif
+
+#define UART_NORMAL_POLL_LIMIT 20000u
+#define PANIC_UART_TOTAL_POLL_BUDGET 1000000ULL
+#define PANIC_SERIAL_MAX_TEXT_BYTES 512u
 
 static uint16_t g_serial_ports[HOBBYOS_MAX_SERIAL_PORTS];
 static uint32_t g_serial_count = 0;
@@ -21,6 +26,12 @@ static int g_serial_lock_inited = 0;
 
 static uint8_t g_serial_dead[HOBBYOS_MAX_SERIAL_PORTS];
 static uint8_t g_serial_fail[HOBBYOS_MAX_SERIAL_PORTS];
+static volatile uint64_t g_panic_serial_poll_budget;
+
+#ifdef HOBBYOS_PANIC_TEST
+volatile uint32_t g_panic_test_uart_unresponsive;
+volatile uint64_t g_panic_test_uart_polls;
+#endif
 
 static inline void outb_u8(uint16_t port, uint8_t val)
 {
@@ -52,18 +63,52 @@ enum
 
 #define UART_LSR_THRE (1u << 5)
 
-static int uart_wait_thre(uint16_t base)
+static bool panic_uart_take_poll(void)
 {
+    uint64_t old = __atomic_load_n(&g_panic_serial_poll_budget,
+                                   __ATOMIC_RELAXED);
+    while (old)
+    {
+        if (__atomic_compare_exchange_n(&g_panic_serial_poll_budget, &old,
+                                        old - 1u, false,
+                                        __ATOMIC_RELAXED,
+                                        __ATOMIC_RELAXED))
+            return true;
+    }
+    return false;
+}
 
-    uint8_t first = inb_u8(base + UART_LSR);
+static uint8_t uart_read_lsr(uint16_t base, int emergency)
+{
+#ifdef HOBBYOS_PANIC_TEST
+    if (emergency && __atomic_load_n(&g_panic_test_uart_unresponsive,
+                                     __ATOMIC_ACQUIRE))
+    {
+        __atomic_add_fetch(&g_panic_test_uart_polls, 1, __ATOMIC_RELAXED);
+        return 0;
+    }
+#else
+    (void)emergency;
+#endif
+    return inb_u8(base + UART_LSR);
+}
+
+static int uart_wait_thre(uint16_t base, int emergency)
+{
+    if (emergency && !panic_uart_take_poll())
+        return 0;
+
+    uint8_t first = uart_read_lsr(base, emergency);
     if (first == 0xFF)
         return 0;
     if (first & UART_LSR_THRE)
         return 1;
 
-    for (uint32_t spin = 0; spin < 20000; spin++)
+    for (uint32_t spin = 1; spin < UART_NORMAL_POLL_LIMIT; spin++)
     {
-        uint8_t lsr = inb_u8(base + UART_LSR);
+        if (emergency && !panic_uart_take_poll())
+            return 0;
+        uint8_t lsr = uart_read_lsr(base, emergency);
         if (lsr == 0xFF)
             return 0;
         if (lsr & UART_LSR_THRE)
@@ -106,19 +151,23 @@ static void uart_init_115200_8n1(uint16_t base)
     io_wait();
 }
 
-static void uart_putc_idx(uint32_t idx, uint16_t base, char c)
+static void uart_putc_idx(uint32_t idx, uint16_t base, char c, int emergency)
 {
     if (g_serial_dead[idx])
         return;
 
     if (c == '\n')
-        uart_putc_idx(idx, base, '\r');
+        uart_putc_idx(idx, base, '\r', emergency);
 
-    if (!uart_wait_thre(base))
+    if (!uart_wait_thre(base, emergency))
     {
         if (g_serial_fail[idx] < 0xFF)
             g_serial_fail[idx]++;
         if (g_serial_fail[idx] >= 4)
+            g_serial_dead[idx] = 1;
+        if (emergency &&
+            __atomic_load_n(&g_panic_serial_poll_budget,
+                            __ATOMIC_RELAXED) == 0)
             g_serial_dead[idx] = 1;
         return;
     }
@@ -127,19 +176,25 @@ static void uart_putc_idx(uint32_t idx, uint16_t base, char c)
     outb_u8(base + UART_RBR_THR_DLL, (uint8_t)c);
 }
 
-static void uart_write_idx(uint32_t idx, uint16_t base, const char *s)
+static void uart_write_idx(uint32_t idx, uint16_t base, const char *s,
+                           int emergency)
 {
-    while (*s)
-        uart_putc_idx(idx, base, *s++);
+    uint32_t count = 0;
+    while (*s && (!emergency || count < PANIC_SERIAL_MAX_TEXT_BYTES))
+    {
+        uart_putc_idx(idx, base, *s++, emergency);
+        count++;
+    }
 }
 
-static void uart_write_hex64_idx(uint32_t idx, uint16_t base, uint64_t v)
+static void uart_write_hex64_idx(uint32_t idx, uint16_t base, uint64_t v,
+                                 int emergency)
 {
     for (int i = 60; i >= 0; i -= 4)
     {
         uint8_t nibble = (v >> i) & 0xF;
         char c = (nibble < 10) ? ('0' + nibble) : ('A' + (nibble - 10));
-        uart_putc_idx(idx, base, c);
+        uart_putc_idx(idx, base, c, emergency);
     }
 }
 
@@ -172,6 +227,13 @@ void serial_init_from_bootinfo(const BootInfo *boot_info)
 
     g_serial_count = 0;
     g_serial_inited = 0;
+    __atomic_store_n(&g_panic_serial_poll_budget,
+                     PANIC_UART_TOTAL_POLL_BUDGET, __ATOMIC_RELAXED);
+#ifdef HOBBYOS_PANIC_TEST
+    __atomic_store_n(&g_panic_test_uart_unresponsive, 0,
+                     __ATOMIC_RELAXED);
+    __atomic_store_n(&g_panic_test_uart_polls, 0, __ATOMIC_RELAXED);
+#endif
 
     for (uint32_t i = 0; i < HOBBYOS_MAX_SERIAL_PORTS; i++)
     {
@@ -233,17 +295,22 @@ void serial_putc_all(char c)
     if (!g_serial_inited)
         return;
 
-    if (!g_panic_in_progress)
+    int emergency = __atomic_load_n(&g_panic_in_progress,
+                                    __ATOMIC_ACQUIRE) != 0;
+    if (!emergency)
     {
         irq_flags_t flags = spin_lock_irqsave(&g_serial_lock);
         for (uint32_t i = 0; i < g_serial_count; i++)
-            uart_putc_idx(i, g_serial_ports[i], c);
+            uart_putc_idx(i, g_serial_ports[i], c, 0);
         spin_unlock_irqrestore(&g_serial_lock, flags);
         return;
     }
 
-    for (uint32_t i = 0; i < g_serial_count; i++)
-        uart_putc_idx(i, g_serial_ports[i], c);
+    uint32_t count = g_serial_count;
+    if (count > HOBBYOS_MAX_SERIAL_PORTS)
+        count = HOBBYOS_MAX_SERIAL_PORTS;
+    for (uint32_t i = 0; i < count; i++)
+        uart_putc_idx(i, g_serial_ports[i], c, 1);
 }
 
 void serial_write_all(const char *s)
@@ -251,17 +318,22 @@ void serial_write_all(const char *s)
     if (!g_serial_inited || !s)
         return;
 
-    if (!g_panic_in_progress)
+    int emergency = __atomic_load_n(&g_panic_in_progress,
+                                    __ATOMIC_ACQUIRE) != 0;
+    if (!emergency)
     {
         irq_flags_t flags = spin_lock_irqsave(&g_serial_lock);
         for (uint32_t i = 0; i < g_serial_count; i++)
-            uart_write_idx(i, g_serial_ports[i], s);
+            uart_write_idx(i, g_serial_ports[i], s, 0);
         spin_unlock_irqrestore(&g_serial_lock, flags);
         return;
     }
 
-    for (uint32_t i = 0; i < g_serial_count; i++)
-        uart_write_idx(i, g_serial_ports[i], s);
+    uint32_t count = g_serial_count;
+    if (count > HOBBYOS_MAX_SERIAL_PORTS)
+        count = HOBBYOS_MAX_SERIAL_PORTS;
+    for (uint32_t i = 0; i < count; i++)
+        uart_write_idx(i, g_serial_ports[i], s, 1);
 }
 
 void serial_write_hex64_all(uint64_t v)
@@ -269,17 +341,22 @@ void serial_write_hex64_all(uint64_t v)
     if (!g_serial_inited)
         return;
 
-    if (!g_panic_in_progress)
+    int emergency = __atomic_load_n(&g_panic_in_progress,
+                                    __ATOMIC_ACQUIRE) != 0;
+    if (!emergency)
     {
         irq_flags_t flags = spin_lock_irqsave(&g_serial_lock);
 
         for (uint32_t i = 0; i < g_serial_count; i++)
-            uart_write_hex64_idx(i, g_serial_ports[i], v);
+            uart_write_hex64_idx(i, g_serial_ports[i], v, 0);
 
         spin_unlock_irqrestore(&g_serial_lock, flags);
         return;
     }
 
-    for (uint32_t i = 0; i < g_serial_count; i++)
-        uart_write_hex64_idx(i, g_serial_ports[i], v);
+    uint32_t count = g_serial_count;
+    if (count > HOBBYOS_MAX_SERIAL_PORTS)
+        count = HOBBYOS_MAX_SERIAL_PORTS;
+    for (uint32_t i = 0; i < count; i++)
+        uart_write_hex64_idx(i, g_serial_ports[i], v, 1);
 }

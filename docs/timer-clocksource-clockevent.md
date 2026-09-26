@@ -62,6 +62,49 @@ quiescent. Because the loop has a fixed iteration bound, a stalled HPET cannot
 turn this check into an unbounded wait and the candidate never depends on an
 HPET interrupt.
 
+## Bounded LAPIC calibration
+
+Each CPU calibrates its one-shot LAPIC counter against the HPET clocksource
+over a window of at least 10 ms.  The counter is sampled at both ends; every
+counter read is bracketed by an HPET timestamp immediately before and after
+it.  A bracket wider than 500 us is treated as a host-preemption-contaminated
+edge and rejected.  At most 32 edge attempts are permitted, with no sleep,
+scenario retry, or change to the 1000 us clockevent period.  Exhausting that
+bound makes calibration fail explicitly.
+
+Elapsed ticks are the difference between the two sampled counter values, and
+elapsed time is measured between the midpoints of their accepted HPET
+brackets.  Thus a vCPU descheduled after the LAPIC counter is programmed but
+before its first usable timestamp cannot add ticks that are absent from the
+time denominator.  The two midpoint uncertainties total at most 500 us, or
+5% of the 10 ms window; the existing configuration and cadence limits remain
+unchanged.  The hosted model selftest covers a clean sample, a contaminated
+edge, and a non-decreasing counter.
+
+## SMP monotonic publication
+
+The split-64 HPET read is concurrent: every sample still uses the bounded
+high-low-high transaction, but no global clock lock surrounds the MMIO access.
+`clock_monotonic_ns()` disables interrupts across CPU identity, the sample, and
+the update of that CPU's raw-source history. This pins the caller without
+turning CPU-local state into shared scheduler state.
+
+The global API value is an atomic high-water mark. A caller snapshots it before
+the MMIO transaction, classifies the sample against that snapshot and its
+CPU-local history, then publishes `max(current, sample)` with compare-exchange.
+If another CPU publishes first, the losing caller returns the newer observed
+value; it never waits for an owner that may have been descheduled. Taking the
+baseline before MMIO also prevents a valid older overlapping sample from being
+reported as cross-CPU source lag merely because it completed later.
+
+Clock counters and maxima use atomic updates. The anomaly ring is diagnostic:
+its writer uses `trylock` and may omit a ring entry under contention, while the
+aggregate anomaly counters remain authoritative. Thus a rare diagnostic cannot
+reintroduce a blocking acquisition in hard IRQ context. The extended-32 HPET
+fallback retains its separate serialization contract for wrap extension; the
+ownerless publication rule described here applies after a sample has been
+formed and to the production split-64 path.
+
 The interrupt bootstrap state order is:
 
 ```text

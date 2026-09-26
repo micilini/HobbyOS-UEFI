@@ -1,6 +1,8 @@
 #include "cmd_mem.h"
 
+#include "../../drivers/serial.h"
 #include "../../graphics/console.h"
+#include "../../libc/string.h"
 #include "../../memory/pmem.h"
 #include "../../memory/heap.h"
 
@@ -61,8 +63,9 @@ int cmd_mem(int argc, char **argv)
     print_pages(used);
     console_write("\n");
 
-    HeapStats hs;
-    if (heap_get_stats(&hs))
+    HeapStats hs = {0};
+    bool heap_available = heap_get_stats(&hs);
+    if (heap_available)
     {
         console_write("\n[HEAP]\n");
         console_write("  Total: ");
@@ -93,5 +96,37 @@ int cmd_mem(int argc, char **argv)
     }
 
     console_write("\n");
-    return 0;
+
+    bool pmm_ok = total != 0 && free <= total && used == total - free &&
+                  pmm_validate_integrity();
+    bool heap_ok = heap_available && hs.total_bytes != 0 &&
+                   hs.used_bytes <= hs.total_bytes &&
+                   hs.free_bytes == hs.total_bytes - hs.used_bytes &&
+                   hs.blocks_free <= hs.blocks_total &&
+                   hs.largest_free_bytes <= hs.free_bytes &&
+                   heap_validate_integrity();
+    bool ok = pmm_ok && heap_ok;
+    char record[512];
+    int required = ksnprintf(
+        record, sizeof(record),
+        "[MEM][SUMMARY] %s pmm_total=%llu pmm_free=%llu pmm_used=%llu "
+        "heap_total=%llu heap_used=%llu heap_free=%llu heap_blocks=%llu "
+        "heap_free_blocks=%llu heap_largest_free=%llu pmm_integrity=%u "
+        "heap_integrity=%u\n",
+        ok ? "PASS" : "FAIL", (unsigned long long)total,
+        (unsigned long long)free, (unsigned long long)used,
+        (unsigned long long)hs.total_bytes,
+        (unsigned long long)hs.used_bytes,
+        (unsigned long long)hs.free_bytes,
+        (unsigned long long)hs.blocks_total,
+        (unsigned long long)hs.blocks_free,
+        (unsigned long long)hs.largest_free_bytes,
+        pmm_ok ? 1u : 0u, heap_ok ? 1u : 0u);
+    if (required < 0 || (size_t)required >= sizeof(record))
+    {
+        serial_write_all("[MEM][SUMMARY] FAIL reason=format\n");
+        return 1;
+    }
+    serial_write_all(record);
+    return ok ? 0 : 1;
 }

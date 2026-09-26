@@ -1111,6 +1111,12 @@ void thread_block(wait_queue_t *wq, task_state_t state)
     cpu_slot_t slot = current_cpu_slot_pinned_or_panic();
     task_t *current = current_task_pinned(slot);
 
+    if (!current)
+    {
+        spin_unlock_irqrestore(&g_scheduler_lock, flags);
+        kpanic("SCHED: block without current task");
+    }
+
     if (current == g_scheduler_cpus[slot].idle)
     {
         spin_unlock_irqrestore(&g_scheduler_lock, flags);
@@ -1388,9 +1394,10 @@ static bool scheduler_switch_locked(cpu_slot_t slot)
     return true;
 }
 
-void schedule_impl(int voluntary)
+static bool schedule_impl_at(int voluntary, uint64_t now_ns,
+                             bool wait_for_lock)
 {
-    if (!scheduler_is_started()) return;
+    if (!scheduler_is_started()) return true;
 #ifdef HOBBYOS_SCHED_NEGATIVE_STALE_SLOT_CAPTURE
     if (irq_is_enabled()) {
         cpu_slot_t before = CPU_SLOT_INVALID;
@@ -1408,18 +1415,25 @@ void schedule_impl(int voluntary)
                 sched_serial_dec(after);
                 serial_write_all("\n[SCHED][NEGATIVE] STALE_SLOT_DETECTED\n");
                 irq_restore(negative_flags);
-                return;
+                return true;
             }
             irq_restore(negative_flags);
         }
     }
 #endif
     irq_flags_t flags = irq_save();
-    uint64_t now_ns = clock_monotonic_ns();
+    if (!now_ns)
+        now_ns = clock_monotonic_ns();
     cpu_slot_t slot = current_cpu_slot_pinned_or_panic();
     task_t *pinned_current = current_task_pinned(slot);
     uint32_t actual_apic = lapic_get_id();
-    spin_lock(&g_scheduler_lock);
+    if (wait_for_lock)
+        spin_lock(&g_scheduler_lock);
+    else if (!spin_trylock(&g_scheduler_lock))
+    {
+        irq_restore(flags);
+        return false;
+    }
     scheduler_account_cpu_locked(slot,now_ns);
     scheduler_cpu_state_t *cpu = &g_scheduler_cpus[slot];
     task_t *prev = cpu->current;
@@ -1433,10 +1447,16 @@ void schedule_impl(int voluntary)
     {
         prev->quantum--;
         if (prev->quantum > 0 && (prev->task_class == TASK_CLASS_INTERACTIVE || list_empty(&g_interactive_queue)))
-        { spin_unlock_irqrestore(&g_scheduler_lock, flags); return; }
+        { spin_unlock_irqrestore(&g_scheduler_lock, flags); return true; }
     }
     if (!scheduler_switch_locked(slot)) spin_unlock(&g_scheduler_lock);
     irq_restore(flags);
+    return true;
+}
+
+void schedule_impl(int voluntary)
+{
+    (void)schedule_impl_at(voluntary, 0, true);
 }
 
 void scheduler_finish_switch(void *cpu_state, uint64_t expected_sequence)
@@ -1698,7 +1718,7 @@ bool scheduler_preemption_gate_selftest(void)
            !scheduler_bootstrap_rsp_valid(0);
 }
 
-void scheduler_preempt_from_irq(void)
+void scheduler_preempt_from_irq(uint64_t now_ns)
 {
     if (!interrupt_context_consume_preempt_epilogue())
         return;
@@ -1713,8 +1733,13 @@ void scheduler_preempt_from_irq(void)
         !__atomic_load_n(&cpu->handoff_complete, __ATOMIC_ACQUIRE) ||
         !__atomic_load_n(&cpu->irq_preemption_enabled, __ATOMIC_ACQUIRE))
         return;
-    if (interrupts_consume_reschedule())
-        schedule_impl(0);
+    if (interrupts_consume_reschedule() &&
+        !schedule_impl_at(0, now_ns, false))
+    {
+        /* A hard IRQ must not join a preempted ticket-lock convoy. Preserve
+           the pending request and retry at the next scheduling boundary. */
+        interrupts_request_reschedule();
+    }
 }
 
 static bool scheduler_account_cpu_locked(cpu_slot_t slot, uint64_t now_ns)

@@ -21,17 +21,6 @@ static void *to_higher_half(void *ptr)
     return ptr;
 }
 
-static void serial_print_hex(uint64_t n)
-{
-    serial_write_all("0x");
-    for (int i = 60; i >= 0; i -= 4)
-    {
-        uint8_t nibble = (n >> i) & 0xF;
-        char c = (nibble < 10) ? ('0' + nibble) : ('A' + (nibble - 10));
-        serial_putc_all(c);
-    }
-}
-
 static void gdt_set_gate(GdtEntry *entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t gran)
 {
     entry->base_low = (base & 0xFFFF);
@@ -72,10 +61,10 @@ void gdt_flush(uint64_t gdtr_addr)
     __asm__ volatile(
         "lgdt (%0)\n\t"
         "pushq $0x08\n\t"
-        "leaq reload_cs(%%rip), %%rax\n\t"
+        "leaq 1f(%%rip), %%rax\n\t"
         "pushq %%rax\n\t"
         "lretq\n\t"
-        "reload_cs:\n\t"
+        "1:\n\t"
         "movw $0x10, %%ax\n\t"
         "movw %%ax, %%ds\n\t"
         "movw %%ax, %%es\n\t"
@@ -87,7 +76,7 @@ void gdt_flush(uint64_t gdtr_addr)
         : "rax", "memory");
 }
 
-void init_gdt()
+void init_gdt(void)
 {
     gdt_set_gate(&g_gdt.null, 0, 0, 0, 0);
     gdt_set_gate(&g_gdt.kernel_code, 0, 0, 0x9A, 0xA0);

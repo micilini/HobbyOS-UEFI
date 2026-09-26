@@ -34,10 +34,10 @@ typedef struct
 
 typedef uint64_t irq_flags_t;
 
-void init_idt();
-void idt_load();
-void enable_interrupts();
-void disable_interrupts();
+void init_idt(void);
+void idt_load(void);
+void enable_interrupts(void);
+void disable_interrupts(void);
 
 irq_flags_t irq_save(void);
 void irq_restore(irq_flags_t flags);

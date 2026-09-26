@@ -16,33 +16,6 @@
 
 EFI_SYSTEM_TABLE *SystemTable;
 
-static void serial_write_u32_all(BootInfo *boot_info, uint32_t value)
-{
-    char buf[16];
-    int idx = 0;
-
-    if (value == 0)
-    {
-        serial_write_all(boot_info, "0");
-        return;
-    }
-
-    while (value > 0 && idx < (int)(sizeof(buf) - 1))
-    {
-        uint32_t digit = value % 10;
-        buf[idx++] = (char)('0' + digit);
-        value /= 10;
-    }
-
-    for (int i = idx - 1; i >= 0; i--)
-    {
-        char out[2];
-        out[0] = buf[i];
-        out[1] = '\0';
-        serial_write_all(boot_info, out);
-    }
-}
-
 EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SysTable)
 {
     SystemTable = SysTable;

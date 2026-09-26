@@ -182,5 +182,6 @@ usb_hub_info_t *usb_hub_get_list(void);
 int usb_hub_get_count(void);
 
 void usb_hub_poll_all(void);
+void usb_hub_invalidate_by_slot(uint8_t slot_id);
 
 #endif

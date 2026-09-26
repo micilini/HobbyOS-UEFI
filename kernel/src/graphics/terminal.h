@@ -3,6 +3,6 @@
 
 #include "../../../shared/protocol.h"
 
-void init_terminal();
+void init_terminal(void);
 
 #endif

@@ -11,10 +11,13 @@ runtime=${HOBBYOS_TEST_RUNTIME:-/tmp/hobbyos-irq-runtime}
 screen_runtime=$runtime/screens
 serial=$runtime/qemu-serial.log
 hmp_socket=$runtime/hmp.sock
+gdb_socket=$runtime/gdb.sock
 current_stage=
 sync_sequence=0
 early_capture_pid=
+failure_snapshot_taken=0
 duration_ms=${DURATION_MS:-300000}
+expected_branch=${HOBBYOS_EXPECTED_BRANCH:-feat/foundation-hardening}
 
 mkdir -p "$artifact" "$qemu_artifact" "$screen_dir" .qemu "$runtime" \
     "$screen_runtime"
@@ -99,6 +102,11 @@ sync_shell()
         if wait_new_marker "$marker" "$before" 20; then
             return 0
         fi
+        if [[ ${HOBBYOS_IRQ_GDB_DIAGNOSTICS:-0} == 1 &&
+              $failure_snapshot_taken == 0 && -S $gdb_socket ]]; then
+            capture_failure_snapshot "sync-${sync_sequence}-attempt-${attempt}"
+            failure_snapshot_taken=1
+        fi
     done
     return 1
 }
@@ -110,7 +118,14 @@ send_command()
     before=$(count_marker "$marker")
     printf '%s\t%s\n' "$(date --iso-8601=seconds)" "$command" >>"$runtime/commands.tsv"
     hmp text "$command" --profile "$profile" --enter >/dev/null
-    wait_new_marker "$marker" "$before" "$timeout"
+    if ! wait_new_marker "$marker" "$before" "$timeout"; then
+        if [[ ${HOBBYOS_IRQ_GDB_DIAGNOSTICS:-0} == 1 &&
+              $failure_snapshot_taken == 0 && -S $gdb_socket ]]; then
+            capture_failure_snapshot "command-timeout-${sync_sequence}"
+            failure_snapshot_taken=1
+        fi
+        return 1
+    fi
     sync_shell
 }
 
@@ -152,30 +167,85 @@ capture_when_marker_appears()
     return 1
 }
 
+capture_pre_kernel_frame()
+{
+    local output=$1 log=$2
+    LC_ALL=C gdb -q -batch kernel.elf \
+        -ex 'set confirm off' \
+        -ex 'set pagination off' \
+        -ex "target remote $gdb_socket" \
+        -ex 'thbreak *_start' \
+        -ex 'continue' \
+        -ex "monitor screendump $output" \
+        -ex 'detach' \
+        -ex 'quit' >"$log" 2>&1
+    grep -Eq 'hit Temporary breakpoint [0-9]+, .* in _start' "$log"
+    grep -Fq '[UEFI] Jumping to kernel...' "$serial"
+    [[ -s $output ]]
+}
+
+capture_failure_snapshot()
+{
+    local tag=$1 dir=$qemu_artifact/$current_stage
+    local output=$dir/$tag-gdb-snapshot.log status=0
+    timeout 45s gdb -q -nx -batch kernel.elf \
+        -ex 'set pagination off' \
+        -ex 'set confirm off' \
+        -ex 'set remotetimeout 10' \
+        -ex "target remote $gdb_socket" \
+        -ex 'info threads' \
+        -ex 'thread apply all bt 32' \
+        -ex 'x/2wx &g_scheduler_lock' \
+        -ex 'x/2wx &g_heap_lock' \
+        -ex 'x/2wx &g_timer_lock' \
+        -ex 'x/2wx &g_dpc_lock' \
+        -ex 'p g_dpc_sem' \
+        -ex 'x/2wx &g_xhci_cmd_lock' \
+        -ex 'x/2wx &g_xhci_event_lock' \
+        -ex 'x/1wx &xhci_isr_in_progress' \
+        -ex 'x/1wx &xhci_processing_events' \
+        -ex 'x/4gx &xhci_last_successful_process_ms' \
+        -ex 'x/1gx &xhci_dbg_isr_count' \
+        -ex 'detach' >"$output" 2>&1 || status=$?
+    printf '%s\n' "$status" >"${output%.log}.status"
+    hmp command cont >>"$output" 2>&1 || true
+}
+
 start_vm()
 {
     local stage=$1 machine=$2 smp=$3 accel=$4 capture=${5:-0}
     local dir=$qemu_artifact/$stage image=$qemu_artifact/$stage/hobbyos.img
+    local capture_gdb=
+    if ((capture)) || [[ ${HOBBYOS_IRQ_GDB_DIAGNOSTICS:-0} == 1 &&
+                         ($stage == smp24-kvm || $stage == soak24) ]]; then
+        capture_gdb=$gdb_socket
+    fi
     stop_vm
     mkdir -p "$dir" "$runtime"
-    cp hobbyos.img "$image"
+    cp --sparse=always hobbyos.img "$image"
     : >"$runtime/commands.tsv"
+    failure_snapshot_taken=0
     current_stage=$stage
     QEMU_RUNTIME="$runtime" HOBBYOS_IMAGE="$image" MACHINE="$machine" \
-        SMP="$smp" ACCEL="$accel" scripts/qemu-agent.sh start \
+        SMP="$smp" ACCEL="$accel" \
+        QEMU_GDB_SOCKET="$capture_gdb" \
+        QEMU_START_PAUSED="$capture" scripts/qemu-agent.sh start \
         >"$dir/start.log" 2>&1
     cp "$runtime/launch.env" "$dir/launch.env"
     if ((capture)); then
         rm -f "$screen_runtime/uefi-before-kernel.ppm" \
             "$screen_runtime/early-core-cleared.ppm" \
             "$screen_runtime/final-shell.ppm"
-        wait_new_marker "[UEFI] GOP Mode Selected" 0 60
-        hmp command \
-            "screendump $screen_runtime/uefi-before-kernel.ppm" >/dev/null
-        [[ -s $screen_runtime/uefi-before-kernel.ppm ]]
         capture_when_marker_appears "[GRAPHICS][EARLY_CLEAR] PASS" \
             "$screen_runtime/early-core-cleared.ppm" &
         early_capture_pid=$!
+        # The optimized kernel can clear the framebuffer before a host poll of
+        # the last UEFI serial marker.  Stop on the ELF entry address instead:
+        # this hardware breakpoint is a causal pre-kernel boundary, and the
+        # GDB monitor command captures while every vCPU is stopped there.
+        capture_pre_kernel_frame \
+            "$screen_runtime/uefi-before-kernel.ppm" \
+            "$dir/pre-kernel-capture.gdb.log"
     fi
 }
 
@@ -224,9 +294,9 @@ verify_boot_log()
         "[IRQ][BOOTSTRAP] CPUS_PREPARED cpus=$smp" \
         "[SCHED][BOOT] START_OK" \
         "[IRQ][BSP_LAPIC_PROBE] PASS vector=34" \
-        "[IRQ][HPET_PROBE] PASS vector=32" \
+        "[CLOCK][HPET_CLOCKSOURCE_PROBE] PASS" \
         "[SCHED][BOOTSTRAP_HANDOFF] PASS slot=0" \
-        "[IRQ][BOOTSTRAP] TIMERS_ACTIVE cpus=$smp" \
+        "[IRQ][BOOTSTRAP] CLOCKEVENT_ACTIVE cpus=$smp" \
         "[CORE] System Core Initialization Complete." \
         "[IRQ][BOOTSTRAP] SERVICES_ACTIVE" \
         "[BOOT][SHELL_READY] PASS" \
@@ -297,8 +367,9 @@ run_scenario()
     wait_new_marker "[KERNEL] Entering Main Loop." 0 180
     basic_commands
     if [[ $stage == smp4-kvm || $stage == smp24-kvm || $stage == pcat ]]; then
-        send_command "irq controllers" "[IRQ][HPET] state=3" 90
-        send_command "irq routes" "[IRQ][ROUTES] PASS count=2" 90
+        send_command "irq controllers" \
+            "[IRQ][HPET] clocksource=ACTIVE timer0=QUIESCENT" 90
+        send_command "irq routes" "[IRQ][ROUTES] PASS count=1" 90
     fi
     if [[ $stage == smp4-kvm || $stage == smp24-kvm ]]; then
         taskman_smoke
@@ -320,7 +391,7 @@ run_scenario()
     collect_vm "$stage"
     local log=$qemu_artifact/$stage/serial.log
     verify_boot_log "$log" "$smp"
-    require_marker "[IRQ][CHECK] PASS cpus=$smp/$smp" "$log"
+    require_marker "cpus=$smp/$smp controllers=" "$log"
     require_marker "unexpected=0 imbalance=0" "$log"
     if [[ $stage == pcat ]]; then
         require_marker "master=ff slave=ff" "$log"
@@ -340,19 +411,34 @@ write_manifest()
 preflight()
 {
     local log=$artifact/preflight.log
+    local protected=(
+        kernel/src/core/modal_session.c kernel/src/core/modal_session.h
+        kernel/src/core/modal_ui.c kernel/src/core/modal_ui.h
+        kernel/src/core/task_format.c kernel/src/core/task_format.h
+        kernel/src/shell/commands/cmd_taskman.c
+        kernel/src/shell/commands/cmd_taskman.h
+        kernel/src/shell/commands/taskman_view.c
+        kernel/src/shell/commands/taskman_view.h
+    )
+    local -a boot_files sources
+    mapfile -t boot_files < <(rg --files bootloader | LC_ALL=C sort)
+    mapfile -t sources < <({ rg --files kernel shared scripts docs \
+        -g '!**/__pycache__/**' -g '!*.pyc'; echo makefile; echo README.md; echo AGENTS.md; } | LC_ALL=C sort -u)
+    write_manifest "$artifact/taskman-protected-before.sha256" "${protected[@]}"
+    write_manifest "$artifact/bootloader-before.sha256" "${boot_files[@]}"
+    write_manifest "$artifact/source-before.sha256" "${sources[@]}"
     {
-        [[ $(git branch --show-current) == feat/taskman ]]
-        [[ $(git rev-parse HEAD) == 602532db881f5e328a78efdb52b0c012f35b4065 ]]
-        [[ $(git rev-parse 'HEAD^{tree}') == 22a109bf7d2dd761bdcb8cca16b67e1258770872 ]]
-        [[ $(git rev-parse HEAD^) == 7126ef635de448a9040689bd97feb6fd8ed59bab ]]
+        [[ $(git branch --show-current) == "$expected_branch" ]]
+        git rev-parse --verify HEAD^{commit}
+        git rev-parse --verify HEAD^{tree}
         git diff --cached --quiet
-        [[ -f ROADMAP_TASKMAN_V1_CLOSURE_HARDENING.md ]]
-        [[ -f $artifact/source-before.sha256 ]]
-        [[ -f $artifact/taskman-protected-before.sha256 ]]
-        [[ -f $artifact/bootloader-before.sha256 ]]
+        [[ -f AGENTS.md ]]
+        [[ -f docs/interrupt-controller-bringup.md ]]
         git diff --check
         git diff --cached --check
-        echo "[IRQ][PREFLIGHT] PASS"
+        printf '[IRQ][PREFLIGHT] PASS branch=%s head=%s tree=%s\n' \
+            "$expected_branch" "$(git rev-parse HEAD)" \
+            "$(git rev-parse HEAD^{tree})"
     } 2>&1 | tee "$log"
     record_evidence preflight none 0 none "$(git rev-parse HEAD)" preflight \
         "[IRQ][PREFLIGHT] PASS" "$log" 0 0
@@ -370,13 +456,19 @@ static_gate()
         rg -n 'LAPIC_LVT_LINT0|LAPIC_LVT_LINT1' kernel/src/apic/lapic.c >/dev/null
         rg -n 'HPET_TIMER0_PREPARED_MASKED|HPET_TIMER0_ARMED_MASKED' kernel/src/timer/hpet.c >/dev/null
         rg -n 'LAPIC_TIMER_PREPARED_MASKED|LAPIC_TIMER_ACTIVE_PERIODIC' kernel/src/apic/lapic.c >/dev/null
-        rg -n 'irq_bootstrap_cpu_wait_release' kernel/src/smp/smp_boot.c >/dev/null
+        rg -n 'irq_bootstrap_cpu_wait_release' kernel/src/core/irq_bootstrap.c >/dev/null
         rg -n 'interrupt_context_consume_preempt_epilogue|handoff_complete|irq_preemption_enabled' kernel/src/core/scheduler.c >/dev/null
         rg -n 'scheduler_bootstrap_handoff_current_cpu' kernel/src/core/kernel_init.c kernel/src/smp/smp_boot.c >/dev/null
         rg -n 'madt_resolve_isa_irq\(1' kernel/src/core/irq_bootstrap.c >/dev/null
         ! rg -n 'ioapic_map_irq\s*\(\s*1\s*,\s*33\s*,\s*0' kernel >/dev/null
         ! rg -n 'g_cpu_count\s*(==|<=|>=|<|>)\s*24|cpu_count\s*(==|<=|>=|<|>)\s*24' kernel/src >/dev/null
         rg -n 'lapic_timer_calibrate\(1000|desired_period_us != 1000u' kernel/src >/dev/null
+        rg -n 'LAPIC_CALIBRATION_EDGE_MAX_NS|lapic_timer_calibration_sample' \
+            kernel/src/apic/lapic.c >/dev/null
+        rg -n 'start->counter - end->counter' \
+            kernel/src/apic/lapic.c >/dev/null
+        ! rg -n 'UINT32_MAX - lapic_read\(LAPIC_TCCR\)' \
+            kernel/src/apic/lapic.c >/dev/null
         git diff --quiet -- bootloader
         git diff --quiet -- \
             kernel/src/shell/commands/cmd_taskman.c \
@@ -399,6 +491,7 @@ static_gate()
             ! rg -n "$prohibited" "${active[@]}" >/dev/null
         done
         bash -n scripts/test-interrupt-bringup.sh
+        command -v gdb >/dev/null
         python3 -c 'import pathlib; [compile(path.read_text(), str(path), "exec") for path in map(pathlib.Path, ("scripts/verify-interrupt-bringup.py", "scripts/verify-early-framebuffer.py"))]'
         echo "[IRQ][ACTIVE_NAMING] PASS matches=0"
         echo "[IRQ][STATIC] PASS"
@@ -429,7 +522,7 @@ negative_one()
     make kernel-check JOBS=2 KERNEL_EXTRA_CFLAGS="-D$macro" >>"$dir/build.log" 2>&1
     make image KERNEL_EXTRA_CFLAGS="-D$macro" >>"$dir/build.log" 2>&1
     grep -Fq -- "-D$macro" artifacts/build/kernel-check-j2.log
-    cp hobbyos.img "$dir/hobbyos.img"
+    cp --sparse=always hobbyos.img "$dir/hobbyos.img"
     stop_vm
     current_stage=$stage
     QEMU_RUNTIME="$runtime" HOBBYOS_IMAGE="$dir/hobbyos.img" MACHINE=q35 \
@@ -445,7 +538,7 @@ negative_one()
     make kernel-check JOBS=2 >>"$dir/reset-build.log" 2>&1
     make image >>"$dir/reset-build.log" 2>&1
     ! strings kernel.elf | grep -Fq "$marker"
-    cp hobbyos.img "$dir/reset-hobbyos.img"
+    cp --sparse=always hobbyos.img "$dir/reset-hobbyos.img"
     current_stage=${stage}-reset
     QEMU_RUNTIME="$runtime" HOBBYOS_IMAGE="$dir/reset-hobbyos.img" MACHINE=q35 \
         SMP=1 ACCEL=tcg scripts/qemu-agent.sh start >"$dir/reset-start.log" 2>&1
@@ -465,8 +558,8 @@ negatives()
         "[IRQ][NEGATIVE] IOAPIC_NOT_QUIESCENT_DETECTED"
     negative_one negative-iso HOBBYOS_IRQ_NEGATIVE_IGNORE_ISO \
         "[IRQ][NEGATIVE] INTERRUPT_OVERRIDE_LOST_DETECTED"
-    negative_one negative-hpet HOBBYOS_IRQ_NEGATIVE_HPET_EARLY_ARM \
-        "[IRQ][NEGATIVE] HPET_EARLY_DELIVERY_DETECTED"
+    negative_one negative-hpet HOBBYOS_TIMER_NEGATIVE_HPET_IRQ_BOOT \
+        "[TIMER][NEGATIVE] HPET_IRQ_BOOT_DEPENDENCY_DETECTED"
     negative_one negative-preemption HOBBYOS_IRQ_NEGATIVE_EARLY_PREEMPTION \
         "[IRQ][NEGATIVE] PREEMPTION_BEFORE_HANDOFF_DETECTED"
     make production-image >"$artifact/normal-after-negatives.log" 2>&1
@@ -533,7 +626,7 @@ soak24()
     send_command "killtest check" "[KILLTEST][CHECK] PASS" 90
     send_command "taskmantest check" "[TASKMANTEST][CHECK] PASS" 90
     send_command "irq boot" "[IRQ][BOOT] state=SERVICES_ACTIVE" 90
-    send_command "irq check" "[IRQ][CHECK] PASS cpus=24/24" 90
+    send_command "irq check" "[IRQ][CHECK] PASS" 90
     now=$(date +%s%3N)
     elapsed=$((now - start))
     collect_vm soak24
@@ -562,7 +655,8 @@ continuity_manifests()
     mapfile -t boot_files < <(rg --files bootloader | LC_ALL=C sort)
     write_manifest "$artifact/taskman-protected-after.sha256" "${protected[@]}"
     write_manifest "$artifact/bootloader-after.sha256" "${boot_files[@]}"
-    mapfile -t sources < <({ rg --files kernel shared scripts docs; echo makefile; echo README.md; echo AGENTS.md; } | LC_ALL=C sort -u)
+    mapfile -t sources < <({ rg --files kernel shared scripts docs \
+        -g '!**/__pycache__/**' -g '!*.pyc'; echo makefile; echo README.md; echo AGENTS.md; } | LC_ALL=C sort -u)
     write_manifest "$artifact/source-after-tests.sha256" "${sources[@]}"
 }
 
@@ -582,11 +676,15 @@ final_build()
         cmp -s /tmp/hobbyos-irq-final-j2.elf /tmp/hobbyos-irq-final-jN.elf
         make deps-check
         make production-image
-        cmp -s kernel.elf /tmp/hobbyos-irq-final-jN.elf
+        # kernel-check is the debug profile while production-image deliberately
+        # rebuilds with HOBBYOS_DEBUG_ASSERT=0.  Cross-profile byte equality is
+        # therefore not a reproducibility check; the two JOBS builds above are
+        # the like-for-like comparison.  Validate the production ELF on its own.
         [[ -z $(nm -u kernel.elf) ]]
         echo "[IRQ][FINAL_BUILD] PASS"
     } 2>&1 | tee "$log"
-    mapfile -t sources < <({ rg --files kernel shared scripts docs; echo makefile; echo README.md; echo AGENTS.md; } | LC_ALL=C sort -u)
+    mapfile -t sources < <({ rg --files kernel shared scripts docs \
+        -g '!**/__pycache__/**' -g '!*.pyc'; echo makefile; echo README.md; echo AGENTS.md; } | LC_ALL=C sort -u)
     write_manifest "$artifact/source-after-build.sha256" "${sources[@]}"
     record_evidence final-build host 0 none "$(sha kernel.elf)" final-build \
         "[IRQ][FINAL_BUILD] PASS" "$log" 0 0
@@ -648,7 +746,8 @@ PY
     [[ $candidate == artifacts/baremetal/interrupt-bringup-candidate ]]
     rm -rf "$candidate"
     mkdir -p "$candidate"
-    cp hobbyos.img kernel.elf BOOTX64.EFI "$candidate/"
+    cp --sparse=always hobbyos.img "$candidate/"
+    cp kernel.elf BOOTX64.EFI "$candidate/"
     cp docs/baremetal/INTERRUPT_BRINGUP_OPERATOR_RUNBOOK.md "$candidate/"
     cp docs/interrupt-controller-bringup.md "$candidate/"
     cp docs/test-reports/INTERRUPT_BRINGUP_CERTIFICATION.md "$candidate/"
@@ -738,10 +837,10 @@ PY
 [IRQ][BOOTSTRAP] CPUS_PREPARED
 [SCHED][BOOT] START_OK
 [IRQ][BSP_LAPIC_PROBE] PASS
-[IRQ][HPET_PROBE] PASS
+[CLOCK][HPET_CLOCKSOURCE_PROBE] PASS
 [SCHED][BOOTSTRAP_HANDOFF] PASS slot=0
 [IRQ][CPU_READY] PASS
-[IRQ][BOOTSTRAP] TIMERS_ACTIVE
+[IRQ][BOOTSTRAP] CLOCKEVENT_ACTIVE
 [GRAPHICS][EARLY_BIND] PASS
 [CORE] System Core Initialization Complete.
 [IRQ][BOOTSTRAP] SERVICES_ACTIVE

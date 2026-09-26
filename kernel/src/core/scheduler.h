@@ -83,7 +83,7 @@ void schedule_voluntary(void);
 void scheduler_account_time(uint64_t now_ns);
 
 void schedule_impl(int voluntary);
-void scheduler_preempt_from_irq(void);
+void scheduler_preempt_from_irq(uint64_t now_ns);
 void scheduler_finish_switch(void *cpu_state, uint64_t expected_sequence);
 
 typedef struct
