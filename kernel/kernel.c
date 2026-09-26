@@ -17,6 +17,7 @@
 #include "src/core/irq_bootstrap.h"
 #include "src/core/selftest.h"
 #include "src/core/panic.h"
+#include "src/core/build_profile.h"
 
 #include <stdint.h>
 #include <stddef.h>
@@ -67,10 +68,18 @@ static void boot_progress(const char *stage)
     serial_write_all(line);
 }
 
-void kernel_main_high(BootInfo *boot_info);
+void kernel_main_high(BootInfo *boot_info, uint64_t entry_rsp_mod16,
+                      uint64_t entry_df);
 
-void kernel_main_high(BootInfo *boot_info)
+void kernel_main_high(BootInfo *boot_info, uint64_t entry_rsp_mod16,
+                      uint64_t entry_df)
 {
+#if HOBBYOS_DEBUG_ASSERT
+    build_profile_record_bsp_entry(entry_rsp_mod16, entry_df);
+#else
+    (void)entry_rsp_mod16;
+    (void)entry_df;
+#endif
 
     serial_init_from_bootinfo(NULL);
     serial_write_all("\n[KERNEL] ENTRY OK\n");

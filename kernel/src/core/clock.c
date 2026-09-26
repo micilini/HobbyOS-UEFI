@@ -38,8 +38,50 @@ _Static_assert(offsetof(clock_state_t, canary_end) >
                    offsetof(clock_state_t, events),
                "clock end canary must follow events");
 
-static spinlock_t g_clock_lock;
+static spinlock_t g_clock_event_lock;
 static clock_state_t g_clock_state;
+
+static inline void clock_stats_add_u64(uint64_t *value, uint64_t amount)
+{
+    __atomic_add_fetch(value, amount, __ATOMIC_RELAXED);
+}
+
+static inline void clock_stats_max_u64(uint64_t *value, uint64_t candidate)
+{
+    uint64_t observed = __atomic_load_n(value, __ATOMIC_RELAXED);
+    while (observed < candidate &&
+           !__atomic_compare_exchange_n(value, &observed, candidate, false,
+                                        __ATOMIC_RELAXED,
+                                        __ATOMIC_RELAXED))
+        ;
+}
+
+/* Publish a clock value without a lock owner.  A failed compare-exchange
+   returns the value published by the competing CPU, so callers never wait for
+   a descheduled vCPU and still return a value from one linearizable global
+   high-water mark. */
+static uint64_t clock_publish_max(uint64_t *value, uint64_t candidate)
+{
+    uint64_t observed = __atomic_load_n(value, __ATOMIC_ACQUIRE);
+    while (observed < candidate) {
+        if (__atomic_compare_exchange_n(value, &observed, candidate, false,
+                                        __ATOMIC_ACQ_REL,
+                                        __ATOMIC_ACQUIRE))
+            return candidate;
+    }
+    return observed;
+}
+
+static bool clock_publication_selftest(void)
+{
+    uint64_t value = 100;
+    return clock_publish_max(&value, 90) == 100 && value == 100 &&
+           clock_publish_max(&value, 100) == 100 && value == 100 &&
+           clock_publish_max(&value, 120) == 120 && value == 120 &&
+           clock_publish_max(&value, UINT64_MAX) == UINT64_MAX &&
+           value == UINT64_MAX &&
+           clock_publish_max(&value, 0) == UINT64_MAX;
+}
 
 bool clock_classify_sample(uint64_t cpu_last_raw_ns,
                            uint8_t cpu_initialized,
@@ -175,6 +217,11 @@ static void record_event(uint8_t kind, uint32_t slot, uint32_t apic,
                          uint64_t global,
                          const clock_sample_decision_t *decision)
 {
+    /* Diagnostics must never turn a clock read in hard IRQ context into a
+       blocking lock acquisition.  The aggregate anomaly counters remain the
+       authoritative record if another CPU is already writing the ring. */
+    if (!spin_trylock(&g_clock_event_lock))
+        return;
     uint64_t sequence = ++g_clock_state.event_sequence;
     uint64_t delta = decision->local_backward_ns
                          ? decision->local_backward_ns
@@ -197,37 +244,44 @@ static void record_event(uint8_t kind, uint32_t slot, uint32_t apic,
         .read_mode = (uint8_t)sample->mode,
         .kind = kind
     };
+    spin_unlock(&g_clock_event_lock);
 }
 
 bool clock_monotonic_init(void)
 {
-    spinlock_init(&g_clock_lock);
+    spinlock_init(&g_clock_event_lock);
     memset(&g_clock_state, 0, sizeof(g_clock_state));
     g_clock_state.canary_begin = CLOCK_STATE_CANARY;
     g_clock_state.canary_end = CLOCK_STATE_CANARY;
-    g_clock_state.ready = hpet_is_available() && hpet_frequency_hz() != 0;
-    return g_clock_state.ready != 0;
+    uint8_t ready = hpet_is_available() && hpet_frequency_hz() != 0;
+    __atomic_store_n(&g_clock_state.ready, ready, __ATOMIC_RELEASE);
+    return ready != 0;
 }
 
 bool clock_monotonic_is_ready(void)
 {
-    return g_clock_state.ready != 0;
+    return __atomic_load_n(&g_clock_state.ready, __ATOMIC_ACQUIRE) != 0;
 }
 
 uint64_t clock_monotonic_ns(void)
 {
-    irq_flags_t flags = spin_lock_irqsave(&g_clock_lock);
+    /* Disabling IRQs pins the caller to its CPU-local raw-source state.  The
+       shared return value is published with an ownerless atomic maximum. */
+    irq_flags_t flags = irq_save();
     clock_state_t *state = &g_clock_state;
-    state->stats.reads++;
-    if (state->canary_begin != CLOCK_STATE_CANARY ||
-        state->canary_end != CLOCK_STATE_CANARY) {
-        state->stats.state_corruptions++;
-        spin_unlock_irqrestore(&g_clock_lock, flags);
+    clock_stats_add_u64(&state->stats.reads, 1);
+    uint8_t ready = __atomic_load_n(&state->ready, __ATOMIC_ACQUIRE);
+    if (__atomic_load_n(&state->canary_begin, __ATOMIC_RELAXED) !=
+            CLOCK_STATE_CANARY ||
+        __atomic_load_n(&state->canary_end, __ATOMIC_RELAXED) !=
+            CLOCK_STATE_CANARY) {
+        clock_stats_add_u64(&state->stats.state_corruptions, 1);
+        irq_restore(flags);
         kpanic("CLOCK: state corruption");
     }
-    if (!state->ready) {
-        state->stats.not_ready++;
-        spin_unlock_irqrestore(&g_clock_lock, flags);
+    if (!ready) {
+        clock_stats_add_u64(&state->stats.not_ready, 1);
+        irq_restore(flags);
         return 0;
     }
 
@@ -235,59 +289,81 @@ uint64_t clock_monotonic_ns(void)
     bool known = smp_current_cpu_slot(&slot) && slot < HOBBYOS_MAX_CPUS;
     uint32_t index = known ? slot : HOBBYOS_MAX_CPUS;
     if (!known)
-        state->stats.unknown_cpu_reads++;
-    clock_cpu_state_t *cpu = &state->cpu[index];
+        clock_stats_add_u64(&state->stats.unknown_cpu_reads, 1);
+    clock_cpu_state_t *cpu = known ? &state->cpu[index] : NULL;
+    uint64_t cpu_last_raw_ns = cpu ? cpu->last_raw_ns : 0;
+    uint64_t cpu_last_returned_ns = cpu ? cpu->last_returned_ns : 0;
+    uint8_t cpu_initialized = cpu ? cpu->initialized : 0;
+
+    /* This snapshot precedes the MMIO read deliberately.  A CPU that read an
+       older HPET sample before a concurrent publisher must not be diagnosed as
+       a source regression merely because it completed later. */
+    uint64_t global_before = __atomic_load_n(&state->last_ns,
+                                             __ATOMIC_ACQUIRE);
     hpet_clock_sample_t sample = {0};
     bool sampled = hpet_read_clock_sample(&sample);
-    if (sample.retries > state->stats.max_retries)
-        state->stats.max_retries = sample.retries;
+    clock_stats_max_u64(&state->stats.max_retries, sample.retries);
 
     clock_sample_decision_t decision;
-    if (!clock_classify_sample(cpu->last_raw_ns, cpu->initialized,
-                               state->last_ns, sample.ns, sample.retries,
+    if (!clock_classify_sample(cpu_last_raw_ns, cpu_initialized,
+                               global_before, sample.ns, sample.retries,
                                sampled && sample.valid, &decision)) {
         decision = (clock_sample_decision_t){
             .classification = CLOCK_SAMPLE_INVALID,
-            .returned_ns = state->last_ns,
+            .returned_ns = global_before,
             .hard_failure = 1
         };
     }
 
     if (decision.classification == CLOCK_SAMPLE_INVALID) {
-        state->stats.saturations++;
+        clock_stats_add_u64(&state->stats.saturations, 1);
     } else if (decision.classification == CLOCK_SAMPLE_CROSS_CPU_LAG) {
-        cpu->cross_cpu_lags++;
-        state->stats.cross_cpu_lag_clamps++;
-        if (decision.cross_cpu_lag_ns > state->stats.max_cross_cpu_lag_ns)
-            state->stats.max_cross_cpu_lag_ns = decision.cross_cpu_lag_ns;
-        record_event(2, index, lapic_get_id(), &sample, cpu->last_raw_ns,
-                     state->last_ns, &decision);
+        if (cpu)
+            cpu->cross_cpu_lags++;
+        clock_stats_add_u64(&state->stats.cross_cpu_lag_clamps, 1);
+        clock_stats_max_u64(&state->stats.max_cross_cpu_lag_ns,
+                            decision.cross_cpu_lag_ns);
     } else if (decision.classification == CLOCK_SAMPLE_LOCAL_REGRESSION ||
                decision.classification == CLOCK_SAMPLE_RETRY_EXHAUSTED) {
-        cpu->local_regressions++;
-        state->stats.source_local_regressions++;
+        if (cpu)
+            cpu->local_regressions++;
+        clock_stats_add_u64(&state->stats.source_local_regressions, 1);
         if (decision.classification == CLOCK_SAMPLE_RETRY_EXHAUSTED)
-            state->stats.source_retry_exhaustions++;
-        if (decision.local_backward_ns > state->stats.max_local_backward_ns)
-            state->stats.max_local_backward_ns = decision.local_backward_ns;
-        record_event(1, index, lapic_get_id(), &sample, cpu->last_raw_ns,
-                     state->last_ns, &decision);
+            clock_stats_add_u64(&state->stats.source_retry_exhaustions, 1);
+        clock_stats_max_u64(&state->stats.max_local_backward_ns,
+                            decision.local_backward_ns);
     }
 
-    if (decision.returned_ns < state->last_ns) {
-        state->stats.api_regressions++;
-        decision.returned_ns = state->last_ns;
+    uint64_t returned = decision.update_global
+                            ? clock_publish_max(&state->last_ns,
+                                                decision.returned_ns)
+                            : global_before;
+    uint64_t return_floor = global_before;
+    if (cpu && cpu_last_returned_ns > return_floor)
+        return_floor = cpu_last_returned_ns;
+    if (returned < return_floor) {
+        clock_stats_add_u64(&state->stats.api_regressions, 1);
+        returned = clock_publish_max(&state->last_ns, return_floor);
     }
-    if (decision.update_local_raw) {
+    decision.returned_ns = returned;
+
+    if (decision.classification == CLOCK_SAMPLE_CROSS_CPU_LAG) {
+        record_event(2, index, lapic_get_id(), &sample, cpu_last_raw_ns,
+                     global_before, &decision);
+    } else if (decision.classification == CLOCK_SAMPLE_LOCAL_REGRESSION ||
+               decision.classification == CLOCK_SAMPLE_RETRY_EXHAUSTED) {
+        record_event(1, index, lapic_get_id(), &sample, cpu_last_raw_ns,
+                     global_before, &decision);
+    }
+
+    if (cpu && decision.update_local_raw) {
         cpu->last_raw_ticks = sample.ticks;
         cpu->last_raw_ns = sample.ns;
         cpu->initialized = 1;
     }
-    cpu->last_returned_ns = decision.returned_ns;
-    if (decision.update_global)
-        state->last_ns = decision.returned_ns;
-    uint64_t returned = decision.returned_ns;
-    spin_unlock_irqrestore(&g_clock_lock, flags);
+    if (cpu)
+        cpu->last_returned_ns = returned;
+    irq_restore(flags);
     return returned;
 }
 
@@ -298,25 +374,58 @@ void clock_stats_snapshot(clock_stats_t *out)
 {
     if (!out)
         return;
-    irq_flags_t flags = spin_lock_irqsave(&g_clock_lock);
-    *out = g_clock_state.stats;
-    spin_unlock_irqrestore(&g_clock_lock, flags);
+    clock_stats_t *stats = &g_clock_state.stats;
+    *out = (clock_stats_t){
+        .reads = __atomic_load_n(&stats->reads, __ATOMIC_RELAXED),
+        .api_regressions = __atomic_load_n(&stats->api_regressions,
+                                           __ATOMIC_RELAXED),
+        .source_local_regressions = __atomic_load_n(
+            &stats->source_local_regressions, __ATOMIC_RELAXED),
+        .cross_cpu_lag_clamps = __atomic_load_n(
+            &stats->cross_cpu_lag_clamps, __ATOMIC_RELAXED),
+        .source_retry_exhaustions = __atomic_load_n(
+            &stats->source_retry_exhaustions, __ATOMIC_RELAXED),
+        .saturations = __atomic_load_n(&stats->saturations, __ATOMIC_RELAXED),
+        .not_ready = __atomic_load_n(&stats->not_ready, __ATOMIC_RELAXED),
+        .unknown_cpu_reads = __atomic_load_n(&stats->unknown_cpu_reads,
+                                             __ATOMIC_RELAXED),
+        .state_corruptions = __atomic_load_n(&stats->state_corruptions,
+                                             __ATOMIC_RELAXED),
+        .max_local_backward_ns = __atomic_load_n(
+            &stats->max_local_backward_ns, __ATOMIC_RELAXED),
+        .max_cross_cpu_lag_ns = __atomic_load_n(
+            &stats->max_cross_cpu_lag_ns, __ATOMIC_RELAXED),
+        .max_retries = __atomic_load_n(&stats->max_retries, __ATOMIC_RELAXED)
+    };
 }
 
 void clock_test_stats_reset(void)
 {
-    irq_flags_t flags = spin_lock_irqsave(&g_clock_lock);
-    memset(&g_clock_state.stats, 0, sizeof(g_clock_state.stats));
+    clock_stats_t *stats = &g_clock_state.stats;
+    __atomic_store_n(&stats->reads, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&stats->api_regressions, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&stats->source_local_regressions, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&stats->cross_cpu_lag_clamps, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&stats->source_retry_exhaustions, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&stats->saturations, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&stats->not_ready, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&stats->unknown_cpu_reads, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&stats->state_corruptions, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&stats->max_local_backward_ns, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&stats->max_cross_cpu_lag_ns, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&stats->max_retries, 0, __ATOMIC_RELAXED);
+
+    irq_flags_t flags = spin_lock_irqsave(&g_clock_event_lock);
     memset(g_clock_state.events, 0, sizeof(g_clock_state.events));
     g_clock_state.event_sequence = 0;
-    spin_unlock_irqrestore(&g_clock_lock, flags);
+    spin_unlock_irqrestore(&g_clock_event_lock, flags);
 }
 
 uint32_t clock_events_snapshot(clock_anomaly_event_t *out, uint32_t cap)
 {
     if (!out || !cap)
         return 0;
-    irq_flags_t flags = spin_lock_irqsave(&g_clock_lock);
+    irq_flags_t flags = spin_lock_irqsave(&g_clock_event_lock);
     uint64_t sequence = g_clock_state.event_sequence;
     uint32_t count = sequence < CLOCK_ANOMALY_LOG_MAX
                          ? (uint32_t)sequence : CLOCK_ANOMALY_LOG_MAX;
@@ -325,7 +434,7 @@ uint32_t clock_events_snapshot(clock_anomaly_event_t *out, uint32_t cap)
     uint64_t first = sequence >= count ? sequence - count : 0;
     for (uint32_t i = 0; i < count; i++)
         out[i] = g_clock_state.events[(first + i) % CLOCK_ANOMALY_LOG_MAX];
-    spin_unlock_irqrestore(&g_clock_lock, flags);
+    spin_unlock_irqrestore(&g_clock_event_lock, flags);
     return count;
 }
 
@@ -339,6 +448,7 @@ bool clock_monotonic_selftest(void)
                                              &extended) &&
                   extended == (1ULL << 32) + 2;
     bool classifier = clock_sample_classifier_selftest();
+    bool publication = clock_publication_selftest();
     serial_write_all(guards ? "[CLOCK][SELFTEST] MONOTONIC_GUARDS_OK\n"
                             : "[CLOCK][SELFTEST] MONOTONIC_GUARDS_FAIL\n");
 #if !defined(HOBBYOS_CLOCK_NEGATIVE_GLOBAL_ONLY_REGRESSION) && \
@@ -346,5 +456,8 @@ bool clock_monotonic_selftest(void)
     serial_write_all(classifier ? "[CLOCK][SELFTEST] SMP_CLASSIFICATION_OK\n"
                                 : "[CLOCK][SELFTEST] SMP_CLASSIFICATION_FAIL\n");
 #endif
-    return guards && classifier;
+    serial_write_all(publication
+        ? "[CLOCK][SELFTEST] LOCK_FREE_PUBLICATION_OK\n"
+        : "[CLOCK][SELFTEST] LOCK_FREE_PUBLICATION_FAIL\n");
+    return guards && classifier && publication;
 }

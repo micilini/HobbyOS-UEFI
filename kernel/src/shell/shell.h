@@ -31,12 +31,12 @@ typedef struct
 
 #include "../core/input_event.h"
 
-void shell_init();
-void shell_receive_char(char c);
+void shell_init(void);
+int shell_receive_char(char c);
 void shell_receive_special(uint8_t key);
-void shell_on_tick();
+void shell_on_tick(void);
 
-void shell_refresh_view();
+void shell_refresh_view(void);
 
 void shell_thread_entry(void *arg);
 bool shell_runtime_snapshot(shell_runtime_snapshot_t *out);

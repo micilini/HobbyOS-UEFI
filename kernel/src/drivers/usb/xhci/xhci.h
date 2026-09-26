@@ -286,7 +286,7 @@ typedef struct
     uint64_t pci_base_address;
     uint64_t virtual_base_address;
 
-    xhci_cap_regs_t *cap_regs;
+    volatile xhci_cap_regs_t *cap_regs;
     xhci_op_regs_t *op_regs;
     xhci_runtime_regs_t *run_regs;
     xhci_doorbell_regs_t *db_regs;
@@ -312,7 +312,7 @@ typedef struct
     uint64_t slot_ep0_enqueue[64];
     uint8_t slot_ep0_cycle[64];
 
-    xhci_trb_t *slot_kbd_rings[64];
+    volatile xhci_trb_t *slot_kbd_rings[64];
     uint64_t slot_kbd_enqueue[64];
     uint8_t slot_kbd_cycle[64];
     uint8_t *slot_kbd_buffer[64];

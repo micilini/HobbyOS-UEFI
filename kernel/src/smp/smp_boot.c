@@ -13,6 +13,7 @@
 #include "../core/interrupts.h"
 #include "../core/irq_bootstrap.h"
 #include "../core/scheduler.h"
+#include "../core/build_profile.h"
 
 
 extern uint64_t smp_trampoline_cr4;
@@ -26,6 +27,7 @@ extern uint8_t _trampoline_end[];
 extern uint64_t smp_trampoline_cr3;
 extern uint64_t smp_trampoline_stack;
 extern uint64_t smp_trampoline_entry_ptr;
+extern void ap_kernel_entry_asm(void);
 
 extern void gdt_flush(uint64_t gdtr_addr);
 
@@ -64,7 +66,7 @@ static void smp_print_hex(uint64_t n)
     }
 }
 
-void ap_kernel_entry(void)
+void ap_kernel_entry(uint64_t entry_rsp_mod16, uint64_t entry_df)
 {
     extern PageTable *g_kernel_pml4;
     paging_load_map(g_kernel_pml4);
@@ -85,6 +87,12 @@ void ap_kernel_entry(void)
         while (1)
             __asm__ volatile("cli; hlt");
     }
+#if HOBBYOS_DEBUG_ASSERT
+    build_profile_record_ap_entry(slot, entry_rsp_mod16, entry_df);
+#else
+    (void)entry_rsp_mod16;
+    (void)entry_df;
+#endif
     SmpCpuInfo *me = smp_cpu_by_slot(slot);
     if (!me || me->is_bsp || !me->gdt_ptr || !me->tss_ptr)
     {
@@ -164,7 +172,7 @@ static uint64_t smp_find_trampoline_page()
     return 0;
 }
 
-void smp_boot_aps()
+void smp_boot_aps(void)
 {
     serial_write_all("[SMP] Starting BOOTSTRAP sequence...\n");
 
@@ -204,7 +212,7 @@ void smp_boot_aps()
     *ptr_cr3 = boot_cr3;
     *ptr_cr4 = current_cr4;
     *ptr_efer = current_efer;
-    *ptr_entry = (uint64_t)&ap_kernel_entry;
+    *ptr_entry = (uint64_t)&ap_kernel_entry_asm;
     *ptr_x2flag = x2apic_on;
 
     uint32_t gdt_phys_addr = (uint32_t)(trampoline_addr + ((uint64_t)&smp_trampoline_gdt_start - (uint64_t)_trampoline_start));

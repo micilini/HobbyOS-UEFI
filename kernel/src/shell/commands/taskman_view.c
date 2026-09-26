@@ -697,6 +697,7 @@ static bool footer_selected(view_builder_t *builder,
                             const taskman_navigation_t *nav,
                             uint32_t available, bool compact)
 {
+    (void)layout;
     if (!model->tasks || !model->count || nav->selected_index >= model->count) {
         vb_text(builder, compact ? "Sel none" : "Selected none");
         return !builder->failed;

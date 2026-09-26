@@ -10,11 +10,11 @@
 #include "../core/input_router.h"
 #include "../core/input_event.h"
 
-static char g_buffer[SHELL_CMD_BUFFER_SIZE];
-static int g_len = 0;
-static int g_pos = 0;
+static char g_buffer[SHELL_CMD_BUFFER_SIZE] __attribute__((no_reorder));
+static int g_len __attribute__((no_reorder)) = 0;
+static int g_pos __attribute__((no_reorder)) = 0;
 static bool g_cursor_visible = true;
-static bool g_shell_active = false;
+static bool g_shell_active __attribute__((no_reorder)) = false;
 static volatile uint8_t g_shell_initialized;
 static volatile uint8_t g_shell_thread_started;
 static char g_cursor_underlying = ' ';
@@ -52,7 +52,7 @@ static bool shell_consume_routed_event(input_event_t ev, bool apply_to_shell)
     }
     if (apply_to_shell) {
         if (ev.type == INPUT_EVENT_CHAR)
-            shell_receive_char((char)ev.value);
+            (void)shell_receive_char((char)ev.value);
         else if (ev.type == INPUT_EVENT_SPECIAL)
             shell_receive_special(ev.value);
     }
@@ -94,7 +94,6 @@ static int shell_dispatch_command_line(const char *line,
                                        bool console_unknown);
 static void shell_insert_char(char c);
 static void shell_backspace();
-static void shell_delete();
 static void shell_move_left();
 static void shell_move_right();
 static void shell_history_push(const char *line);
@@ -518,29 +517,6 @@ static void shell_backspace()
     shell_show_cursor();
 }
 
-static void shell_delete()
-{
-    if (g_pos >= g_len)
-        return;
-
-    shell_set_limit_banner(false);
-
-    shell_hide_cursor();
-
-    memmove(&g_buffer[g_pos], &g_buffer[g_pos + 1], g_len - g_pos - 1);
-    g_len--;
-    g_buffer[g_len] = 0;
-
-    console_write(&g_buffer[g_pos]);
-    console_put_char(' ');
-    console_move_left();
-
-    for (int i = 0; i < (g_len - g_pos); i++)
-        console_move_left();
-
-    shell_show_cursor();
-}
-
 static void shell_move_left()
 {
     if (g_pos == 0)
@@ -609,8 +585,9 @@ static int shell_parse_args_inplace(char *line, char **argv, int max_argv)
     return argc;
 }
 
-static int shell_dispatch_command_line(const char *line,
-                                       bool console_unknown)
+/* Keep the production command observer's exact handler boundary and symbol. */
+static __attribute__((noipa)) int shell_dispatch_command_line(
+    const char *line, bool console_unknown)
 {
     if (!line || !line[0])
     {
@@ -669,7 +646,7 @@ int shell_execute_command_line_for_selftest(const char *line)
 void shell_thread_entry(void *arg);
 
 
-void shell_init()
+void shell_init(void)
 {
     __atomic_store_n(&g_shell_initialized, 0, __ATOMIC_RELEASE);
     spinlock_init(&g_shell_lock);
@@ -685,7 +662,7 @@ void shell_init()
     __atomic_store_n(&g_shell_initialized, 1, __ATOMIC_RELEASE);
 }
 
-void shell_on_tick()
+void shell_on_tick(void)
 {
     static int tick = 0;
     tick++;
@@ -708,8 +685,11 @@ void shell_on_tick()
     }
 }
 
-void shell_receive_char(char c)
+/* The production observer follows this frame to read the command status. */
+__attribute__((noipa)) int shell_receive_char(char c)
 {
+    int command_status = 0;
+
     console_begin_batch();
 
     irq_flags_t flags = spin_lock_irqsave(&g_shell_lock);
@@ -718,7 +698,7 @@ void shell_receive_char(char c)
     {
         spin_unlock_irqrestore(&g_shell_lock, flags);
         console_end_batch();
-        return;
+        return command_status;
     }
 
     shell_status_clear_locked(true);
@@ -763,7 +743,7 @@ void shell_receive_char(char c)
 
         if (n > 0)
         {
-            (void)shell_dispatch_command_line(line, true);
+            command_status = shell_dispatch_command_line(line, true);
         }
 
         flags = spin_lock_irqsave(&g_shell_lock);
@@ -773,7 +753,7 @@ void shell_receive_char(char c)
         spin_unlock_irqrestore(&g_shell_lock, flags);
 
         console_end_batch();
-        return;
+        return command_status;
     }
 
     if (c == '\b')
@@ -798,6 +778,7 @@ end_batch:
     shell_show_cursor();
     spin_unlock_irqrestore(&g_shell_lock, flags);
     console_end_batch();
+    return command_status;
 }
 
 void shell_receive_special(uint8_t key)
@@ -968,6 +949,6 @@ bool shell_test_consume_default_event(bool apply_to_shell)
     return shell_consume_routed_event(event, apply_to_shell);
 }
 
-void shell_refresh_view()
+void shell_refresh_view(void)
 {
 }

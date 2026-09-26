@@ -37,51 +37,67 @@
 #include "semaphore.h"
 #include "../smp/smp_topology.h"
 #include "../smp/smp_boot.h"
+#include "../libc/string.h"
+#if defined(HOBBYOS_FORMAT_TEST)
+#include "../libc/format_selftest.h"
+#endif
+#if defined(HOBBYOS_ASSERT_TEST)
+#include "assert_selftest.h"
+#endif
+#if defined(HOBBYOS_ARCH_TEST)
+#include "../cpu/arch_selftest.h"
+#endif
 #include "list.h"
 #include "queue.h"
 #include "task.h"
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 static void kinit_debug(const char *msg)
 {
     serial_write_all(msg);
 }
 
-static char *kinit_progress_append_text(char *out, const char *text)
+static int kinit_progress_format_line(char *line, size_t size,
+                                     const char *stage,
+                                     uint64_t monotonic_ms,
+                                     uint64_t clockevent_ticks)
 {
-    while (*text)
-        *out++ = *text++;
-    return out;
+    return ksnprintf(line, size,
+                     "[BOOT][PROGRESS] stage=%s monotonic_ms=%llu "
+                     "clockevent_ticks=%llu\n",
+                     stage, (unsigned long long)monotonic_ms,
+                     (unsigned long long)clockevent_ticks);
 }
 
-static char *kinit_progress_append_u64(char *out, uint64_t value)
+#if defined(HOBBYOS_FORMAT_TEST)
+bool kinit_progress_format_probe(void)
 {
-    char reverse[21];
-    uint32_t count = 0;
-    do {
-        reverse[count++] = (char)('0' + value % 10u);
-        value /= 10u;
-    } while (value);
-    while (count)
-        *out++ = reverse[--count];
-    return out;
+    char line[8];
+    int result = kinit_progress_format_line(line, sizeof(line),
+                                            "PCI_SCAN_COMPLETE",
+                                            UINT64_MAX, UINT64_MAX);
+    return result > 0 && (size_t)result >= sizeof(line) &&
+           line[sizeof(line) - 1u] == '\0';
 }
+#endif
 
 static void kinit_progress(const char *stage)
 {
     timer_clockevent_snapshot_t event = {0};
     (void)timer_clockevent_snapshot(&event);
+    uint64_t monotonic_ms = timer_get_uptime_ms();
     char line[176];
-    char *p = kinit_progress_append_text(line, "[BOOT][PROGRESS] stage=");
-    p = kinit_progress_append_text(p, stage);
-    p = kinit_progress_append_text(p, " monotonic_ms=");
-    p = kinit_progress_append_u64(p, timer_get_uptime_ms());
-    p = kinit_progress_append_text(p, " clockevent_ticks=");
-    p = kinit_progress_append_u64(p, event.total_ticks);
-    *p++ = '\n';
-    *p = 0;
+    int result = kinit_progress_format_line(line, sizeof(line), stage,
+                                            monotonic_ms,
+                                            event.total_ticks);
+    if (result < 0 || (size_t)result >= sizeof(line))
+    {
+        serial_write_all("[BOOT][PROGRESS] FORMAT_ERROR\n");
+        kpanic("Boot progress formatting failed");
+    }
     serial_write_all(line);
 }
 
@@ -98,6 +114,19 @@ void init_system_core(BootInfo *boot_info)
 
     kinit_debug("[CORE] Init IDT...\n");
     init_idt();
+
+#if defined(HOBBYOS_FORMAT_TEST)
+    if (!format_selftest_run())
+        kpanic("Bounded format selftest failed");
+#endif
+#if defined(HOBBYOS_ASSERT_TEST)
+    if (!assertion_selftest_early())
+        kpanic("Runtime assertion early selftest failed");
+#endif
+#if defined(HOBBYOS_ARCH_TEST)
+    if (!arch_selftest_early())
+        kpanic("Architecture contract early selftest failed");
+#endif
 
     kinit_debug("[CORE] Init PMM...\n");
     init_pmm(boot_info->memory_map);
@@ -223,6 +252,10 @@ void init_system_core(BootInfo *boot_info)
 
     extern void reaper_thread_entry(void *arg);
     thread_create_named_with_class_flags(reaper_thread_entry, NULL, TASK_CLASS_NORMAL, "reaper", TASK_FLAG_SYSTEM | TASK_FLAG_KILL_PROTECTED);
+#if defined(HOBBYOS_ARCH_TEST)
+    if (!arch_selftest_start_runtime_task())
+        kpanic("Architecture runtime task creation failed");
+#endif
 
     if (!scheduler_validate_task_identity())
         kpanic("Task identity validation failed");

@@ -5,18 +5,14 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 
 export HOBBYOS_INTERRUPT_BRINGUP_LIBRARY=1
-export HOBBYOS_TEST_ARTIFACT=artifacts/build/lapic-clockevent
-export HOBBYOS_TEST_RUNTIME=/tmp/hobbyos-lapic-clockevent-runtime
+export HOBBYOS_TEST_ARTIFACT=${HOBBYOS_TIMER_ARTIFACT:-${HOBBYOS_TEST_ARTIFACT:-artifacts/build/lapic-clockevent}}
+export HOBBYOS_TEST_RUNTIME=${HOBBYOS_TIMER_RUNTIME:-${HOBBYOS_TEST_RUNTIME:-/tmp/hobbyos-lapic-clockevent-runtime}}
 source scripts/test-interrupt-bringup.sh
 
-base=523f367c9cd8652e709c0ffc7af28f6433d1213c
-base_tree=cc04290b8cfcfcc16de06e65b1a8145f6760d646
-base_parent=602532db881f5e328a78efdb52b0c012f35b4065
-subject='fix(boot): complete LAPIC clockevent and boot-to-shell liveness'
 duration_ms=${DURATION_MS:-300000}
-fair_artifact=artifacts/build/timer-fair-dispatch
-rendezvous_artifact=artifacts/build/ap-runtime-rendezvous
-autonomous_artifact=artifacts/build/boot-to-shell-autonomous
+fair_artifact=${HOBBYOS_TIMER_FAIR_ARTIFACT:-$artifact/fair-dispatch}
+rendezvous_artifact=${HOBBYOS_TIMER_RENDEZVOUS_ARTIFACT:-$artifact/runtime-rendezvous}
+autonomous_artifact=${HOBBYOS_TIMER_AUTONOMOUS_ARTIFACT:-$artifact/boot-to-shell}
 historical_rate_log=$qemu_artifact/smp24-kvm-failed/serial.log
 historical_runtime_log=$qemu_artifact/soak24-failed/serial.log
 historical_rate_sha=75fc283521f23bae6916493982ddb188768412d0e9b177aa2a9a2a55f6c39d46
@@ -784,20 +780,47 @@ verify_fair_source_continuity()
         "$fair_artifact/protected-$suffix.sha256"
 }
 
+fair_source_manifest()
+{
+    local output=$1
+    sha256sum \
+        kernel/src/core/timers.c kernel/src/core/timers.h \
+        kernel/src/shell/commands/cmd_synctest.c \
+        kernel/src/shell/commands/cmd_synctest.h \
+        scripts/test-timer-clockevent.sh \
+        scripts/verify-timer-clockevent.py \
+        docs/timer-clocksource-clockevent.md \
+        docs/test-reports/TIMER_CLOCKEVENT_CERTIFICATION.md \
+        AGENTS.md README.md | LC_ALL=C sort -k2 >"$output"
+}
+
+prepare_current_baselines()
+{
+    mkdir -p "$artifact" "$fair_artifact" "$rendezvous_artifact" \
+        "$autonomous_artifact"
+    source_worktree_manifest "$artifact/source-before.sha256"
+    protected_manifest "$artifact/protected-before.sha256"
+    source_worktree_manifest "$artifact/source-worktree-before-closure.sha256"
+    fair_source_manifest "$fair_artifact/source-before.sha256"
+    fair_protected_manifest "$fair_artifact/protected-before.sha256"
+    rendezvous_fairness_manifest \
+        "$rendezvous_artifact/fairness-before.sha256"
+    rendezvous_runtime_manifest \
+        "$rendezvous_artifact/runtime-before.sha256"
+    fair_protected_manifest "$rendezvous_artifact/protected-before.sha256"
+    cp "$rendezvous_artifact/protected-before.sha256" \
+        "$autonomous_artifact/protected-before.sha256"
+}
+
 preflight()
 {
     local log=$rendezvous_artifact/preflight.log
-    mkdir -p "$fair_artifact" "$rendezvous_artifact"
+    prepare_current_baselines
     {
-        [[ $(git branch --show-current) == feat/taskman ]]
-        [[ $(git rev-parse HEAD) == "$base" ]]
-        [[ $(git rev-parse 'HEAD^{tree}') == "$base_tree" ]]
-        [[ $(git rev-parse HEAD^) == "$base_parent" ]]
-        [[ $(git log -1 --format=%s) == \
-            'fix(irq): establish safe x86 interrupt controller bring-up' ]]
-        [[ $(git rev-list --count "$base..HEAD") == 0 ]]
+        [[ $(git branch --show-current) == "$expected_branch" ]]
+        git rev-parse --verify 'HEAD^{commit}' >/dev/null
+        git rev-parse --verify 'HEAD^{tree}' >/dev/null
         git diff --cached --quiet
-        [[ -f ROADMAP_TASKMAN_V1_CLOSURE_HARDENING.md ]]
         [[ -f $artifact/source-before.sha256 ]]
         [[ -f $artifact/protected-before.sha256 ]]
         [[ -f $artifact/source-worktree-before-closure.sha256 ]]
@@ -806,29 +829,13 @@ preflight()
         [[ -f $rendezvous_artifact/fairness-before.sha256 ]]
         [[ -f $rendezvous_artifact/runtime-before.sha256 ]]
         [[ -f $rendezvous_artifact/protected-before.sha256 ]]
-        [[ $(sha "$historical_rate_log") == "$historical_rate_sha" ]]
-        [[ $(sha "$historical_runtime_log") == "$historical_runtime_sha" ]]
-        [[ $(sha "$runtime_ready_failure_log") == \
-            "$runtime_ready_failure_sha" ]]
-        [[ $(sha "$runtime_ready_pass_log") == \
-            "$runtime_ready_pass_sha" ]]
-        require_marker \
-            '[ACCOUNT][LAPIC_RATE] FAIL window_ms=2000 rounds=5 worst_median_x1000=672 min_round_x1000=255 max_round_x1000=934' \
-            "$historical_rate_log"
-        require_marker \
-            '[SYNC][TIMER_CANCEL] FAIL pending=0 claimed=1 callbacks=0' \
-            "$historical_runtime_log"
-        require_marker \
-            '[SMP][CPU] ERROR code=IRQ_RUNTIME_READY' \
-            "$runtime_ready_failure_log"
-        [[ $(grep -Fc '[IRQ][CPU_READY] PASS' \
-            "$runtime_ready_failure_log") == 23 ]]
-        require_marker '[BOOT][RUNTIME_READY] PASS cpus=24/24' \
-            "$runtime_ready_pass_log"
         verify_rendezvous_continuity preflight
+        verify_fair_source_continuity preflight
         git diff --check
         git diff --cached --check
-        echo "[TIMER][PREFLIGHT] PASS base=$base tree=$base_tree"
+        printf '[TIMER][PREFLIGHT] PASS branch=%s head=%s tree=%s\n' \
+            "$expected_branch" "$(git rev-parse HEAD)" \
+            "$(git rev-parse 'HEAD^{tree}')"
     } 2>&1 | tee "$log"
     record_stage preflight preflight none 0 none "$log" '[TIMER][PREFLIGHT] PASS'
 }
@@ -855,6 +862,14 @@ static_gate()
         rg -n 'timers_poll_at\(now_ms\)|timer_run_deferred_at\(now_ms\)' \
             kernel/src/drivers/timer.c >/dev/null
         rg -n 'lapic_timer_calibrate\(1000|period_us != 1000u' kernel/src >/dev/null
+        rg -n 'LAPIC_CALIBRATION_EDGE_MAX_NS|lapic_timer_calibration_sample' \
+            kernel/src/apic/lapic.c >/dev/null
+        rg -n 'start->counter - end->counter' \
+            kernel/src/apic/lapic.c >/dev/null
+        ! rg -n 'UINT32_MAX - lapic_read\(LAPIC_TCCR\)' \
+            kernel/src/apic/lapic.c >/dev/null
+        [[ $(sha kernel/src/apic/lapic.c) == \
+            f9b9c55e05cd0eff44269336a7ddaff151626ed12e31a25ea99120507843e474 ]]
         rg -n 'if\(worst<700\|\|worst>1300\)ok=false;' \
             kernel/src/shell/commands/cmd_accounttest.c >/dev/null
         rg -n 'timers_test_arm_order_pair|timers_test_order_finish' \
@@ -963,11 +978,10 @@ for required in ("interrupt_context_mark_unexpected",
         raise SystemExit(f"missing HPET quarantine action: {required}")
 PY
         git diff --quiet -- bootloader shared \
-            kernel/src/core/scheduler.c kernel/src/core/scheduler.h \
             kernel/src/core/switch.S kernel/src/core/clock.c \
             kernel/src/core/clock.h kernel/src/core/interrupt_context.c \
-            kernel/src/core/interrupt_context.h kernel/src/apic/lapic.c \
-            kernel/src/apic/lapic.h kernel/src/apic/ioapic.c \
+            kernel/src/core/interrupt_context.h kernel/src/apic/lapic.h \
+            kernel/src/apic/ioapic.c \
             kernel/src/apic/ioapic.h kernel/src/apic/legacy_pic.c \
             kernel/src/apic/legacy_pic.h kernel/src/acpi/madt.c \
             kernel/src/acpi/madt.h \
@@ -980,6 +994,50 @@ PY
             kernel/src/shell/commands/cmd_taskmantest.h \
             kernel/src/shell/commands/taskman_view.c \
             kernel/src/shell/commands/taskman_view.h
+        python3 - <<'PY'
+import pathlib
+import re
+
+text = pathlib.Path("kernel/src/core/scheduler.c").read_text(encoding="utf-8")
+
+schedule = re.search(
+    r"static bool schedule_impl_at\(int voluntary, uint64_t now_ns,\s*"
+    r"bool wait_for_lock\)\s*\{(.*?)\n\}", text, re.S)
+if schedule is None:
+    raise SystemExit("scheduler acquisition helper missing")
+body = schedule.group(1)
+required = (
+    "if (wait_for_lock)",
+    "spin_lock(&g_scheduler_lock)",
+    "else if (!spin_trylock(&g_scheduler_lock))",
+)
+if any(token not in body for token in required):
+    raise SystemExit("scheduler blocking/trylock split drift")
+
+public = re.search(r"void schedule_impl\(int voluntary\)\s*\{(.*?)\n\}",
+                   text, re.S)
+if public is None or "schedule_impl_at(voluntary, 0, true)" not in public.group(1):
+    raise SystemExit("voluntary scheduler path is not blocking/FIFO")
+
+irq = re.search(
+    r"void scheduler_preempt_from_irq\(uint64_t now_ns\)\s*\{(.*?)\n\}",
+    text, re.S)
+if irq is None:
+    raise SystemExit("hard IRQ scheduler epilogue missing")
+body = irq.group(1)
+for token in ("interrupts_consume_reschedule()",
+              "schedule_impl_at(0, now_ns, false)",
+              "interrupts_request_reschedule()"):
+    if token not in body:
+        raise SystemExit(f"hard IRQ progress contract missing {token}")
+if "schedule_impl(0)" in body or "spin_lock(&g_scheduler_lock)" in body:
+    raise SystemExit("hard IRQ scheduler path can enter the ticket queue")
+
+interrupts = pathlib.Path("kernel/src/core/interrupts.c").read_text(
+    encoding="utf-8")
+if "scheduler_preempt_from_irq(now_ns)" not in interrupts:
+    raise SystemExit("LAPIC timestamp is not forwarded to scheduler epilogue")
+PY
         local active=(
             kernel/src/core/kernel_init.c kernel/src/core/irq_bootstrap.c
             kernel/src/core/irq_bootstrap.h kernel/src/core/interrupts.c
@@ -999,6 +1057,7 @@ PY
         bash -n scripts/test-timer-clockevent.sh
         python3 -m py_compile scripts/verify-timer-clockevent.py
         verify_rendezvous_continuity static
+        verify_fair_source_continuity static
         echo '[TIMER][ACTIVE_NAMING] PASS matches=0'
         echo '[TIMER][STATIC] PASS'
     } 2>&1 | tee "$log"
@@ -1031,7 +1090,7 @@ negative_one()
     make kernel-check JOBS=2 KERNEL_EXTRA_CFLAGS="-D$macro" >>"$dir/build.log" 2>&1
     make image KERNEL_EXTRA_CFLAGS="-D$macro" >>"$dir/build.log" 2>&1
     grep -Fq -- "-D$macro" artifacts/build/kernel-check-j2.log
-    cp hobbyos.img "$dir/hobbyos.img"
+    cp --sparse=always hobbyos.img "$dir/hobbyos.img"
     stop_vm
     current_stage=$stage
     QEMU_RUNTIME="$runtime" HOBBYOS_IMAGE="$dir/hobbyos.img" \
@@ -1064,8 +1123,9 @@ negative_claimed_order()
         >>"$dir/build.log" 2>&1
     make image KERNEL_EXTRA_CFLAGS="-D$macro" >>"$dir/build.log" 2>&1
     grep -Fq -- "-D$macro" artifacts/build/kernel-check-j2.log
-    cp hobbyos.img "$dir/hobbyos.img"
+    cp --sparse=always hobbyos.img "$dir/hobbyos.img"
     stop_vm
+    : >"$runtime/commands.tsv"
     current_stage=$stage
     QEMU_RUNTIME="$runtime" HOBBYOS_IMAGE="$dir/hobbyos.img" \
         MACHINE=q35 SMP=1 ACCEL=tcg scripts/qemu-agent.sh start \
@@ -2015,7 +2075,13 @@ run_scenario()
     start_vm "$stage" "$machine" "$smp" "$accel" 0
     if ((capture)); then
         rm -f "$splash_begin" "$splash_complete"
-        capture_when_marker_appears '[GRAPHICS][SPLASH] BEGIN' \
+        # BEGIN is emitted before clear_screen() and before the first overlay
+        # draw, so a screenshot keyed to it can legitimately be the uniform
+        # pre-splash framebuffer.  The 50% marker is emitted only after the
+        # corresponding overlay draw and is therefore the first causal point
+        # at which the splash image is required to be observable.
+        capture_when_marker_appears \
+            '[GRAPHICS][SPLASH] FADE_IN progress=50' \
             "$splash_begin" &
         early_capture_pid=$!
     fi
@@ -2352,6 +2418,7 @@ boot_to_shell_soak24()
 continuity_after_tests()
 {
     verify_rendezvous_continuity after-tests
+    verify_fair_source_continuity after-tests
     rendezvous_runtime_manifest \
         "$rendezvous_artifact/runtime-after-tests.sha256"
 }
@@ -2374,12 +2441,15 @@ final_build()
             /tmp/hobbyos-lapic-clockevent-jN.elf
         make deps-check
         make production-image
-        cmp -s kernel.elf /tmp/hobbyos-lapic-clockevent-jN.elf
+        # The JOBS builds are debug-profile reproducibility peers.  The
+        # production image intentionally rebuilds with debug assertions off,
+        # so validate it independently instead of comparing across profiles.
         [[ -z $(nm -u kernel.elf) ]]
         make production-test-policy
         echo '[TIMER][FINAL_BUILD] PASS'
     } 2>&1 | tee "$log"
     verify_rendezvous_continuity after-build
+    verify_fair_source_continuity after-build
     rendezvous_runtime_manifest \
         "$rendezvous_artifact/runtime-after-build.sha256"
     record_stage rendezvous-final-build rendezvous-final-build host 0 none "$log" \
@@ -2942,6 +3012,8 @@ all()
     static_gate
     selftest_gate
     negatives
+    focused_fairness
+    matrix
     run_rendezvous_focused_smp4
     rendezvous_three_smp24_boots
     rendezvous_matrix

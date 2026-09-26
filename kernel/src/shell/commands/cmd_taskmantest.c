@@ -2,6 +2,8 @@
 #include "cmd_taskman.h"
 #include "taskman_view.h"
 #include "../../core/clock.h"
+#include "../../core/modal_session.h"
+#include "../../core/modal_ui.h"
 #include "../../core/scheduler.h"
 #include "../../drivers/serial.h"
 #include "../../drivers/timer.h"
@@ -30,6 +32,81 @@ typedef struct {uint8_t valid;HeapStats baseline;} taskman_heap_baseline_t;
 static taskman_heap_baseline_t g_heap_baseline;
 typedef struct {volatile uint8_t active,stop,done;uint32_t rounds;volatile uint32_t completed;volatile uint64_t generation_changes,violations;} live_churn_t;
 static live_churn_t g_live_churn;static task_handle_t g_live_churn_handle;
+
+#define TASKMANTEST_MEMORY_CHECKPOINT_MAX_WORKERS 32u
+#define TASKMANTEST_MEMORY_CHECKPOINT_PAGE 16u
+#define TASKMANTEST_MEMORY_CHECKPOINT_TIMEOUT_MS 30000u
+#define TASKMANTEST_MEMORY_CHECKPOINT_RECORD_CAPACITY 1536u
+#define TASKMANTEST_MEMORY_CHECKPOINT_RECORD_GUARD 0x4d43485052454344ULL
+
+typedef enum
+{
+    TASKMANTEST_MEMORY_CHECKPOINT_IDLE = 0,
+    TASKMANTEST_MEMORY_CHECKPOINT_BEGUN,
+    TASKMANTEST_MEMORY_CHECKPOINT_TRACKED,
+    TASKMANTEST_MEMORY_CHECKPOINT_PROGRESS
+} taskmantest_memory_checkpoint_state_t;
+
+typedef struct
+{
+    task_handle_t handle;
+    uint64_t schedule_count;
+    uint64_t runtime_ns;
+    uint64_t progress_schedule_count;
+    uint64_t progress_runtime_ns;
+    uint64_t memory_bytes;
+    uint8_t progressed;
+    uint8_t released;
+} taskmantest_memory_resource_t;
+
+typedef struct
+{
+    taskmantest_memory_checkpoint_state_t state;
+    uint64_t checkpoint;
+    uint32_t expected_cycles;
+    uint32_t expected_workers;
+    uint32_t captured_workers;
+    uint32_t progressed_workers;
+    uint32_t capture_attempts;
+    uint32_t progress_attempts;
+    uint32_t release_attempts;
+    uint64_t progress_schedule_delta;
+    HeapStats initial_heap;
+    modal_ui_stats_t initial_modal;
+    taskmantest_memory_resource_t
+        resources[TASKMANTEST_MEMORY_CHECKPOINT_MAX_WORKERS];
+    uint64_t record_guard_before;
+    char record[TASKMANTEST_MEMORY_CHECKPOINT_RECORD_CAPACITY];
+    uint64_t record_guard_after;
+} taskmantest_memory_checkpoint_t;
+
+typedef struct
+{
+    uint32_t matches;
+    uint32_t valid_generations;
+    uint32_t scheduled;
+    uint32_t duplicate_indices;
+    uint32_t out_of_range_indices;
+    uint64_t registry_generation;
+    uint8_t consistent;
+} taskmantest_memory_scan_t;
+
+static taskmantest_memory_checkpoint_t g_memory_checkpoint;
+static task_snapshot_t
+    g_memory_checkpoint_page[TASKMANTEST_MEMORY_CHECKPOINT_PAGE];
+static uint64_t g_memory_checkpoint_generation;
+
+_Static_assert(
+    TASKMANTEST_MEMORY_CHECKPOINT_RECORD_CAPACITY <=
+        HOBBYOS_MAX_STATIC_STACK_FRAME,
+    "checkpoint records remain within the bounded diagnostic envelope");
+
+#if defined(HOBBYOS_TASKMAN_MODAL_CHECKPOINT_HOST_TEST)
+static uint32_t g_memory_checkpoint_timeout_ms =
+    TASKMANTEST_MEMORY_CHECKPOINT_TIMEOUT_MS;
+static size_t g_memory_checkpoint_record_capacity =
+    TASKMANTEST_MEMORY_CHECKPOINT_RECORD_CAPACITY;
+#endif
 
 typedef struct
 {
@@ -1157,6 +1234,855 @@ static bool fixture_status(void)
     serial_write_all("\n");
     return stable;
 }
+
+static uint32_t memory_checkpoint_timeout_ms(void)
+{
+#if defined(HOBBYOS_TASKMAN_MODAL_CHECKPOINT_HOST_TEST)
+    return g_memory_checkpoint_timeout_ms;
+#else
+    return TASKMANTEST_MEMORY_CHECKPOINT_TIMEOUT_MS;
+#endif
+}
+
+static size_t memory_checkpoint_record_capacity(void)
+{
+#if defined(HOBBYOS_TASKMAN_MODAL_CHECKPOINT_HOST_TEST)
+    if (g_memory_checkpoint_record_capacity <
+        TASKMANTEST_MEMORY_CHECKPOINT_RECORD_CAPACITY)
+        return g_memory_checkpoint_record_capacity;
+#endif
+    return TASKMANTEST_MEMORY_CHECKPOINT_RECORD_CAPACITY;
+}
+
+static uint64_t memory_checkpoint_deadline(uint32_t timeout_ms)
+{
+    uint64_t now = clock_monotonic_ns();
+    uint64_t interval = (uint64_t)timeout_ms * 1000000ULL;
+    return UINT64_MAX - now < interval ? UINT64_MAX : now + interval;
+}
+
+static bool memory_checkpoint_publish(int required)
+{
+    size_t capacity = memory_checkpoint_record_capacity();
+    if (required < 0 || (size_t)required >= capacity)
+    {
+        serial_write_all(
+            "[TASKMANTEST][MEMORY_CHECKPOINT_ERROR] reason=format\n");
+        return false;
+    }
+    if (g_memory_checkpoint.record_guard_before !=
+            TASKMANTEST_MEMORY_CHECKPOINT_RECORD_GUARD ||
+        g_memory_checkpoint.record_guard_after !=
+            TASKMANTEST_MEMORY_CHECKPOINT_RECORD_GUARD)
+    {
+        serial_write_all(
+            "[TASKMANTEST][MEMORY_CHECKPOINT_ERROR] reason=storage\n");
+        return false;
+    }
+    serial_write_all(g_memory_checkpoint.record);
+    return true;
+}
+
+static bool memory_checkpoint_name_prefix(const char *name)
+{
+    static const char prefix[] = "smpstress-";
+    return name && strncmp(name, prefix, sizeof(prefix) - 1u) == 0;
+}
+
+static bool memory_checkpoint_worker_index(const char *name,
+                                           uint32_t *out_index)
+{
+    static const char prefix[] = "smpstress-";
+    const char *cursor;
+    uint64_t value = 0;
+    if (!out_index || !memory_checkpoint_name_prefix(name))
+        return false;
+    cursor = name + sizeof(prefix) - 1u;
+    if (!*cursor)
+        return false;
+    for (; *cursor; cursor++)
+    {
+        if (*cursor < '0' || *cursor > '9')
+            return false;
+        value = value * 10u + (uint32_t)(*cursor - '0');
+        if (value > UINT32_MAX)
+            return false;
+    }
+    *out_index = (uint32_t)value;
+    return true;
+}
+
+static bool memory_checkpoint_scan_workers(
+    uint32_t expected,
+    bool store,
+    taskmantest_memory_scan_t *out)
+{
+    uint32_t offset = 0;
+    uint32_t seen = 0;
+    uint64_t generation = 0;
+    taskmantest_memory_scan_t scan = {0};
+    if (!out || expected > TASKMANTEST_MEMORY_CHECKPOINT_MAX_WORKERS)
+        return false;
+    if (store)
+        memset(g_memory_checkpoint.resources, 0,
+               sizeof(g_memory_checkpoint.resources));
+
+    for (;;)
+    {
+        task_snapshot_result_t page = scheduler_snapshot_tasks(
+            g_memory_checkpoint_page,
+            TASKMANTEST_MEMORY_CHECKPOINT_PAGE,
+            offset);
+        if (page.offset != offset ||
+            page.written > TASKMANTEST_MEMORY_CHECKPOINT_PAGE ||
+            (page.truncated && page.written == 0))
+        {
+            *out = scan;
+            return false;
+        }
+        if (!generation)
+            generation = page.registry_generation;
+        else if (generation != page.registry_generation)
+        {
+            *out = scan;
+            return false;
+        }
+
+        for (uint32_t i = 0; i < page.written; i++)
+        {
+            task_snapshot_t *entry = &g_memory_checkpoint_page[i];
+            uint32_t index = 0;
+            if (!memory_checkpoint_name_prefix(entry->name))
+                continue;
+            scan.matches++;
+            if (!memory_checkpoint_worker_index(entry->name, &index) ||
+                index >= expected)
+            {
+                scan.out_of_range_indices++;
+                continue;
+            }
+            uint32_t bit = 1u << index;
+            if (seen & bit)
+            {
+                scan.duplicate_indices++;
+                continue;
+            }
+            seen |= bit;
+            if (entry->id != TASK_ID_INVALID &&
+                entry->lifecycle_generation != 0)
+                scan.valid_generations++;
+            if (entry->schedule_count != 0 && entry->runtime_ns_total != 0)
+                scan.scheduled++;
+            if (store)
+            {
+                taskmantest_memory_resource_t *resource =
+                    &g_memory_checkpoint.resources[index];
+                resource->handle.id = entry->id;
+                resource->handle.lifecycle_generation =
+                    entry->lifecycle_generation;
+                resource->schedule_count = entry->schedule_count;
+                resource->runtime_ns = entry->runtime_ns_total;
+                resource->memory_bytes = entry->kernel_mem_est_bytes;
+            }
+        }
+
+        offset += page.written;
+        if (!page.truncated)
+            break;
+    }
+
+    uint32_t expected_mask = expected == 32u ? UINT32_MAX :
+        (expected ? (1u << expected) - 1u : 0u);
+    scan.registry_generation = generation;
+    scan.consistent = seen == expected_mask;
+    *out = scan;
+    return true;
+}
+
+static bool memory_checkpoint_modal_delta(uint64_t before, uint64_t after,
+                                          uint64_t expected)
+{
+    return after >= before && after - before == expected;
+}
+
+static bool memory_checkpoint_modal_lifetime(
+    const modal_ui_stats_t *before,
+    const modal_ui_stats_t *after,
+    uint32_t cycles)
+{
+    uint64_t completed = (uint64_t)cycles + 1u;
+    if (!before || !after)
+        return false;
+    return memory_checkpoint_modal_delta(before->runs, after->runs,
+                                         completed) &&
+        memory_checkpoint_modal_delta(before->workers_created,
+                                      after->workers_created, completed) &&
+        memory_checkpoint_modal_delta(before->normal_completions,
+                                      after->normal_completions, completed) &&
+        memory_checkpoint_modal_delta(before->cleanup_closes,
+                                      after->cleanup_closes, completed) &&
+        memory_checkpoint_modal_delta(before->completion_signals,
+                                      after->completion_signals, completed) &&
+        memory_checkpoint_modal_delta(before->killed_completions,
+                                      after->killed_completions, 0) &&
+        memory_checkpoint_modal_delta(before->completion_duplicates,
+                                      after->completion_duplicates, 0) &&
+        memory_checkpoint_modal_delta(before->context_alloc_failures,
+                                      after->context_alloc_failures, 0) &&
+        memory_checkpoint_modal_delta(before->worker_create_failures,
+                                      after->worker_create_failures, 0) &&
+        memory_checkpoint_modal_delta(before->begin_failures,
+                                      after->begin_failures, 0) &&
+        memory_checkpoint_modal_delta(before->lifecycle_recoveries,
+                                      after->lifecycle_recoveries, 0) &&
+        memory_checkpoint_modal_delta(before->second_session_rejections,
+                                      after->second_session_rejections, 0);
+}
+
+static void memory_checkpoint_reset(void)
+{
+    memset(&g_memory_checkpoint, 0, sizeof(g_memory_checkpoint));
+    g_memory_checkpoint.record_guard_before =
+        TASKMANTEST_MEMORY_CHECKPOINT_RECORD_GUARD;
+    g_memory_checkpoint.record_guard_after =
+        TASKMANTEST_MEMORY_CHECKPOINT_RECORD_GUARD;
+}
+
+static bool memory_checkpoint_begin_with_capacity(uint32_t cycles,
+                                                  uint32_t workers)
+{
+    taskmantest_memory_scan_t scan = {0};
+    modal_ui_runtime_snapshot_t runtime = {0};
+    modal_session_snapshot_t session = {0};
+    taskman_stats_t taskman = {0};
+    task_reaper_stats_t reaper = {0};
+    uint64_t deadline;
+    uint32_t attempts = 0;
+    bool ready = false;
+
+    if (g_memory_checkpoint.state != TASKMANTEST_MEMORY_CHECKPOINT_IDLE)
+    {
+        serial_write_all(
+            "[TASKMANTEST][MEMORY_CHECKPOINT_BEGIN] FAIL reason=invalid-state\n");
+        return false;
+    }
+    if (!cycles || cycles > 1000u || !workers ||
+        workers > TASKMANTEST_MEMORY_CHECKPOINT_MAX_WORKERS)
+    {
+        serial_write_all(
+            "[TASKMANTEST][MEMORY_CHECKPOINT_BEGIN] FAIL reason=range\n");
+        return false;
+    }
+
+    memory_checkpoint_reset();
+    g_memory_checkpoint.expected_cycles = cycles;
+    g_memory_checkpoint.expected_workers = workers;
+    g_memory_checkpoint.checkpoint = ++g_memory_checkpoint_generation;
+    if (!g_memory_checkpoint.checkpoint)
+        g_memory_checkpoint.checkpoint = ++g_memory_checkpoint_generation;
+    deadline = memory_checkpoint_deadline(memory_checkpoint_timeout_ms());
+
+    do
+    {
+        attempts++;
+        bool scanned = memory_checkpoint_scan_workers(0, false, &scan);
+        modal_ui_stats_snapshot(&g_memory_checkpoint.initial_modal);
+        bool runtime_ok = modal_ui_runtime_snapshot(&runtime);
+        bool session_ok = modal_session_snapshot(&session);
+        taskman_stats_snapshot(&taskman);
+        scheduler_reaper_stats_snapshot(&reaper);
+        ready = scanned && scan.consistent && scan.matches == 0 &&
+            runtime_ok && !runtime.active && runtime.contexts_live == 0 &&
+            runtime.contexts_quarantined == 0 && session_ok &&
+            session.state == MODAL_SESSION_INACTIVE &&
+            session.router_state == INPUT_ROUTE_DEFAULT &&
+            !session.shell_paused && !taskman.model_live &&
+            g_handle_count == 0;
+        if (ready)
+            break;
+        if (clock_monotonic_ns() >= deadline)
+            break;
+        timer_sleep(10);
+    } while (true);
+
+    bool heap_ok = ready && heap_get_stats(&g_memory_checkpoint.initial_heap);
+    const char *result = ready && heap_ok ? "PASS" : "FAIL";
+    const char *reason = ready ? (heap_ok ? "none" : "heap") : "timeout";
+    int required = ksnprintf(
+        g_memory_checkpoint.record, memory_checkpoint_record_capacity(),
+        "\n[TASKMANTEST][MEMORY_CHECKPOINT_BEGIN] %s checkpoint=%llu"
+        " scope=TARGET_IDENTITIES cycles=%llu workers=%llu attempts=%llu"
+        " initial_workers=%llu modal_active=%llu contexts_live=%llu"
+        " contexts_quarantined=%llu session_state=%llu route_state=%llu"
+        " shell_paused=%llu model_live=%llu reaper_free_inflight=%llu"
+        " global_used=%llu global_blocks=%llu global_comparable=0"
+        " reason=%s\n",
+        result,
+        (unsigned long long)g_memory_checkpoint.checkpoint,
+        (unsigned long long)cycles,
+        (unsigned long long)workers,
+        (unsigned long long)attempts,
+        (unsigned long long)scan.matches,
+        (unsigned long long)runtime.active,
+        (unsigned long long)runtime.contexts_live,
+        (unsigned long long)runtime.contexts_quarantined,
+        (unsigned long long)session.state,
+        (unsigned long long)session.router_state,
+        (unsigned long long)session.shell_paused,
+        (unsigned long long)taskman.model_live,
+        (unsigned long long)reaper.free_inflight,
+        (unsigned long long)g_memory_checkpoint.initial_heap.used_bytes,
+        (unsigned long long)(g_memory_checkpoint.initial_heap.blocks_total -
+                             g_memory_checkpoint.initial_heap.blocks_free),
+        reason);
+    bool published = memory_checkpoint_publish(required);
+    if (!ready || !heap_ok || !published)
+    {
+        memory_checkpoint_reset();
+        return false;
+    }
+    g_memory_checkpoint.state = TASKMANTEST_MEMORY_CHECKPOINT_BEGUN;
+    return true;
+}
+
+static int memory_checkpoint_resource_record_length(
+    const char *marker,
+    uint32_t index,
+    const taskmantest_memory_resource_t *resource,
+    const char *status)
+{
+    if (!marker || !resource || !status)
+        return -1;
+    return ksnprintf(
+        NULL, 0,
+        "\n[TASKMANTEST][%s] checkpoint=%llu index=%llu id=%llu"
+        " generation=%llu schedule=%llu runtime_ns=%llu bytes=%llu"
+        " status=%s\n",
+        marker,
+        (unsigned long long)g_memory_checkpoint.checkpoint,
+        (unsigned long long)index,
+        (unsigned long long)resource->handle.id,
+        (unsigned long long)resource->handle.lifecycle_generation,
+        (unsigned long long)(!strcmp(marker, "MEMORY_RESOURCE_TRACK") ?
+            resource->schedule_count : resource->progress_schedule_count),
+        (unsigned long long)(!strcmp(marker, "MEMORY_RESOURCE_TRACK") ?
+            resource->runtime_ns : resource->progress_runtime_ns),
+        (unsigned long long)resource->memory_bytes,
+        status);
+}
+
+static bool memory_checkpoint_publish_resource(
+    const char *marker,
+    uint32_t index,
+    const taskmantest_memory_resource_t *resource,
+    const char *status)
+{
+    int required = ksnprintf(
+        g_memory_checkpoint.record, memory_checkpoint_record_capacity(),
+        "\n[TASKMANTEST][%s] checkpoint=%llu index=%llu id=%llu"
+        " generation=%llu schedule=%llu runtime_ns=%llu bytes=%llu"
+        " status=%s\n",
+        marker,
+        (unsigned long long)g_memory_checkpoint.checkpoint,
+        (unsigned long long)index,
+        (unsigned long long)resource->handle.id,
+        (unsigned long long)resource->handle.lifecycle_generation,
+        (unsigned long long)(!strcmp(marker, "MEMORY_RESOURCE_TRACK") ?
+            resource->schedule_count : resource->progress_schedule_count),
+        (unsigned long long)(!strcmp(marker, "MEMORY_RESOURCE_TRACK") ?
+            resource->runtime_ns : resource->progress_runtime_ns),
+        (unsigned long long)resource->memory_bytes,
+        status);
+    return memory_checkpoint_publish(required);
+}
+
+static bool memory_checkpoint_resources_fit(const char *marker,
+                                            const char *status)
+{
+    size_t capacity = memory_checkpoint_record_capacity();
+    for (uint32_t i = 0; i < g_memory_checkpoint.expected_workers; i++)
+    {
+        int required = memory_checkpoint_resource_record_length(
+            marker, i, &g_memory_checkpoint.resources[i], status);
+        if (required < 0 || (size_t)required >= capacity)
+            return false;
+    }
+    return true;
+}
+
+static bool memory_checkpoint_track_with_capacity(void)
+{
+    taskmantest_memory_scan_t scan = {0};
+    uint64_t deadline;
+    bool captured = false;
+    if (g_memory_checkpoint.state != TASKMANTEST_MEMORY_CHECKPOINT_BEGUN)
+    {
+        serial_write_all(
+            "[TASKMANTEST][MEMORY_CHECKPOINT_TRACK] FAIL reason=invalid-state\n");
+        return false;
+    }
+    deadline = memory_checkpoint_deadline(memory_checkpoint_timeout_ms());
+    do
+    {
+        g_memory_checkpoint.capture_attempts++;
+        bool scanned = memory_checkpoint_scan_workers(
+            g_memory_checkpoint.expected_workers, true, &scan);
+        captured = scanned && scan.consistent &&
+            scan.matches == g_memory_checkpoint.expected_workers &&
+            scan.valid_generations == g_memory_checkpoint.expected_workers &&
+            scan.scheduled == g_memory_checkpoint.expected_workers &&
+            scan.duplicate_indices == 0 && scan.out_of_range_indices == 0;
+        if (captured)
+            break;
+        if (clock_monotonic_ns() >= deadline)
+            break;
+        timer_sleep(10);
+    } while (true);
+
+    g_memory_checkpoint.captured_workers = captured ? scan.matches : 0;
+    const char *result = captured ? "PASS" : "FAIL";
+    const char *reason = captured ? "none" : "timeout";
+    int required = ksnprintf(
+        g_memory_checkpoint.record, memory_checkpoint_record_capacity(),
+        "\n[TASKMANTEST][MEMORY_CHECKPOINT_TRACK] %s checkpoint=%llu"
+        " expected=%llu captured=%llu generations=%llu scheduled=%llu"
+        " duplicates=%llu out_of_range=%llu attempts=%llu"
+        " registry_generation=%llu reason=%s\n",
+        result,
+        (unsigned long long)g_memory_checkpoint.checkpoint,
+        (unsigned long long)g_memory_checkpoint.expected_workers,
+        (unsigned long long)scan.matches,
+        (unsigned long long)scan.valid_generations,
+        (unsigned long long)scan.scheduled,
+        (unsigned long long)scan.duplicate_indices,
+        (unsigned long long)scan.out_of_range_indices,
+        (unsigned long long)g_memory_checkpoint.capture_attempts,
+        (unsigned long long)scan.registry_generation,
+        reason);
+    bool fits = required >= 0 &&
+        (size_t)required < memory_checkpoint_record_capacity() &&
+        (!captured || memory_checkpoint_resources_fit(
+            "MEMORY_RESOURCE_TRACK", "CAPTURED"));
+    if (!fits)
+    {
+        serial_write_all(
+            "[TASKMANTEST][MEMORY_CHECKPOINT_ERROR] reason=format\n");
+        memory_checkpoint_reset();
+        return false;
+    }
+    if (!memory_checkpoint_publish(required))
+    {
+        memory_checkpoint_reset();
+        return false;
+    }
+    if (!captured)
+    {
+        memory_checkpoint_reset();
+        return false;
+    }
+    for (uint32_t i = 0; i < g_memory_checkpoint.expected_workers; i++)
+        if (!memory_checkpoint_publish_resource(
+                "MEMORY_RESOURCE_TRACK", i,
+                &g_memory_checkpoint.resources[i], "CAPTURED"))
+        {
+            memory_checkpoint_reset();
+            return false;
+        }
+    g_memory_checkpoint.state = TASKMANTEST_MEMORY_CHECKPOINT_TRACKED;
+    return true;
+}
+
+static bool memory_checkpoint_progress_with_capacity(void)
+{
+    uint64_t deadline;
+    bool complete = false;
+    if (g_memory_checkpoint.state != TASKMANTEST_MEMORY_CHECKPOINT_TRACKED)
+    {
+        serial_write_all(
+            "[TASKMANTEST][MEMORY_CHECKPOINT_PROGRESS] FAIL reason=invalid-state\n");
+        return false;
+    }
+    deadline = memory_checkpoint_deadline(memory_checkpoint_timeout_ms());
+    do
+    {
+        uint32_t progressed = 0;
+        uint64_t schedule_delta = 0;
+        bool missing = false;
+        g_memory_checkpoint.progress_attempts++;
+        for (uint32_t i = 0; i < g_memory_checkpoint.expected_workers; i++)
+        {
+            task_snapshot_t current = {0};
+            taskmantest_memory_resource_t *resource =
+                &g_memory_checkpoint.resources[i];
+            if (!scheduler_snapshot_task_by_handle(resource->handle,
+                                                   &current))
+            {
+                missing = true;
+                resource->progressed = 0;
+                continue;
+            }
+            resource->progress_schedule_count = current.schedule_count;
+            resource->progress_runtime_ns = current.runtime_ns_total;
+            resource->progressed =
+                current.schedule_count > resource->schedule_count &&
+                current.runtime_ns_total > resource->runtime_ns;
+            if (resource->progressed)
+            {
+                progressed++;
+                uint64_t delta = current.schedule_count -
+                                 resource->schedule_count;
+                schedule_delta = UINT64_MAX - schedule_delta < delta ?
+                    UINT64_MAX : schedule_delta + delta;
+            }
+        }
+        g_memory_checkpoint.progressed_workers = progressed;
+        g_memory_checkpoint.progress_schedule_delta = schedule_delta;
+        complete = !missing &&
+            progressed == g_memory_checkpoint.expected_workers;
+        if (complete)
+            break;
+        if (clock_monotonic_ns() >= deadline)
+            break;
+        timer_sleep(10);
+    } while (true);
+
+    const char *result = complete ? "PASS" : "FAIL";
+    const char *reason = complete ? "none" : "timeout";
+    int required = ksnprintf(
+        g_memory_checkpoint.record, memory_checkpoint_record_capacity(),
+        "\n[TASKMANTEST][MEMORY_CHECKPOINT_PROGRESS] %s checkpoint=%llu"
+        " expected=%llu progressed=%llu schedule_delta=%llu attempts=%llu"
+        " reason=%s\n",
+        result,
+        (unsigned long long)g_memory_checkpoint.checkpoint,
+        (unsigned long long)g_memory_checkpoint.expected_workers,
+        (unsigned long long)g_memory_checkpoint.progressed_workers,
+        (unsigned long long)g_memory_checkpoint.progress_schedule_delta,
+        (unsigned long long)g_memory_checkpoint.progress_attempts,
+        reason);
+    bool fits = required >= 0 &&
+        (size_t)required < memory_checkpoint_record_capacity() &&
+        (!complete || memory_checkpoint_resources_fit(
+            "MEMORY_RESOURCE_PROGRESS", "PROGRESSED"));
+    if (!fits)
+    {
+        serial_write_all(
+            "[TASKMANTEST][MEMORY_CHECKPOINT_ERROR] reason=format\n");
+        memory_checkpoint_reset();
+        return false;
+    }
+    if (!memory_checkpoint_publish(required))
+    {
+        memory_checkpoint_reset();
+        return false;
+    }
+    if (!complete)
+    {
+        memory_checkpoint_reset();
+        return false;
+    }
+    for (uint32_t i = 0; i < g_memory_checkpoint.expected_workers; i++)
+        if (!memory_checkpoint_publish_resource(
+                "MEMORY_RESOURCE_PROGRESS", i,
+                &g_memory_checkpoint.resources[i], "PROGRESSED"))
+        {
+            memory_checkpoint_reset();
+            return false;
+        }
+    g_memory_checkpoint.state = TASKMANTEST_MEMORY_CHECKPOINT_PROGRESS;
+    return true;
+}
+
+static bool memory_checkpoint_wait_released(uint32_t *released,
+                                            uint32_t *retained,
+                                            uint64_t *retained_bytes,
+                                            uint64_t *drain_free_inflight)
+{
+    uint64_t deadline = memory_checkpoint_deadline(
+        memory_checkpoint_timeout_ms());
+    uint32_t local_released = 0;
+    uint32_t local_retained = 0;
+    uint64_t local_retained_bytes = 0;
+    task_reaper_stats_t reaper = {0};
+    do
+    {
+        g_memory_checkpoint.release_attempts++;
+        local_released = 0;
+        local_retained = 0;
+        local_retained_bytes = 0;
+        for (uint32_t i = 0; i < g_memory_checkpoint.expected_workers; i++)
+        {
+            task_snapshot_t current;
+            taskmantest_memory_resource_t *resource =
+                &g_memory_checkpoint.resources[i];
+            resource->released = !scheduler_snapshot_task_by_handle(
+                resource->handle, &current);
+            if (resource->released)
+                local_released++;
+            else
+            {
+                local_retained++;
+                local_retained_bytes =
+                    UINT64_MAX - local_retained_bytes <
+                        resource->memory_bytes ?
+                    UINT64_MAX : local_retained_bytes +
+                        resource->memory_bytes;
+            }
+        }
+        scheduler_reaper_stats_snapshot(&reaper);
+        if (!local_retained && reaper.free_inflight == 0)
+            break;
+        if (clock_monotonic_ns() >= deadline)
+            break;
+        (void)scheduler_reap_zombies(0);
+        timer_sleep(10);
+    } while (true);
+    if (released)
+        *released = local_released;
+    if (retained)
+        *retained = local_retained;
+    if (retained_bytes)
+        *retained_bytes = local_retained_bytes;
+    if (drain_free_inflight)
+        *drain_free_inflight = reaper.free_inflight;
+    return local_retained == 0 && reaper.free_inflight == 0;
+}
+
+typedef struct
+{
+    HeapStats final_heap;
+    modal_ui_stats_t final_modal;
+    modal_ui_runtime_snapshot_t runtime;
+    modal_session_snapshot_t session;
+    taskman_stats_t taskman;
+    task_reaper_stats_t reaper;
+    uint64_t modal_violations;
+    uint64_t session_violations;
+    uint64_t retained_bytes;
+    uint64_t drain_free_inflight;
+    uint64_t baseline_used;
+    uint64_t final_used;
+    uint64_t drift;
+    uint64_t modal_expected;
+    uint64_t modal_runs;
+    uint64_t modal_cleanup;
+    uint64_t modal_signals;
+    uint32_t released;
+    uint32_t retained;
+    const char *direction;
+    const char *reason;
+    bool resources_ok;
+    bool ok;
+} taskmantest_memory_end_report_t;
+
+/* Keep the large variadic formatting call out of the snapshot frame. */
+static __attribute__((noinline)) int memory_checkpoint_format_end(
+    const taskmantest_memory_end_report_t *report)
+{
+    return ksnprintf(
+        g_memory_checkpoint.record, memory_checkpoint_record_capacity(),
+        "\n[TASKMANTEST][MEMORY_CHECKPOINT_END] %s checkpoint=%llu"
+        " scope=TARGET_IDENTITIES expected=%llu captured=%llu"
+        " progressed=%llu released=%llu retained=%llu retained_bytes=%llu"
+        " release_attempts=%llu drain_free_inflight=%llu"
+        " modal_expected=%llu modal_runs=%llu modal_cleanup=%llu"
+        " modal_signals=%llu modal_contexts_live=%llu"
+        " modal_contexts_quarantined=%llu modal_active=%llu"
+        " modal_violations=%llu session_state=%llu route_state=%llu"
+        " shell_paused=%llu session_violations=%llu model_live=%llu"
+        " reaper_zombies=%llu reaper_free_inflight=%llu"
+        " global_baseline_used=%llu global_final_used=%llu"
+        " global_direction=%s global_drift=%llu"
+        " global_baseline_blocks=%llu global_final_blocks=%llu"
+        " global_comparable=0 endpoint=%s cleanup=%s reason=%s\n",
+        report->ok ? "PASS" : "FAIL",
+        (unsigned long long)g_memory_checkpoint.checkpoint,
+        (unsigned long long)g_memory_checkpoint.expected_workers,
+        (unsigned long long)g_memory_checkpoint.captured_workers,
+        (unsigned long long)g_memory_checkpoint.progressed_workers,
+        (unsigned long long)report->released,
+        (unsigned long long)report->retained,
+        (unsigned long long)report->retained_bytes,
+        (unsigned long long)g_memory_checkpoint.release_attempts,
+        (unsigned long long)report->drain_free_inflight,
+        (unsigned long long)report->modal_expected,
+        (unsigned long long)report->modal_runs,
+        (unsigned long long)report->modal_cleanup,
+        (unsigned long long)report->modal_signals,
+        (unsigned long long)report->final_modal.contexts_live,
+        (unsigned long long)report->final_modal.contexts_quarantined,
+        (unsigned long long)report->final_modal.active,
+        (unsigned long long)report->modal_violations,
+        (unsigned long long)report->session.state,
+        (unsigned long long)report->session.router_state,
+        (unsigned long long)report->session.shell_paused,
+        (unsigned long long)report->session_violations,
+        (unsigned long long)report->taskman.model_live,
+        (unsigned long long)report->reaper.current_zombies,
+        (unsigned long long)report->reaper.free_inflight,
+        (unsigned long long)report->baseline_used,
+        (unsigned long long)report->final_used,
+        report->direction,
+        (unsigned long long)report->drift,
+        (unsigned long long)(
+            g_memory_checkpoint.initial_heap.blocks_total -
+            g_memory_checkpoint.initial_heap.blocks_free),
+        (unsigned long long)(report->final_heap.blocks_total -
+                             report->final_heap.blocks_free),
+        report->ok ? "ESTABLISHED" :
+            (report->resources_ok ? "ENDPOINT_NOT_ESTABLISHED" : "TIMEOUT"),
+        report->resources_ok ? "COMPLETE" : "FAILED",
+        report->reason);
+}
+
+static bool memory_checkpoint_end_with_capacity(void)
+{
+    taskmantest_memory_end_report_t report = {0};
+
+    if (g_memory_checkpoint.state != TASKMANTEST_MEMORY_CHECKPOINT_PROGRESS)
+    {
+        serial_write_all(
+            "[TASKMANTEST][MEMORY_CHECKPOINT_END] FAIL reason=invalid-state\n");
+        return false;
+    }
+
+    report.resources_ok = memory_checkpoint_wait_released(
+        &report.released, &report.retained, &report.retained_bytes,
+        &report.drain_free_inflight);
+    modal_ui_stats_snapshot(&report.final_modal);
+    bool runtime_ok = modal_ui_validate(&report.modal_violations) &&
+        modal_ui_runtime_snapshot(&report.runtime) && !report.runtime.active &&
+        report.runtime.contexts_live == 0 &&
+        report.runtime.contexts_quarantined == 0 &&
+        !report.final_modal.active && report.final_modal.contexts_live == 0 &&
+        report.final_modal.contexts_quarantined == 0;
+    bool session_ok = modal_session_validate(&report.session_violations) &&
+        modal_session_snapshot(&report.session) &&
+        report.session.state == MODAL_SESSION_INACTIVE &&
+        report.session.router_state == INPUT_ROUTE_DEFAULT &&
+        !report.session.shell_paused;
+    taskman_stats_snapshot(&report.taskman);
+    scheduler_reaper_stats_snapshot(&report.reaper);
+    bool heap_ok = heap_get_stats(&report.final_heap);
+    bool modal_ok = memory_checkpoint_modal_lifetime(
+        &g_memory_checkpoint.initial_modal, &report.final_modal,
+        g_memory_checkpoint.expected_cycles);
+    bool target_ok = report.resources_ok && modal_ok && runtime_ok &&
+        session_ok && !report.taskman.model_live &&
+        g_memory_checkpoint.captured_workers ==
+            g_memory_checkpoint.expected_workers &&
+        g_memory_checkpoint.progressed_workers ==
+            g_memory_checkpoint.expected_workers;
+    report.ok = target_ok && heap_ok;
+    report.reason = "none";
+    if (!report.resources_ok)
+        report.reason = report.retained ? "target-retained" : "async-drain";
+    else if (!modal_ok)
+        report.reason = "modal-lifetime";
+    else if (!runtime_ok)
+        report.reason = "modal-runtime";
+    else if (!session_ok)
+        report.reason = "modal-session";
+    else if (report.taskman.model_live)
+        report.reason = "taskman-model";
+    else if (!heap_ok)
+        report.reason = "heap";
+
+    report.baseline_used = g_memory_checkpoint.initial_heap.used_bytes;
+    report.final_used = report.final_heap.used_bytes;
+    report.direction = report.final_used > report.baseline_used ? "UP" :
+        report.final_used < report.baseline_used ? "DOWN" : "ZERO";
+    report.drift = report.final_used > report.baseline_used ?
+        report.final_used - report.baseline_used :
+        report.baseline_used - report.final_used;
+    report.modal_expected =
+        (uint64_t)g_memory_checkpoint.expected_cycles + 1u;
+    report.modal_runs = report.final_modal.runs >=
+        g_memory_checkpoint.initial_modal.runs ?
+        report.final_modal.runs - g_memory_checkpoint.initial_modal.runs : 0;
+    report.modal_cleanup = report.final_modal.cleanup_closes >=
+        g_memory_checkpoint.initial_modal.cleanup_closes ?
+        report.final_modal.cleanup_closes -
+            g_memory_checkpoint.initial_modal.cleanup_closes : 0;
+    report.modal_signals = report.final_modal.completion_signals >=
+        g_memory_checkpoint.initial_modal.completion_signals ?
+        report.final_modal.completion_signals -
+            g_memory_checkpoint.initial_modal.completion_signals : 0;
+
+    int required = memory_checkpoint_format_end(&report);
+    bool fits = required >= 0 &&
+        (size_t)required < memory_checkpoint_record_capacity() &&
+        memory_checkpoint_resources_fit(
+            "MEMORY_RESOURCE_FINAL",
+            report.resources_ok ? "RELEASED" : "RETAINED");
+    if (!fits)
+    {
+        serial_write_all(
+            "[TASKMANTEST][MEMORY_CHECKPOINT_ERROR] reason=format\n");
+        memory_checkpoint_reset();
+        return false;
+    }
+    if (!memory_checkpoint_publish(required))
+    {
+        memory_checkpoint_reset();
+        return false;
+    }
+    for (uint32_t i = 0; i < g_memory_checkpoint.expected_workers; i++)
+    {
+        taskmantest_memory_resource_t *resource =
+            &g_memory_checkpoint.resources[i];
+        if (!memory_checkpoint_publish_resource(
+                "MEMORY_RESOURCE_FINAL", i, resource,
+                resource->released ? "RELEASED" : "RETAINED"))
+        {
+            memory_checkpoint_reset();
+            return false;
+        }
+    }
+    memory_checkpoint_reset();
+    return report.ok;
+}
+
+#if defined(HOBBYOS_TASKMAN_MODAL_CHECKPOINT_HOST_TEST)
+void taskmantest_memory_checkpoint_test_reset(void)
+{
+    memory_checkpoint_reset();
+    g_memory_checkpoint_generation = 0;
+    g_memory_checkpoint_timeout_ms =
+        TASKMANTEST_MEMORY_CHECKPOINT_TIMEOUT_MS;
+    g_memory_checkpoint_record_capacity =
+        TASKMANTEST_MEMORY_CHECKPOINT_RECORD_CAPACITY;
+}
+
+void taskmantest_memory_checkpoint_test_limits(uint32_t timeout_ms,
+                                               size_t record_capacity)
+{
+    g_memory_checkpoint_timeout_ms = timeout_ms;
+    g_memory_checkpoint_record_capacity = record_capacity;
+}
+
+bool taskmantest_memory_checkpoint_begin_for_test(uint32_t cycles,
+                                                  uint32_t workers)
+{
+    return memory_checkpoint_begin_with_capacity(cycles, workers);
+}
+
+bool taskmantest_memory_checkpoint_track_for_test(void)
+{
+    return memory_checkpoint_track_with_capacity();
+}
+
+bool taskmantest_memory_checkpoint_progress_for_test(void)
+{
+    return memory_checkpoint_progress_with_capacity();
+}
+
+bool taskmantest_memory_checkpoint_end_for_test(void)
+{
+    return memory_checkpoint_end_with_capacity();
+}
+#endif
+
 static bool churn(uint32_t rounds){task_snapshot_t a[3];taskman_navigation_t n={0};for(uint32_t r=0;r<rounds;r++){uint32_t count=(r%3)+1;for(uint32_t i=0;i<count;i++){memset(&a[i],0,sizeof(a[i]));a[i].id=r+i+1;}taskman_navigation_reconcile(&n,a,count,2);if(n.selected_index>=count)g_violations++;}g_churn_rounds+=rounds;serial_write_all(g_violations?"[TASKMANTEST][CHURN] FAIL rounds=":"[TASKMANTEST][CHURN] PASS rounds=");dec(rounds);serial_write_all(" page_clamps=");dec(n.clamps);serial_write_all(" violations=");dec(g_violations);serial_write_all("\n");return !g_violations;}
 static bool churn_start(uint32_t rounds){if(!rounds||__atomic_load_n(&g_live_churn.active,__ATOMIC_ACQUIRE))return false;memset(&g_live_churn,0,sizeof(g_live_churn));g_live_churn.rounds=rounds;__atomic_store_n(&g_live_churn.active,1,__ATOMIC_RELEASE);if(!thread_create_named_with_class_flags_handle(live_churn_worker,&g_live_churn,TASK_CLASS_NORMAL,"taskman-churn-ctl",TASK_FLAG_SYSTEM,&g_live_churn_handle)){g_live_churn.active=0;return false;}serial_write_all("[TASKMANTEST][CHURN_LIVE] START rounds=");dec(rounds);serial_write_all("\n");return true;}
 static bool churn_status(bool wait){if(wait){uint64_t timeout_ms=g_live_churn.rounds>1000?1200000ULL:120000ULL;uint64_t end=clock_monotonic_ns()+timeout_ms*1000000ULL;while(!__atomic_load_n(&g_live_churn.done,__ATOMIC_ACQUIRE)&&clock_monotonic_ns()<end)timer_sleep(10);}bool done=__atomic_load_n(&g_live_churn.done,__ATOMIC_ACQUIRE),ok=done&&g_live_churn.completed==g_live_churn.rounds&&!g_live_churn.violations&&g_live_churn.generation_changes;serial_write_all(ok?"[TASKMANTEST][CHURN_LIVE] PASS rounds=":"[TASKMANTEST][CHURN_LIVE] STATUS rounds=");dec(g_live_churn.rounds);serial_write_all(" completed=");dec(g_live_churn.completed);serial_write_all(" generation_changes=");dec(g_live_churn.generation_changes);serial_write_all(" violations=");dec(g_live_churn.violations);serial_write_all("\n");return wait?ok:true;}
@@ -1536,52 +2462,152 @@ static bool check(void)
 }
 static bool clean_region_test(const char*tag){taskman_stats_t s;taskman_stats_snapshot(&s);bool ok=!s.stale_cells&&!s.model_live&&!s.pre_render_clear_failures;serial_write_all("[TASKMANTEST][");serial_write_all(tag);serial_write_all(ok?"] PASS stale_cells=0 model_live=0 region_clear_failures=0\n":"] FAIL\n");return ok;}
 static bool stress_test(uint32_t navigation,uint32_t churn_count,uint32_t zombies,uint32_t kill_render,uint32_t layouts){bool ok=heap_begin();task_snapshot_t tasks[2]={{.id=1},{.id=2}};taskman_navigation_t nav={0};taskman_navigation_reconcile(&nav,tasks,2,1);for(uint32_t i=0;i<navigation;i++)taskman_navigation_input(&nav,input_event_special((i&1)?KEY_SPECIAL_HOME:KEY_SPECIAL_END),2,1);ok&=nav.selection_changes==navigation;if(ok&&churn_count){ok=churn_start(churn_count)&&churn_status(true)&&churn_stop();}for(uint32_t i=0;i<zombies;i++)ok&=zombie();for(uint32_t i=0;i<kill_render;i++)ok&=clean_region_test("STRESS_KILL_RENDER");for(uint32_t i=0;i<layouts;i++){taskman_layout_t l;ok&=taskman_layout_compute((i&1)?90:160,40,0,0,&l)&&l.visible_task_rows;}ok&=heap_end();serial_write_all(ok?"[TASKMANTEST][STRESS] PASS navigation=":"[TASKMANTEST][STRESS] FAIL navigation=");dec(navigation);serial_write_all(" churn=");dec(churn_count);serial_write_all(" zombies=");dec(zombies);serial_write_all(" kill_render=");dec(kill_render);serial_write_all(" layouts=");dec(layouts);serial_write_all("\n");return ok;}
-static void stats_print(void)
+#define TASKMANTEST_STATS_NUMERIC_FIELDS 51u
+#define TASKMANTEST_STATS_LITERAL_BYTES 921u
+#define TASKMANTEST_STATS_MODE_MAX_BYTES 10u
+#define TASKMANTEST_STATS_RECORD_CAPACITY \
+    (1u + TASKMANTEST_STATS_LITERAL_BYTES + \
+     TASKMANTEST_STATS_NUMERIC_FIELDS * 20u + \
+     TASKMANTEST_STATS_MODE_MAX_BYTES + 1u)
+
+_Static_assert(
+    TASKMANTEST_STATS_RECORD_CAPACITY == 1953u,
+    "TASKMAN stats record capacity must cover all fields");
+
+static int format_stats_record(
+    char *record,
+    size_t record_capacity,
+    const taskman_stats_t *stats,
+    uint32_t auto_exit_pending)
 {
-    taskman_stats_t s;taskman_stats_snapshot(&s);
-    serial_write_all("[TASKMANTEST][STATS] sessions=");dec(s.sessions);
-    serial_write_all(" frames=");dec(s.frames);
-    serial_write_all(" full_frames=");dec(s.full_frames);serial_write_all(" fallback_frames=");dec(s.fallback_frames);
-    serial_write_all(" auto_exit_sessions=");dec(s.auto_exit_sessions);
-    serial_write_all(" auto_exit_shortfalls=");dec(s.auto_exit_shortfalls);
-    serial_write_all(" max_frame_gap_ms=");dec(s.max_full_frame_gap_ns/1000000ULL);
-    serial_write_all(" shell_exit_scroll_delta=");dec(s.shell_exit_scroll_delta);
-    serial_write_all(" last_session_shell_exit_scroll_delta=");dec(s.last_session_shell_exit_scroll_delta);
-    serial_write_all(" last_session_full_frames=");dec(s.last_session_full_frames);
-    serial_write_all(" last_session_fallback_frames=");dec(s.last_session_fallback_frames);
-    serial_write_all(" last_mode=");serial_write_all(mode_name(s.last_layout_mode));
-    serial_write_all(" pages=");dec(s.last_pages);serial_write_all(" captured=");dec(s.last_captured);
-    serial_write_all(" total=");dec(s.last_total);serial_write_all(" truncated=");dec(s.last_truncated);
-    serial_write_all(" render_failures=");dec(s.render_failures);
-    serial_write_all(" page_changes=");dec(s.page_changes);
-    serial_write_all(" selection_changes=");dec(s.selection_changes);
-    serial_write_all(" ignored=");dec(s.ignored_inputs);
-    serial_write_all(" scroll_delta=");dec(s.scroll_delta);
-    serial_write_all(" last_session_scroll_delta=");dec(s.last_session_scroll_delta);
-    serial_write_all(" clipped=");dec(s.last_session_clipped_writes);
-    serial_write_all(" builder_truncations=");dec(s.builder_truncations);
-    serial_write_all(" summary_failures=");dec(s.summary_format_failures);
-    serial_write_all(" footer_failures=");dec(s.footer_format_failures);
-    serial_write_all(" region_clear_failures=");dec(s.pre_render_clear_failures);
-    serial_write_all(" present_calls=");dec(s.present_calls);
-    serial_write_all(" selected_pid=");dec(s.last_selected_id);
-    serial_write_all(" rows_examined=");dec(s.rows_examined);serial_write_all(" rows_changed=");dec(s.rows_changed);
-    serial_write_all(" rows_unchanged=");dec(s.rows_unchanged);serial_write_all(" cells_examined=");dec(s.cells_examined);
-    serial_write_all(" cells_changed=");dec(s.cells_changed);serial_write_all(" cells_unchanged=");dec(s.cells_unchanged);
-    serial_write_all(" glyph_changes=");dec(s.glyph_changes);serial_write_all(" style_changes=");dec(s.style_changes);
-    serial_write_all(" first_frame_presents=");dec(s.first_frame_full_presents);
-    serial_write_all(" cleanup_clears=");dec(s.cleanup_clears);serial_write_all(" geometry_clears=");dec(s.geometry_invalidation_clears);
-    serial_write_all(" stable_frame_full_clears=");dec(s.stable_frame_full_clears);
-    serial_write_all(" tail_rows_cleared=");dec(s.tail_rows_cleared_by_present);
-    serial_write_all(" separator_mismatches=");dec(s.separator_mismatches);
-    serial_write_all(" field_overflows=");dec(s.field_overflows);serial_write_all(" field_truncations=");dec(s.field_truncations);
-    serial_write_all(" split_overlaps=");dec(s.split_overlaps);serial_write_all(" workspace_live=");dec(s.visual_workspace_live);
-    serial_write_all(" workspace_allocations=");dec(s.visual_workspace_allocations);
-    serial_write_all(" workspace_reallocations=");dec(s.visual_workspace_reallocations);
-    serial_write_all(" workspace_frees=");dec(s.visual_workspace_frees);
-    serial_write_all(" stale_cells=");dec(s.stale_cells);serial_write_all(" auto_exit_pending=");
-    dec(taskman_test_auto_exit_pending());serial_write_all("\n");
+    if (!stats)
+        return -1;
+    return ksnprintf(
+        record, record_capacity,
+        "\n[TASKMANTEST][STATS] sessions=%llu frames=%llu"
+        " full_frames=%llu fallback_frames=%llu"
+        " auto_exit_sessions=%llu auto_exit_shortfalls=%llu"
+        " max_frame_gap_ms=%llu shell_exit_scroll_delta=%llu"
+        " last_session_shell_exit_scroll_delta=%llu"
+        " last_session_full_frames=%llu"
+        " last_session_fallback_frames=%llu last_mode=%s pages=%llu"
+        " captured=%llu total=%llu truncated=%llu render_failures=%llu"
+        " page_changes=%llu selection_changes=%llu ignored=%llu"
+        " scroll_delta=%llu last_session_scroll_delta=%llu clipped=%llu"
+        " builder_truncations=%llu summary_failures=%llu"
+        " footer_failures=%llu region_clear_failures=%llu"
+        " present_calls=%llu selected_pid=%llu rows_examined=%llu"
+        " rows_changed=%llu rows_unchanged=%llu cells_examined=%llu"
+        " cells_changed=%llu cells_unchanged=%llu glyph_changes=%llu"
+        " style_changes=%llu first_frame_presents=%llu"
+        " cleanup_clears=%llu geometry_clears=%llu"
+        " stable_frame_full_clears=%llu tail_rows_cleared=%llu"
+        " separator_mismatches=%llu field_overflows=%llu"
+        " field_truncations=%llu split_overlaps=%llu workspace_live=%llu"
+        " workspace_allocations=%llu workspace_reallocations=%llu"
+        " workspace_frees=%llu stale_cells=%llu auto_exit_pending=%llu\n",
+        (unsigned long long)stats->sessions,
+        (unsigned long long)stats->frames,
+        (unsigned long long)stats->full_frames,
+        (unsigned long long)stats->fallback_frames,
+        (unsigned long long)stats->auto_exit_sessions,
+        (unsigned long long)stats->auto_exit_shortfalls,
+        (unsigned long long)(stats->max_full_frame_gap_ns / 1000000ULL),
+        (unsigned long long)stats->shell_exit_scroll_delta,
+        (unsigned long long)stats->last_session_shell_exit_scroll_delta,
+        (unsigned long long)stats->last_session_full_frames,
+        (unsigned long long)stats->last_session_fallback_frames,
+        mode_name(stats->last_layout_mode),
+        (unsigned long long)stats->last_pages,
+        (unsigned long long)stats->last_captured,
+        (unsigned long long)stats->last_total,
+        (unsigned long long)stats->last_truncated,
+        (unsigned long long)stats->render_failures,
+        (unsigned long long)stats->page_changes,
+        (unsigned long long)stats->selection_changes,
+        (unsigned long long)stats->ignored_inputs,
+        (unsigned long long)stats->scroll_delta,
+        (unsigned long long)stats->last_session_scroll_delta,
+        (unsigned long long)stats->last_session_clipped_writes,
+        (unsigned long long)stats->builder_truncations,
+        (unsigned long long)stats->summary_format_failures,
+        (unsigned long long)stats->footer_format_failures,
+        (unsigned long long)stats->pre_render_clear_failures,
+        (unsigned long long)stats->present_calls,
+        (unsigned long long)stats->last_selected_id,
+        (unsigned long long)stats->rows_examined,
+        (unsigned long long)stats->rows_changed,
+        (unsigned long long)stats->rows_unchanged,
+        (unsigned long long)stats->cells_examined,
+        (unsigned long long)stats->cells_changed,
+        (unsigned long long)stats->cells_unchanged,
+        (unsigned long long)stats->glyph_changes,
+        (unsigned long long)stats->style_changes,
+        (unsigned long long)stats->first_frame_full_presents,
+        (unsigned long long)stats->cleanup_clears,
+        (unsigned long long)stats->geometry_invalidation_clears,
+        (unsigned long long)stats->stable_frame_full_clears,
+        (unsigned long long)stats->tail_rows_cleared_by_present,
+        (unsigned long long)stats->separator_mismatches,
+        (unsigned long long)stats->field_overflows,
+        (unsigned long long)stats->field_truncations,
+        (unsigned long long)stats->split_overlaps,
+        (unsigned long long)stats->visual_workspace_live,
+        (unsigned long long)stats->visual_workspace_allocations,
+        (unsigned long long)stats->visual_workspace_reallocations,
+        (unsigned long long)stats->visual_workspace_frees,
+        (unsigned long long)stats->stale_cells,
+        (unsigned long long)auto_exit_pending);
 }
+
+static bool stats_print_with_capacity(size_t record_capacity)
+{
+    taskman_stats_t stats;
+    taskman_stats_snapshot(&stats);
+    uint32_t auto_exit_pending = taskman_test_auto_exit_pending();
+    char *record = (char *)kmalloc(record_capacity);
+    if (!record)
+    {
+        serial_write_all("[TASKMANTEST][STATS_ERROR] storage\n");
+        return false;
+    }
+
+    int required_length = format_stats_record(
+        record, record_capacity, &stats, auto_exit_pending);
+    if (required_length < 0 ||
+        (size_t)required_length >= record_capacity)
+    {
+        kfree(record);
+        serial_write_all("[TASKMANTEST][STATS_ERROR] formatting\n");
+        return false;
+    }
+
+    serial_write_all(record);
+    kfree(record);
+    return true;
+}
+
+static bool stats_print(void)
+{
+    return stats_print_with_capacity(TASKMANTEST_STATS_RECORD_CAPACITY);
+}
+
+#if defined(HOBBYOS_TASKMAN_STATS_HOST_TEST)
+int taskmantest_format_stats_record_for_test(
+    char *record,
+    size_t record_capacity,
+    const taskman_stats_t *stats,
+    uint32_t auto_exit_pending)
+{
+    return format_stats_record(
+        record, record_capacity, stats, auto_exit_pending);
+}
+
+bool taskmantest_emit_stats_record_for_test(size_t record_capacity)
+{
+    return stats_print_with_capacity(record_capacity);
+}
+#endif
 static bool all(void){return layout_test()&&model_test()&&sort_test()&&pagination_test()&&refresh_test()&&input_test()&&formatter_test()&&row_test()&&formatting_max()&&geometry_test(160,40)&&geometry_test(90,25)&&geometry_test(70,25)&&geometry_test(160,4)&&churn(10000)&&zombie()&&visual_all_test()&&check();}
 
 int cmd_taskmantest(int argc,char **argv)
@@ -1631,6 +2657,21 @@ int cmd_taskmantest(int argc,char **argv)
     else if(!strcmp(c,"diff-identical"))ok=diff_identical_test();
     else if(!strcmp(c,"diff-geometry"))ok=diff_geometry_test();
     else if(!strcmp(c,"visual-all"))ok=visual_all_test();
+    else if(!strcmp(c,"memory-checkpoint-begin")&&argc==4)
+    {
+        uint32_t cycles=0,workers=0;
+        bool parsed=parse_exact_u32(argv[2],&cycles)&&
+            parse_exact_u32(argv[3],&workers);
+        ok=parsed&&memory_checkpoint_begin_with_capacity(cycles,workers);
+        if(!parsed)
+            serial_write_all("[TASKMANTEST][MEMORY_CHECKPOINT_BEGIN] FAIL reason=parse\n");
+    }
+    else if(!strcmp(c,"memory-checkpoint-track")&&argc==2)
+        ok=memory_checkpoint_track_with_capacity();
+    else if(!strcmp(c,"memory-checkpoint-progress")&&argc==2)
+        ok=memory_checkpoint_progress_with_capacity();
+    else if(!strcmp(c,"memory-checkpoint-end")&&argc==2)
+        ok=memory_checkpoint_end_with_capacity();
     else if(!strcmp(c,"heap-begin"))ok=heap_begin();
     else if(!strcmp(c,"heap-end"))ok=heap_end();
     else if(!strcmp(c,"stress")){uint32_t a=argc>2?parse(argv[2],10000):10000,b=argc>3?parse(argv[3],10000):10000,d=argc>4?parse(argv[4],100):100,e=argc>5?parse(argv[5],100):100,f=argc>6?parse(argv[6],100):100;ok=stress_test(a,b,d,e,f);}
@@ -1652,7 +2693,7 @@ int cmd_taskmantest(int argc,char **argv)
     else if(!strcmp(c,"clean-region"))ok=clean_region_test("CLEAN_REGION");
     else if(!strcmp(c,"kill-render"))ok=clean_region_test("KILL_RENDER");
     else if(!strcmp(c,"check"))ok=check();
-    else if(!strcmp(c,"stats")){stats_print();ok=true;}
+    else if(!strcmp(c,"stats"))ok=stats_print();
     else if(!strcmp(c,"all"))ok=all();
     return ok?0:1;
 }

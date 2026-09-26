@@ -1,12 +1,35 @@
 #include "memory.h"
 
+/* GCC's aligned(1) type makes unaligned word loads explicit, while may_alias
+   permits the freestanding byte representation of every object to be viewed
+   through the general-purpose 64-bit register path. */
+typedef uint64_t memory_word_t
+    __attribute__((aligned(1), may_alias));
+
 void *memcpy(void *dest, const void *src, size_t n)
 {
     uint8_t *d = (uint8_t *)dest;
     const uint8_t *s = (const uint8_t *)src;
-    for (size_t i = 0; i < n; i++)
+
+    while (n != 0 && ((uintptr_t)d & (sizeof(memory_word_t) - 1u)) != 0)
     {
-        d[i] = s[i];
+        *d++ = *s++;
+        n--;
+    }
+
+    while (n >= sizeof(memory_word_t))
+    {
+        memory_word_t word = *(const memory_word_t *)(const void *)s;
+        *(memory_word_t *)(void *)d = word;
+        d += sizeof(memory_word_t);
+        s += sizeof(memory_word_t);
+        n -= sizeof(memory_word_t);
+    }
+
+    while (n != 0)
+    {
+        *d++ = *s++;
+        n--;
     }
     return dest;
 }
@@ -15,25 +38,22 @@ void *memset(void *dest, int c, size_t n)
 {
     uint8_t *d = (uint8_t *)dest;
 
-    if (c == 0 && n >= 8)
+    while (n != 0 && ((uintptr_t)d & (sizeof(memory_word_t) - 1u)) != 0)
     {
-
-        while ((uintptr_t)d % 8 != 0 && n > 0)
-        {
-            *d++ = 0;
-            n--;
-        }
-
-        uint64_t *d64 = (uint64_t *)d;
-        while (n >= 8)
-        {
-            *d64++ = 0;
-            n -= 8;
-        }
-        d = (uint8_t *)d64;
+        *d++ = (uint8_t)c;
+        n--;
     }
 
-    while (n > 0)
+    memory_word_t word = (uint8_t)c;
+    word *= UINT64_C(0x0101010101010101);
+    while (n >= sizeof(memory_word_t))
+    {
+        *(memory_word_t *)(void *)d = word;
+        d += sizeof(memory_word_t);
+        n -= sizeof(memory_word_t);
+    }
+
+    while (n != 0)
     {
         *d++ = (uint8_t)c;
         n--;
@@ -46,18 +66,53 @@ void *memmove(void *dest, const void *src, size_t n)
     uint8_t *d = (uint8_t *)dest;
     const uint8_t *s = (const uint8_t *)src;
 
-    if (d < s)
+    if (d == s || n == 0)
+        return dest;
+
+    if ((uintptr_t)d < (uintptr_t)s)
     {
-        for (size_t i = 0; i < n; i++)
+        while (n != 0 &&
+               ((uintptr_t)d & (sizeof(memory_word_t) - 1u)) != 0)
         {
-            d[i] = s[i];
+            *d++ = *s++;
+            n--;
+        }
+        while (n >= sizeof(memory_word_t))
+        {
+            memory_word_t word = *(const memory_word_t *)(const void *)s;
+            *(memory_word_t *)(void *)d = word;
+            d += sizeof(memory_word_t);
+            s += sizeof(memory_word_t);
+            n -= sizeof(memory_word_t);
+        }
+        while (n != 0)
+        {
+            *d++ = *s++;
+            n--;
         }
     }
     else
     {
-        for (size_t i = n; i > 0; i--)
+        d += n;
+        s += n;
+        while (n != 0 &&
+               ((uintptr_t)d & (sizeof(memory_word_t) - 1u)) != 0)
         {
-            d[i - 1] = s[i - 1];
+            *--d = *--s;
+            n--;
+        }
+        while (n >= sizeof(memory_word_t))
+        {
+            d -= sizeof(memory_word_t);
+            s -= sizeof(memory_word_t);
+            memory_word_t word = *(const memory_word_t *)(const void *)s;
+            *(memory_word_t *)(void *)d = word;
+            n -= sizeof(memory_word_t);
+        }
+        while (n != 0)
+        {
+            *--d = *--s;
+            n--;
         }
     }
     return dest;

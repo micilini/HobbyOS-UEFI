@@ -138,6 +138,16 @@ gcc -E -P -ffreestanding -std=gnu11 "$registry_source" > "$registry_pp"
 tasktest_count=$(grep -Ec '\.name[[:space:]]*=[[:space:]]*"tasktest"' \
     "$registry_pp" || true)
 [[ $tasktest_count == 0 ]] || fail_policy tasktest-registered-in-production
+locktest_count=$(grep -Ec '\.name[[:space:]]*=[[:space:]]*"locktest"' \
+    "$registry_pp" || true)
+[[ $locktest_count == 0 ]] || fail_policy locktest-registered-in-production
+alloctest_count=$(grep -Ec '\.name[[:space:]]*=[[:space:]]*"alloctest"' \
+    "$registry_pp" || true)
+[[ $alloctest_count == 0 ]] || fail_policy alloctest-registered-in-production
+profiletest_count=$(grep -Ec '\.name[[:space:]]*=[[:space:]]*"profiletest"' \
+    "$registry_pp" || true)
+[[ $profiletest_count == 0 ]] ||
+    fail_policy profiletest-registered-in-production
 
 manual_diagnostics=(
     schedtest synctest accounttest killtest reaptest inputtest modaltest taskmantest
@@ -157,7 +167,8 @@ smpstress_count=$(grep -Ec '\.name[[:space:]]*=[[:space:]]*"smpstress"' \
 
 boot_handlers=(
     cmd_schedtest cmd_synctest cmd_accounttest cmd_killtest cmd_reaptest
-    cmd_inputtest cmd_modaltest cmd_taskmantest cmd_tasktest smpstress
+    cmd_inputtest cmd_modaltest cmd_taskmantest cmd_tasktest cmd_locktest
+    cmd_alloctest cmd_profiletest smpstress
 )
 for handler in "${boot_handlers[@]}"; do
     if grep -En "${handler}[[:space:]]*\\(" "$kernel_source" "$boot_source"; then

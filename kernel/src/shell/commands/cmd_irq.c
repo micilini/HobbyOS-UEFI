@@ -9,7 +9,9 @@
 #include "../../drivers/serial.h"
 #include "../../drivers/timer.h"
 #include "../../graphics/console.h"
+#include "../../libc/memory.h"
 #include "../../libc/string.h"
+#include "../../memory/heap.h"
 #include "../../timer/hpet.h"
 
 static void both_text(const char *text)
@@ -106,6 +108,93 @@ static const char *trigger_name(irq_trigger_t trigger)
     }
 }
 
+#define IRQ_DIAGNOSTIC_SNAPSHOT_BUDGET_MS 5000u
+#define IRQ_DIAGNOSTIC_SNAPSHOT_POLL_ATTEMPTS 128u
+#define IRQ_BOOT_RECORD_CAPACITY 768u
+
+typedef enum
+{
+    IRQ_BOOT_SNAPSHOT_OK = 0,
+    IRQ_BOOT_SNAPSHOT_UNAVAILABLE,
+    IRQ_BOOT_SNAPSHOT_STRUCTURAL,
+    IRQ_BOOT_SNAPSHOT_TIMEOUT
+} irq_boot_snapshot_result_t;
+
+typedef struct
+{
+    irq_bootstrap_cpu_snapshot_t cpu;
+    interrupt_cpu_snapshot_t journal;
+    interrupt_cpu_snapshot_t last;
+} irq_boot_sample_t;
+
+#if defined(HOBBYOS_IRQ_SNAPSHOT_HOST_TEST)
+static size_t g_irq_boot_test_record_capacity = IRQ_BOOT_RECORD_CAPACITY;
+#endif
+
+static size_t irq_boot_record_capacity(void)
+{
+#if defined(HOBBYOS_IRQ_SNAPSHOT_HOST_TEST)
+    return g_irq_boot_test_record_capacity < IRQ_BOOT_RECORD_CAPACITY ?
+        g_irq_boot_test_record_capacity : IRQ_BOOT_RECORD_CAPACITY;
+#else
+    return IRQ_BOOT_RECORD_CAPACITY;
+#endif
+}
+
+static bool irq_boot_publish_record(char *record, const char *format, ...)
+{
+    size_t capacity = irq_boot_record_capacity();
+    va_list args;
+    va_start(args, format);
+    int length = kvsnprintf(record, capacity, format, args);
+    va_end(args);
+    if (length < 0 || (size_t)length >= capacity)
+        return false;
+    console_write(record);
+    serial_write_all(record);
+    return true;
+}
+
+static int irq_boot_format_error(void)
+{
+    both_text("[IRQ][BOOT_ERROR] reason=format\n");
+    both_text("[IRQ][BOOT_RESULT] FAIL reason=format\n");
+    return 1;
+}
+
+static const char *irq_diagnostic_snapshot_result_name(
+    irq_boot_snapshot_result_t result)
+{
+    switch (result)
+    {
+    case IRQ_BOOT_SNAPSHOT_UNAVAILABLE: return "unavailable";
+    case IRQ_BOOT_SNAPSHOT_STRUCTURAL: return "structural";
+    case IRQ_BOOT_SNAPSHOT_TIMEOUT: return "timeout";
+    default: return "ok";
+    }
+}
+
+static irq_boot_snapshot_result_t irq_diagnostic_journal_snapshot(
+    cpu_slot_t slot, uint64_t deadline, interrupt_cpu_snapshot_t *out,
+    interrupt_cpu_snapshot_t *last, uint32_t *polls)
+{
+    for (;;)
+    {
+        (*polls)++;
+        if (interrupt_context_snapshot_stable(
+                slot, out, IRQ_DIAGNOSTIC_SNAPSHOT_POLL_ATTEMPTS))
+            return IRQ_BOOT_SNAPSHOT_OK;
+        if (!interrupt_context_snapshot(slot, last) || !last->initialized)
+            return IRQ_BOOT_SNAPSHOT_UNAVAILABLE;
+        if (last->underflow || last->mismatch ||
+            last->returned_total > last->entered_total)
+            return IRQ_BOOT_SNAPSHOT_STRUCTURAL;
+        if (timer_get_uptime_ms() >= deadline)
+            return IRQ_BOOT_SNAPSHOT_TIMEOUT;
+        timer_sleep(1);
+    }
+}
+
 static void irq_usage(void)
 {
     both_text("Usage:\n");
@@ -121,62 +210,124 @@ static void irq_usage(void)
 
 static int irq_check(void)
 {
-    irq_bootstrap_snapshot_t boot;
-    ioapic_registry_snapshot_t registry;
-    timer_clockevent_snapshot_t event;
-    hpet_runtime_snapshot_t hpet;
+    irq_bootstrap_snapshot_t boot = {0};
+    ioapic_registry_snapshot_t registry = {0};
+    timer_clockevent_snapshot_t event = {0};
+    hpet_runtime_snapshot_t hpet = {0};
     uint64_t unexpected = 0;
     uint64_t imbalance = 0;
-    cpu_slot_t unstable_slot = CPU_SLOT_INVALID;
-    interrupt_cpu_snapshot_t unstable = {0};
-    bool snapshots_ok = irq_bootstrap_snapshot(&boot) &&
-                        ioapic_registry_snapshot(&registry) &&
-                        timer_clockevent_snapshot(&event) &&
-                        hpet_runtime_snapshot(&hpet);
-    if (snapshots_ok)
+    uint64_t snapshot_started = timer_get_uptime_ms();
+    uint64_t snapshot_deadline = UINT64_MAX - snapshot_started <
+        IRQ_DIAGNOSTIC_SNAPSHOT_BUDGET_MS ? UINT64_MAX :
+        snapshot_started + IRQ_DIAGNOSTIC_SNAPSHOT_BUDGET_MS;
+    uint32_t snapshot_polls = 0;
+    uint32_t validation_polls = 0;
+    cpu_slot_t failed_slot = CPU_SLOT_INVALID;
+    interrupt_cpu_snapshot_t failed_snapshot = {0};
+    const char *failure_reason = "snapshot-unavailable";
+    bool structural_failure = false;
+    bool pass = false;
+
+    for (;;)
     {
-        for (cpu_slot_t slot = 0; slot < boot.cpus_expected; slot++)
+        unexpected = 0;
+        imbalance = 0;
+        failed_slot = CPU_SLOT_INVALID;
+        bool snapshots_ok = irq_bootstrap_snapshot(&boot) &&
+                            ioapic_registry_snapshot(&registry) &&
+                            timer_clockevent_snapshot(&event) &&
+                            hpet_runtime_snapshot(&hpet);
+        if (snapshots_ok &&
+            (boot.state != IRQ_BOOTSTRAP_SERVICES_ACTIVE ||
+             boot.cpus_runtime_ready != boot.cpus_expected ||
+             boot.failed_cpus || boot.runtime_ready_abort ||
+             !boot.hpet_timer0_quiescent ||
+             event.source != TIMER_CLOCKEVENT_BSP_LAPIC ||
+             event.period_us != 1000u || event.non_bsp_attempts ||
+             event.timestamp_regressions || hpet.stray_irqs ||
+             !registry.initialized || !registry.controllers ||
+             registry.prepared_routes < 1u))
         {
-            interrupt_cpu_snapshot_t journal;
-            if (!interrupt_context_snapshot_stable(
-                    slot, &journal, INTERRUPT_CONTEXT_SNAPSHOT_ATTEMPTS))
+            failure_reason = "runtime-contract";
+            structural_failure = true;
+        }
+        for (cpu_slot_t slot = 0;
+             snapshots_ok && !structural_failure &&
+             slot < boot.cpus_expected; slot++)
+        {
+            interrupt_cpu_snapshot_t journal = {0};
+            irq_boot_snapshot_result_t result =
+                irq_diagnostic_journal_snapshot(
+                    slot, snapshot_deadline, &journal, &failed_snapshot,
+                    &snapshot_polls);
+            if (result != IRQ_BOOT_SNAPSHOT_OK)
             {
-                unstable_slot = slot;
-                (void)interrupt_context_snapshot(slot, &unstable);
+                failed_slot = slot;
+                failure_reason = irq_diagnostic_snapshot_result_name(result);
                 snapshots_ok = false;
                 break;
             }
             unexpected += journal.unexpected;
             imbalance += journal.imbalance;
+            if (journal.unexpected || journal.imbalance || journal.underflow ||
+                journal.mismatch ||
+                journal.returned_total > journal.entered_total)
+            {
+                failed_slot = slot;
+                failed_snapshot = journal;
+                failure_reason = "journal-structural";
+                structural_failure = true;
+                break;
+            }
         }
+        if (structural_failure)
+            break;
+        if (snapshots_ok)
+        {
+            validation_polls++;
+            if (irq_bootstrap_validate())
+            {
+                pass = true;
+                failure_reason = "none";
+                break;
+            }
+            failure_reason = "bootstrap-validation";
+        }
+        if (timer_get_uptime_ms() >= snapshot_deadline)
+            break;
+        timer_sleep(1);
     }
-    bool pass = snapshots_ok && !unexpected && !imbalance &&
-                irq_bootstrap_validate();
+
     both_text("[IRQ][CHECK] ");
     both_text(pass ? "PASS" : "FAIL");
-    field_text("clocksource", snapshots_ok ? "HPET" : "UNKNOWN");
-    field_text("clockevent", snapshots_ok &&
-        event.source == TIMER_CLOCKEVENT_BSP_LAPIC ?
+    field_text("clocksource", hpet.available ? "HPET" : "UNKNOWN");
+    field_text("clockevent", event.source == TIMER_CLOCKEVENT_BSP_LAPIC ?
         "BSP_LAPIC" : "NONE");
-    field_u64("period_us", snapshots_ok ? event.period_us : 0);
-    field_text("hpet_timer0", snapshots_ok &&
+    field_u64("period_us", event.period_us);
+    field_text("hpet_timer0",
         boot.hpet_timer0_quiescent ? "QUIESCENT" : "NOT_QUIESCENT");
-    field_u64("non_bsp_ticks", snapshots_ok ? event.non_bsp_attempts : 0);
-    field_u64("stray_hpet", snapshots_ok ? hpet.stray_irqs : 0);
-    field_u64("cpus", snapshots_ok ? boot.cpus_runtime_ready : 0);
+    field_u64("non_bsp_ticks", event.non_bsp_attempts);
+    field_u64("stray_hpet", hpet.stray_irqs);
+    field_u64("cpus", boot.cpus_runtime_ready);
     both_text("/");
-    both_u64(snapshots_ok ? boot.cpus_expected : 0);
-    field_u64("controllers", snapshots_ok ? registry.controllers : 0);
-    field_u64("routes", snapshots_ok ? registry.prepared_routes : 0);
+    both_u64(boot.cpus_expected);
+    field_u64("controllers", registry.controllers);
+    field_u64("routes", registry.prepared_routes);
     field_u64("unexpected", unexpected);
     field_u64("imbalance", imbalance);
-    if (unstable_slot != CPU_SLOT_INVALID)
+    field_u64("snapshot_polls", snapshot_polls);
+    field_u64("validation_polls", validation_polls);
+    field_u64("elapsed_ms", timer_get_uptime_ms() - snapshot_started);
+    field_text("reason", pass ? "ok" : failure_reason);
+    if (failed_slot != CPU_SLOT_INVALID)
     {
-        field_u64("unstable_slot", unstable_slot);
-        field_u64("entered", unstable.entered_total);
-        field_u64("returned", unstable.returned_total);
-        field_u64("depth", unstable.depth);
-        field_u64("epilogue", unstable.preempt_epilogue);
+        field_u64("failed_slot", failed_slot);
+        field_u64("entered", failed_snapshot.entered_total);
+        field_u64("returned", failed_snapshot.returned_total);
+        field_u64("depth", failed_snapshot.depth);
+        field_u64("epilogue", failed_snapshot.preempt_epilogue);
+        field_u64("underflow", failed_snapshot.underflow);
+        field_u64("mismatch", failed_snapshot.mismatch);
     }
     both_text("\n");
     return pass ? 0 : 1;
@@ -281,79 +432,223 @@ static int irq_routes(void)
 
 static int irq_boot(void)
 {
-    irq_bootstrap_snapshot_t boot;
-    timer_clockevent_snapshot_t event;
-    hpet_runtime_snapshot_t hpet;
+    irq_bootstrap_snapshot_t boot = {0};
+    timer_clockevent_snapshot_t event = {0};
+    hpet_runtime_snapshot_t hpet = {0};
+    char record[IRQ_BOOT_RECORD_CAPACITY];
     if (!irq_bootstrap_snapshot(&boot) ||
         !timer_clockevent_snapshot(&event) ||
         !hpet_runtime_snapshot(&hpet))
     {
         both_text("[IRQ][BOOT] FAIL snapshot=0\n");
+        both_text("[IRQ][BOOT_RESULT] FAIL snapshots=0 reason=snapshot-unavailable\n");
         return 1;
     }
-    both_text("[IRQ][BOOT]");
-    field_text("state", bootstrap_state_name(boot.state));
-    field_u64("cpus_prepared", boot.cpus_prepared);
-    field_u64("cpus_verified", boot.cpus_verified);
-    field_u64("runtime_ready", boot.cpus_runtime_ready);
-    both_text("/");
-    both_u64(boot.cpus_expected);
-    field_u64("handoffs", boot.handoffs_complete);
-    field_u64("preemption", boot.preemption_enabled);
-    field_u64("failed", boot.failed_cpus);
-    both_text("\n");
 
-    both_text("[IRQ][BOOT_PROBES]");
-    field_u64("bsp_probe_vector", boot.bsp_probe_vector);
-    field_u64("bsp_probe_entered", boot.bsp_lapic_entered);
-    field_u64("bsp_probe_returned", boot.bsp_lapic_returned);
-    field_u64("hpet_clocksource_verified", boot.hpet_clocksource_verified);
-    field_u64("hpet_samples", boot.hpet_probe_samples);
-    field_u64("hpet_counter_before", boot.hpet_counter_before);
-    field_u64("hpet_counter_after", boot.hpet_counter_after);
-    field_u64("hpet_counter_delta", boot.hpet_counter_delta);
-    field_u64("keyboard_gsi", boot.keyboard_gsi);
-    both_text("\n");
+    if (!boot.cpus_expected || boot.cpus_expected > HOBBYOS_MAX_CPUS)
+    {
+        if (!irq_boot_publish_record(
+                record,
+                "[IRQ][BOOT_ERROR] reason=topology-invalid cpus=%u max=%u\n",
+                (unsigned int)boot.cpus_expected,
+                (unsigned int)HOBBYOS_MAX_CPUS) ||
+            !irq_boot_publish_record(
+                record,
+                "[IRQ][BOOT_RESULT] FAIL snapshots=0 reason=topology-invalid\n"))
+            return irq_boot_format_error();
+        return 1;
+    }
 
-    both_text("[IRQ][BOOT_CLOCK]");
-    field_text("clocksource", "HPET");
-    field_u64("hpet_clocksource_verified", boot.hpet_clocksource_verified);
-    field_u64("hpet_timer0_quiescent", boot.hpet_timer0_quiescent);
-    field_u64("hpet_timer0_irq_enabled", hpet.timer0_interrupt_enabled);
-    field_u64("hpet_timer0_route_enabled", hpet.timer0_route_enabled);
-    field_text("clockevent", event.source == TIMER_CLOCKEVENT_BSP_LAPIC ?
-        "BSP_LAPIC" : "NONE");
-    field_u64("clockevent_bsp_slot", event.bsp_slot);
-    field_u64("clockevent_period_us", event.period_us);
-    field_u64("clockevent_ticks", event.total_ticks);
-    field_u64("clockevent_non_bsp", event.non_bsp_attempts);
-    field_u64("clockevent_early", event.early_attempts);
-    field_u64("clockevent_regressions", event.timestamp_regressions);
-    field_u64("hpet_stray_irqs", hpet.stray_irqs);
-    both_text("\n");
+    size_t samples_bytes = sizeof(irq_boot_sample_t) * boot.cpus_expected;
+    irq_boot_sample_t *samples = (irq_boot_sample_t *)kmalloc(samples_bytes);
+    if (!samples)
+    {
+        both_text("[IRQ][BOOT_ERROR] reason=storage-unavailable\n");
+        both_text("[IRQ][BOOT_RESULT] FAIL snapshots=0 reason=storage-unavailable\n");
+        return 1;
+    }
+    memset(samples, 0, samples_bytes);
 
+    uint64_t snapshot_started = timer_get_uptime_ms();
+    uint64_t snapshot_deadline = UINT64_MAX - snapshot_started <
+        IRQ_DIAGNOSTIC_SNAPSHOT_BUDGET_MS ? UINT64_MAX :
+        snapshot_started + IRQ_DIAGNOSTIC_SNAPSHOT_BUDGET_MS;
+    uint32_t snapshot_polls = 0;
+    uint32_t snapshots = 0;
+    cpu_slot_t failed_slot = CPU_SLOT_INVALID;
+    const char *failure_reason = "none";
+    irq_boot_snapshot_result_t snapshot_result = IRQ_BOOT_SNAPSHOT_OK;
     for (cpu_slot_t slot = 0; slot < boot.cpus_expected; slot++)
     {
-        irq_bootstrap_cpu_snapshot_t cpu;
-        interrupt_cpu_snapshot_t journal;
-        if (!irq_bootstrap_cpu_snapshot(slot, &cpu) ||
-            !interrupt_context_snapshot_stable(slot, &journal, 128u))
-            return 1;
-        both_text("[IRQ][BOOT_CPU]");
-        field_u64("slot", slot);
-        field_u64("apic", cpu.apic_id);
-        field_u64("first_vector", journal.first_vector);
-        field_u64("entered", journal.entered_total);
-        field_u64("returned", journal.returned_total);
-        field_u64("depth", journal.depth);
-        field_u64("unexpected", journal.unexpected);
-        field_u64("handoff", cpu.handoff_complete);
-        field_u64("preempt", cpu.preemption_enabled);
-        field_u64("ready", cpu.runtime_ready);
-        both_text("\n");
+        irq_boot_sample_t *sample = &samples[slot];
+        if (!irq_bootstrap_cpu_snapshot(slot, &sample->cpu))
+        {
+            failed_slot = slot;
+            failure_reason = "bootstrap-unavailable";
+            snapshot_result = IRQ_BOOT_SNAPSHOT_UNAVAILABLE;
+            break;
+        }
+        if (slot && timer_get_uptime_ms() >= snapshot_deadline)
+        {
+            failed_slot = slot;
+            failure_reason = "timeout";
+            snapshot_result = IRQ_BOOT_SNAPSHOT_TIMEOUT;
+            break;
+        }
+        snapshot_result = irq_diagnostic_journal_snapshot(
+            slot, snapshot_deadline, &sample->journal, &sample->last,
+            &snapshot_polls);
+        if (snapshot_result != IRQ_BOOT_SNAPSHOT_OK)
+        {
+            failed_slot = slot;
+            failure_reason =
+                irq_diagnostic_snapshot_result_name(snapshot_result);
+            break;
+        }
+        snapshots++;
     }
-    return 0;
+    uint64_t acquisition_finished = timer_get_uptime_ms();
+    uint64_t acquisition_ms = acquisition_finished - snapshot_started;
+    uint64_t publication_started = acquisition_finished;
+
+    bool formatted = irq_boot_publish_record(
+        record,
+        "[IRQ][BOOT] state=%s cpus_prepared=%u cpus_verified=%u"
+        " runtime_ready=%u/%u handoffs=%u preemption=%u failed=%u\n",
+        bootstrap_state_name(boot.state), (unsigned int)boot.cpus_prepared,
+        (unsigned int)boot.cpus_verified,
+        (unsigned int)boot.cpus_runtime_ready,
+        (unsigned int)boot.cpus_expected,
+        (unsigned int)boot.handoffs_complete,
+        (unsigned int)boot.preemption_enabled,
+        (unsigned int)boot.failed_cpus);
+    formatted = formatted && irq_boot_publish_record(
+        record,
+        "[IRQ][BOOT_PROBES] bsp_probe_vector=%u bsp_probe_entered=%llu"
+        " bsp_probe_returned=%llu hpet_clocksource_verified=%u"
+        " hpet_samples=%u hpet_counter_before=%llu"
+        " hpet_counter_after=%llu hpet_counter_delta=%llu keyboard_gsi=%u\n",
+        (unsigned int)boot.bsp_probe_vector,
+        (unsigned long long)boot.bsp_lapic_entered,
+        (unsigned long long)boot.bsp_lapic_returned,
+        (unsigned int)boot.hpet_clocksource_verified,
+        (unsigned int)boot.hpet_probe_samples,
+        (unsigned long long)boot.hpet_counter_before,
+        (unsigned long long)boot.hpet_counter_after,
+        (unsigned long long)boot.hpet_counter_delta,
+        (unsigned int)boot.keyboard_gsi);
+    formatted = formatted && irq_boot_publish_record(
+        record,
+        "[IRQ][BOOT_CLOCK] clocksource=HPET hpet_clocksource_verified=%u"
+        " hpet_timer0_quiescent=%u hpet_timer0_irq_enabled=%u"
+        " hpet_timer0_route_enabled=%u clockevent=%s"
+        " clockevent_bsp_slot=%u clockevent_period_us=%u"
+        " clockevent_ticks=%llu clockevent_non_bsp=%llu"
+        " clockevent_early=%llu clockevent_regressions=%llu"
+        " hpet_stray_irqs=%llu\n",
+        (unsigned int)boot.hpet_clocksource_verified,
+        (unsigned int)boot.hpet_timer0_quiescent,
+        (unsigned int)hpet.timer0_interrupt_enabled,
+        (unsigned int)hpet.timer0_route_enabled,
+        event.source == TIMER_CLOCKEVENT_BSP_LAPIC ? "BSP_LAPIC" : "NONE",
+        (unsigned int)event.bsp_slot,
+        (unsigned int)event.period_us,
+        (unsigned long long)event.total_ticks,
+        (unsigned long long)event.non_bsp_attempts,
+        (unsigned long long)event.early_attempts,
+        (unsigned long long)event.timestamp_regressions,
+        (unsigned long long)hpet.stray_irqs);
+    for (cpu_slot_t slot = 0; formatted && slot < snapshots; slot++)
+    {
+        irq_boot_sample_t *sample = &samples[slot];
+        formatted = irq_boot_publish_record(
+            record,
+            "[IRQ][BOOT_CPU] slot=%u apic=%u first_vector=%u"
+            " entered=%llu returned=%llu depth=%u unexpected=%llu"
+            " handoff=%u preempt=%u ready=%u\n",
+            (unsigned int)slot, (unsigned int)sample->cpu.apic_id,
+            (unsigned int)sample->journal.first_vector,
+            (unsigned long long)sample->journal.entered_total,
+            (unsigned long long)sample->journal.returned_total,
+            (unsigned int)sample->journal.depth,
+            (unsigned long long)sample->journal.unexpected,
+            (unsigned int)sample->cpu.handoff_complete,
+            (unsigned int)sample->cpu.preemption_enabled,
+            (unsigned int)sample->cpu.runtime_ready);
+    }
+    if (formatted && failed_slot != CPU_SLOT_INVALID)
+    {
+        irq_boot_sample_t *failed = &samples[failed_slot];
+        formatted = irq_boot_publish_record(
+            record,
+            "[IRQ][BOOT_SNAPSHOT] FAIL slot=%u reason=%s polls=%u"
+            " elapsed_ms=%llu entered=%llu returned=%llu depth=%u"
+            " epilogue=%u underflow=%llu mismatch=%llu\n",
+            (unsigned int)failed_slot, failure_reason,
+            (unsigned int)snapshot_polls,
+            (unsigned long long)acquisition_ms,
+            (unsigned long long)failed->last.entered_total,
+            (unsigned long long)failed->last.returned_total,
+            (unsigned int)failed->last.depth,
+            (unsigned int)failed->last.preempt_epilogue,
+            (unsigned long long)failed->last.underflow,
+            (unsigned long long)failed->last.mismatch);
+    }
+    if (!formatted)
+    {
+        kfree(samples);
+        return irq_boot_format_error();
+    }
+
+    uint64_t publication_finished = timer_get_uptime_ms();
+    uint64_t publication_ms = publication_finished - publication_started;
+    uint64_t elapsed_ms = publication_finished - snapshot_started;
+    if (failed_slot == CPU_SLOT_INVALID)
+        formatted = irq_boot_publish_record(
+            record,
+            "[IRQ][BOOT_RESULT] PASS snapshots=%u polls=%u elapsed_ms=%llu"
+            " acquisition_ms=%llu publication_ms=%llu budget_ms=%u\n",
+            (unsigned int)snapshots, (unsigned int)snapshot_polls,
+            (unsigned long long)elapsed_ms,
+            (unsigned long long)acquisition_ms,
+            (unsigned long long)publication_ms,
+            (unsigned int)IRQ_DIAGNOSTIC_SNAPSHOT_BUDGET_MS);
+    else
+        formatted = irq_boot_publish_record(
+            record,
+            "[IRQ][BOOT_RESULT] FAIL snapshots=%u failed_slot=%u reason=%s"
+            " polls=%u elapsed_ms=%llu acquisition_ms=%llu"
+            " publication_ms=%llu budget_ms=%u\n",
+            (unsigned int)snapshots, (unsigned int)failed_slot,
+            failure_reason, (unsigned int)snapshot_polls,
+            (unsigned long long)elapsed_ms,
+            (unsigned long long)acquisition_ms,
+            (unsigned long long)publication_ms,
+            (unsigned int)IRQ_DIAGNOSTIC_SNAPSHOT_BUDGET_MS);
+    kfree(samples);
+    if (!formatted)
+        return irq_boot_format_error();
+    return snapshot_result == IRQ_BOOT_SNAPSHOT_OK ? 0 : 1;
 }
+
+#if defined(HOBBYOS_IRQ_SNAPSHOT_HOST_TEST)
+int irq_boot_for_test(void)
+{
+    return irq_boot();
+}
+
+void irq_boot_set_record_capacity_for_test(size_t capacity)
+{
+    g_irq_boot_test_record_capacity = capacity;
+}
+
+size_t irq_boot_sample_storage_bytes_for_test(uint32_t cpu_count)
+{
+    if (!cpu_count || cpu_count > HOBBYOS_MAX_CPUS)
+        return 0;
+    return sizeof(irq_boot_sample_t) * cpu_count;
+}
+#endif
 
 int cmd_irq(int argc, char **argv)
 {

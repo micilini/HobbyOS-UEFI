@@ -1,12 +1,11 @@
 #include "terminal.h"
 #include "console.h"
-#include "../utils/utils.h"
 
 #define TERM_BG_COLOR 0xFF000022
 #define TERM_FG_COLOR 0xFFFFFFFF
 #define TERM_ACCENT 0xFF00FFFF
 
-void init_terminal()
+void init_terminal(void)
 {
 
     console_clear(TERM_BG_COLOR);

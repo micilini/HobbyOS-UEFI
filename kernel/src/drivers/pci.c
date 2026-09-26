@@ -69,21 +69,23 @@ static inline uint32_t inl(uint16_t port)
     return ret;
 }
 
-uint32_t pci_legacy_read(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset)
+static uint32_t pci_legacy_read(uint8_t bus, uint8_t slot, uint8_t func,
+                                uint8_t offset)
 {
     uint32_t address = (uint32_t)((bus << 16) | (slot << 11) | (func << 8) | (offset & 0xFC) | ((uint32_t)0x80000000));
     outl(0xCF8, address);
     return inl(0xCFC);
 }
 
-void pci_legacy_write(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint32_t value)
+static void pci_legacy_write(uint8_t bus, uint8_t slot, uint8_t func,
+                             uint8_t offset, uint32_t value)
 {
     uint32_t address = (uint32_t)((bus << 16) | (slot << 11) | (func << 8) | (offset & 0xFC) | ((uint32_t)0x80000000));
     outl(0xCF8, address);
     outl(0xCFC, value);
 }
 
-uint64_t pci_get_capability(uint64_t device_addr, uint8_t cap_id)
+static uint64_t pci_get_capability(uint64_t device_addr, uint8_t cap_id)
 {
     PciDeviceHeader *header = (PciDeviceHeader *)device_addr;
 
@@ -196,7 +198,8 @@ bool pci_msi_snapshot(pci_msi_snapshot_t *out)
     return true;
 }
 
-void pci_enumerate_function(uint64_t device_addr, uint64_t function, uint8_t bus, uint8_t slot)
+static void pci_enumerate_function(uint64_t device_addr, uint64_t function,
+                                   uint8_t bus, uint8_t slot)
 {
     uint64_t offset = function << 12;
     uint64_t function_addr = device_addr + offset;
@@ -268,7 +271,8 @@ void pci_enumerate_function(uint64_t device_addr, uint64_t function, uint8_t bus
     }
 }
 
-void pci_enumerate_device(uint64_t bus_addr, uint64_t device, uint8_t bus)
+static void pci_enumerate_device(uint64_t bus_addr, uint64_t device,
+                                 uint8_t bus)
 {
     uint64_t offset = device << 15;
     uint64_t device_addr = bus_addr + offset;
@@ -287,7 +291,7 @@ void pci_enumerate_device(uint64_t bus_addr, uint64_t device, uint8_t bus)
     }
 }
 
-void pci_enumerate_bus(uint64_t base_addr, uint64_t bus)
+static void pci_enumerate_bus(uint64_t base_addr, uint64_t bus)
 {
     uint64_t offset = bus << 20;
     uint64_t bus_addr = base_addr + offset;
@@ -298,7 +302,7 @@ void pci_enumerate_bus(uint64_t base_addr, uint64_t bus)
     }
 }
 
-void pci_init()
+void pci_init(void)
 {
     pci_progress("PCI_BEGIN", "source=MCFG");
     console_set_color(CONSOLE_COLOR_DEBUG, CONSOLE_COLOR_BLACK);

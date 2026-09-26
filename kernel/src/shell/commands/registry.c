@@ -26,6 +26,11 @@
 #include "cmd_taskmantest.h"
 #include "cmd_taskdiag.h"
 #include "cmd_tasktest.h"
+#ifdef HOBBYOS_SELFTEST
+#include "cmd_locktest.h"
+#include "cmd_alloctest.h"
+#include "cmd_profiletest.h"
+#endif
 #include "../diagnostic_result.h"
 
 #include "../../libc/string.h"
@@ -57,6 +62,9 @@ static const char *g_aliases_taskman[] = {"tm", "top", 0};
 static const char *g_aliases_taskdiag[] = {"td", "tdiag", 0};
 #ifdef HOBBYOS_SELFTEST
 static const char *g_aliases_tasktest[] = {"tt", 0};
+static const char *g_aliases_locktest[] = {"lt", 0};
+static const char *g_aliases_alloctest[] = {"at", 0};
+static const char *g_aliases_profiletest[] = {"pt", 0};
 #endif
 static const char *g_aliases_schedtest[] = {"st", 0};
 static const char *g_aliases_synctest[] = {"sync-test", 0};
@@ -248,6 +256,21 @@ static const ShellCommand g_commands[] = {
      .usage = "diagnosticresulttest all",
      .details = "Exercises synchronous PASS/FAIL and asynchronous status delivery.\nSynthetic FAIL output is expected and does not indicate a guest fault.",
      .handler = cmd_diagnosticresulttest},
+    {.name = "locktest",
+     .aliases = g_aliases_locktest,
+     .desc = "Validate FIFO spinlock progress and exclusion",
+     .usage = "locktest progress <cpus> <iterations>",
+     .handler = cmd_locktest},
+    {.name = "alloctest",
+     .aliases = g_aliases_alloctest,
+     .desc = "Validate allocator rejection and bitmap word search",
+     .usage = "alloctest hardening",
+     .handler = cmd_alloctest},
+    {.name = "profiletest",
+     .aliases = g_aliases_profiletest,
+     .desc = "Validate ABI, direction flag and memory primitives",
+     .usage = "profiletest abi|memory",
+     .handler = cmd_profiletest},
 #endif
     {.name = "schedtest",
      .aliases = g_aliases_schedtest,

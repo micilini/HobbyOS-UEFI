@@ -270,81 +270,129 @@ static int notification_test(void)
 }
 
 typedef struct{uint64_t canary_begin;semaphore_t gate;volatile uint8_t started,entered;volatile uint32_t result;volatile uint8_t after,active;task_handle_t handle;uint64_t canary_end;}timer_ref_ctx_t;
+typedef struct{
+ task_snapshot_t snapshot,kill_observed,target,release_snapshot;
+ scheduler_test_reap_observation_t reap,held;
+ timers_test_task_wake_snapshot_t wake_before,wake_after;
+ task_reaper_stats_t reaper_before,reaper_after;
+ timer_stats_t timers_before,timers_after;
+ timers_test_claim_hold_snapshot_t claim_hold;
+}timer_ref_observation_t;
 typedef enum{TIMER_REF_STAGE_INIT=0,TIMER_REF_STAGE_CREATED,TIMER_REF_STAGE_GATE_BLOCKED,
  TIMER_REF_STAGE_HOLD_ARMED,TIMER_REF_STAGE_SLEEPING_WITH_REF,TIMER_REF_STAGE_CLAIMED,
  TIMER_REF_STAGE_KILL_ACCEPTED,TIMER_REF_STAGE_ZOMBIE_WITH_REF,TIMER_REF_STAGE_REF_DEFERRED,
- TIMER_REF_STAGE_REF_RELEASED,TIMER_REF_STAGE_REAPED,TIMER_REF_STAGE_FAILED}timer_ref_test_stage_t;
-static const char*timer_ref_stage_name(timer_ref_test_stage_t s){static const char*n[]={"INIT","CREATED","GATE_BLOCKED","HOLD_ARMED","SLEEPING_WITH_REF","CLAIMED","KILL_ACCEPTED","ZOMBIE_WITH_REF","REF_DEFERRED","REF_RELEASED","REAPED","FAILED"};return s<=TIMER_REF_STAGE_FAILED?n[s]:"INVALID";}
+ TIMER_REF_STAGE_COMPETITOR_REAPED,TIMER_REF_STAGE_OBSERVATION_HOLD,
+ TIMER_REF_STAGE_REF_RELEASED,TIMER_REF_STAGE_REAPED,
+ TIMER_REF_STAGE_FAILED}timer_ref_test_stage_t;
+static const char*timer_ref_stage_name(timer_ref_test_stage_t s){static const char*n[]={"INIT","CREATED","GATE_BLOCKED","HOLD_ARMED","SLEEPING_WITH_REF","CLAIMED","KILL_ACCEPTED","ZOMBIE_WITH_REF","REF_DEFERRED","COMPETITOR_REAPED","OBSERVATION_HOLD","REF_RELEASED","REAPED","FAILED"};return s<=TIMER_REF_STAGE_FAILED?n[s]:"INVALID";}
 #define TIMER_REF_CANARY 0x54494d4552524546ULL
 static timer_ref_ctx_t g_timer_ctx;
+static timer_ref_observation_t g_timer_observation;
 static void timer_worker(void*a){timer_ref_ctx_t*c=a;if(c->canary_begin!=TIMER_REF_CANARY||c->canary_end!=~TIMER_REF_CANARY)return;__atomic_store_n(&c->started,1,__ATOMIC_RELEASE);task_wait_result_t g=sem_wait_interruptible(&c->gate);if(g==TASK_WAIT_RESULT_CANCELLED)task_cancel_point();if(g!=TASK_WAIT_RESULT_OK)return;__atomic_store_n(&c->entered,1,__ATOMIC_RELEASE);task_wait_result_t r=timer_sleep_interruptible(20);__atomic_store_n(&c->result,r,__ATOMIC_RELEASE);if(r==TASK_WAIT_RESULT_CANCELLED)task_cancel_point();task_cancel_point();__atomic_store_n(&c->after,1,__ATOMIC_RELEASE);}
 static bool pred_timer_sleep(const task_snapshot_t*s,void*x){(void)x;return s->state==TASK_SLEEPING&&s->wait_active&&s->wait_kind==TASK_WAIT_TIMER_SLEEP&&s->task_wake_timer_refs==1&&s->timer_ref_acquires==s->timer_ref_releases+1;}
 static bool pred_timer_zombie(const task_snapshot_t*s,void*x){(void)x;return pred_zombie_quiescent(s,NULL)&&s->exit_reason==TASK_EXIT_KILLED&&s->task_wake_timer_refs==1&&s->timer_ref_acquires==s->timer_ref_releases+1;}
 static task_id_t g_stale_id;static uint64_t g_stale_lifecycle,g_stale_wait;
-static int timer_ref_test_ex(bool emit)
+static bool timer_ref_wait_handle_gone(task_handle_t handle,uint64_t timeout)
 {
- memset(&g_timer_ctx,0,sizeof(g_timer_ctx));
-g_timer_ctx.canary_begin=TIMER_REF_CANARY;
-g_timer_ctx.canary_end=~TIMER_REF_CANARY;
-g_timer_ctx.active=1;
-sem_init(&g_timer_ctx.gate,0);
-task_create_options_t o={.name="reap-timer",.task_class=TASK_CLASS_NORMAL,.flags=TASK_FLAG_SYSTEM|TASK_FLAG_KILLABLE,.test_reap_hold=1};
-bool created=thread_create_ex_handle(timer_worker,&g_timer_ctx,&o,&g_timer_ctx.handle);
-task_id_t id=created?g_timer_ctx.handle.id:0;
-task_snapshot_t s={0},observed={0};
-bool gate=created&&reaptest_wait_snapshot(id,3000,pred_blocked_sem,NULL,&s);
-bool armed=gate&&timers_test_set_claim_hold(id,true);
-if(armed)(void)sem_signal(&g_timer_ctx.gate);
-bool sleeping=armed&&reaptest_wait_snapshot(id,3000,pred_timer_sleep,NULL,&s);
-timer_handle_t h={0};
-uint64_t lc=0,wg=0;
-bool claimed=false;
-if(sleeping){uint64_t end=deadline_ms(3000);
-do{claimed=timers_test_find_claimed_task_wake(id,&h,&lc,&wg);
-if(!claimed)timer_sleep(1);
-}while(!claimed&&timer_get_uptime_ms()<end);
-claimed=claimed&&lc==g_timer_ctx.handle.lifecycle_generation&&wg==s.wait_generation;
-}task_kill_result_t kr=TASK_KILL_ERR_INVALID;
-bool killed=claimed&&scheduler_test_request_kill_when(id,TASK_TEST_MATCH_SLEEPING_WAIT,&kr,&observed)==TASK_TEST_REQUEST_APPLIED&&kr==TASK_KILL_ACCEPTED;
-bool z=killed&&reaptest_wait_snapshot(id,3000,pred_timer_zombie,NULL,&s);
-bool cancelled=z&&g_timer_ctx.result==TASK_WAIT_RESULT_CANCELLED&&!g_timer_ctx.after;
-if(z)(void)scheduler_test_hold_reap(id,false);
-scheduler_test_reap_observation_t ro={0};
-bool ref=z&&scheduler_test_reap_observe_now(id,0,&ro)&&!ro.held&&ro.mask==TASK_REAP_DEFER_TIMER_REFS;
-task_reaper_stats_t a={0},b={0};
-scheduler_reaper_stats_snapshot(&a);
-bool blocked=ref&&scheduler_reap_zombies(0)==0&&!gone(id);
-scheduler_reaper_stats_snapshot(&b);
-if(blocked)(void)scheduler_test_hold_reap(id,true);
-timer_stats_t ta={0},tb={0};
-timers_get_stats(&ta);
-uint64_t releases_before=s.timer_ref_releases;
-(void)timers_test_set_claim_hold(id,false);
-bool released=false;
-for(uint32_t i=0;
-i<3000&&blocked&&!released;
-i++){task_snapshot_t q={0};
-timers_get_stats(&tb);
-released=snap(id,&q)&&q.task_wake_timer_refs==0&&q.timer_ref_releases==releases_before+1&&tb.task_refs_released>=ta.task_refs_released+1&&tb.stale_task_wakes>=ta.stale_task_wakes+1&&tb.dispatched>=ta.dispatched+1;
-if(!released)timer_sleep(1);
-}if(id)(void)scheduler_test_hold_reap(id,false);
-bool reaped=id&&wait_gone(id,3000);
-if(!reaped&&id){(void)sem_signal(&g_timer_ctx.gate);
-(void)timers_test_set_claim_hold(id,false);
-(void)scheduler_request_kill(id);
-(void)scheduler_test_hold_reap(id,false);
-reaped=wait_gone(id,3000);
-}timers_test_claim_hold_snapshot_t hs;
-timers_test_claim_hold_snapshot(&hs);
-g_timer_ctx.active=0;
+ uint64_t end=deadline_ms(timeout);task_snapshot_t snapshot;
+ do{(void)scheduler_reap_zombies(0);if(!scheduler_snapshot_task_by_handle(handle,&snapshot))return true;timer_sleep(1);}while(timer_get_uptime_ms()<end);
+ return !scheduler_snapshot_task_by_handle(handle,&snapshot);
+}
+
+static bool timer_ref_competing_zombie(task_handle_t target,
+ uint32_t*reaped,bool*competitor_gone,bool*target_present,bool*legacy_blocked)
+{
+ task_id_t other_id=held_zombie();task_snapshot_t other_snapshot,target_snapshot;
+ task_handle_t other={0};bool captured=other_id&&snap(other_id,&other_snapshot);
+ if(captured){other.id=other_snapshot.id;other.lifecycle_generation=other_snapshot.lifecycle_generation;}
+ bool released=captured&&scheduler_test_hold_reap(other_id,false);
+ *reaped=released?scheduler_reap_zombies(0):0;
+ *competitor_gone=captured&&!scheduler_snapshot_task_by_handle(other,&other_snapshot);
+ *target_present=scheduler_snapshot_task_by_handle(target,&target_snapshot);
+ *legacy_blocked=*reaped==0&&*target_present;
+ if(captured&&!*competitor_gone)(void)timer_ref_wait_handle_gone(other,3000);
+ return captured&&released&&*reaped>0&&*competitor_gone&&*target_present&&
+        !*legacy_blocked;
+}
+
+static timer_ref_test_stage_t timer_ref_last_stage(bool created,bool gate,
+ bool armed,bool sleeping,bool claimed,bool killed,bool zombie,bool deferred,
+ bool competing,bool competitor_ok,bool observation_hold,bool released,bool reaped)
+{
+ timer_ref_test_stage_t last=created?TIMER_REF_STAGE_CREATED:TIMER_REF_STAGE_INIT;
+ if(gate)last=TIMER_REF_STAGE_GATE_BLOCKED;
+ if(armed)last=TIMER_REF_STAGE_HOLD_ARMED;
+ if(sleeping)last=TIMER_REF_STAGE_SLEEPING_WITH_REF;
+ if(claimed)last=TIMER_REF_STAGE_CLAIMED;
+ if(killed)last=TIMER_REF_STAGE_KILL_ACCEPTED;
+ if(zombie)last=TIMER_REF_STAGE_ZOMBIE_WITH_REF;
+ if(deferred)last=TIMER_REF_STAGE_REF_DEFERRED;
+ if(deferred&&(!competing||competitor_ok))last=TIMER_REF_STAGE_COMPETITOR_REAPED;
+ if(observation_hold)last=TIMER_REF_STAGE_OBSERVATION_HOLD;
+ if(released)last=TIMER_REF_STAGE_REF_RELEASED;
+ if(reaped)last=TIMER_REF_STAGE_REAPED;
+ return last;
+}
+
+static int timer_ref_test_ex(bool emit,bool competing,bool suppress_release)
+{
+ timer_ref_observation_t*observation=&g_timer_observation;
+ memset(observation,0,sizeof(*observation));
+ memset(&g_timer_ctx,0,sizeof(g_timer_ctx));g_timer_ctx.canary_begin=TIMER_REF_CANARY;
+ g_timer_ctx.canary_end=~TIMER_REF_CANARY;g_timer_ctx.active=1;sem_init(&g_timer_ctx.gate,0);
+ task_create_options_t options={.name="reap-timer",.task_class=TASK_CLASS_NORMAL,.flags=TASK_FLAG_SYSTEM|TASK_FLAG_KILLABLE,.test_reap_hold=1};
+ bool created=thread_create_ex_handle(timer_worker,&g_timer_ctx,&options,&g_timer_ctx.handle);
+ task_id_t id=created?g_timer_ctx.handle.id:0;
+ bool gate=created&&reaptest_wait_snapshot(id,3000,pred_blocked_sem,NULL,&observation->snapshot);
+ bool armed=gate&&timers_test_set_claim_hold(id,true);if(armed)(void)sem_signal(&g_timer_ctx.gate);
+ bool sleeping=armed&&reaptest_wait_snapshot(id,3000,pred_timer_sleep,NULL,&observation->snapshot);
+ timer_handle_t timer_handle={0};uint64_t lifecycle=0,wait_generation=0;bool claimed=false;
+ if(sleeping){uint64_t end=deadline_ms(3000);do{claimed=timers_test_find_claimed_task_wake(id,&timer_handle,&lifecycle,&wait_generation);if(!claimed)timer_sleep(1);}while(!claimed&&timer_get_uptime_ms()<end);claimed=claimed&&lifecycle==g_timer_ctx.handle.lifecycle_generation&&wait_generation==observation->snapshot.wait_generation;}
+ bool wake_claimed=claimed&&timers_test_task_wake_snapshot(g_timer_ctx.handle,&observation->wake_before)&&observation->wake_before.pending_nodes==0&&observation->wake_before.claimed_nodes==1&&observation->wake_before.refs_held==1&&!observation->wake_before.found_wrong_lifecycle&&observation->wake_before.wait_generation==wait_generation;
+ task_kill_result_t kr=TASK_KILL_ERR_INVALID;
+ bool killed=wake_claimed&&scheduler_test_request_kill_when(id,TASK_TEST_MATCH_SLEEPING_WAIT,&kr,&observation->kill_observed)==TASK_TEST_REQUEST_APPLIED&&kr==TASK_KILL_ACCEPTED&&observation->kill_observed.lifecycle_generation==g_timer_ctx.handle.lifecycle_generation&&observation->kill_observed.wait_generation==wait_generation;
+ bool zombie=killed&&reaptest_wait_snapshot(id,3000,pred_timer_zombie,NULL,&observation->snapshot);
+ bool cancelled=zombie&&g_timer_ctx.result==TASK_WAIT_RESULT_CANCELLED&&!g_timer_ctx.after;
+ if(zombie)(void)scheduler_test_hold_reap(id,false);
+ bool ref=zombie&&scheduler_test_reap_observe_now(id,0,&observation->reap)&&observation->reap.found&&!observation->reap.held&&observation->reap.snapshot.lifecycle_generation==g_timer_ctx.handle.lifecycle_generation&&observation->reap.mask==TASK_REAP_DEFER_TIMER_REFS&&scheduler_snapshot_task_by_handle(g_timer_ctx.handle,&observation->target)&&observation->target.task_wake_timer_refs==1&&observation->target.timer_ref_acquires==observation->target.timer_ref_releases+1;
+ scheduler_reaper_stats_snapshot(&observation->reaper_before);
+ uint32_t scan_reaped=ref?scheduler_reap_zombies(0):0;
+ bool target_present=ref&&scheduler_snapshot_task_by_handle(g_timer_ctx.handle,&observation->target);
+ scheduler_reaper_stats_snapshot(&observation->reaper_after);
+ bool blocked=ref&&target_present&&observation->reaper_after.deferred_timer_ref>observation->reaper_before.deferred_timer_ref;
+ uint32_t competitor_reaped=0;bool competitor_gone=false,competitor_target_present=target_present,legacy_blocked=true;
+ bool competitor_ok=!competing;
+ if(competing&&blocked)competitor_ok=timer_ref_competing_zombie(g_timer_ctx.handle,&competitor_reaped,&competitor_gone,&competitor_target_present,&legacy_blocked);
+ bool observation_hold=blocked&&competitor_ok&&scheduler_test_hold_reap(id,true);
+ bool hold_observed=observation_hold&&scheduler_test_reap_observe_now(id,0,&observation->held)&&observation->held.found&&observation->held.held&&observation->held.snapshot.lifecycle_generation==g_timer_ctx.handle.lifecycle_generation&&observation->held.mask==(TASK_REAP_DEFER_TIMER_REFS|TASK_REAP_DEFER_TEST_HOLD);
+ timers_get_stats(&observation->timers_before);
+ uint64_t releases_before=observation->snapshot.timer_ref_releases;bool release_command=false,released=false,acquire_release=false,nodes_clear=false;
+ if(hold_observed&&!suppress_release)release_command=timers_test_set_claim_hold(id,false);
+ uint64_t release_end=deadline_ms(suppress_release?50:3000);
+ do{timers_get_stats(&observation->timers_after);bool exact=timers_test_task_wake_snapshot(g_timer_ctx.handle,&observation->wake_after);acquire_release=scheduler_snapshot_task_by_handle(g_timer_ctx.handle,&observation->release_snapshot)&&observation->release_snapshot.task_wake_timer_refs==0&&observation->release_snapshot.timer_ref_releases==releases_before+1&&observation->release_snapshot.timer_ref_acquires==observation->release_snapshot.timer_ref_releases;nodes_clear=exact&&observation->wake_after.pending_nodes==0&&observation->wake_after.claimed_nodes==0&&observation->wake_after.refs_held==0&&!observation->wake_after.found_wrong_lifecycle;released=acquire_release&&nodes_clear;if(released||suppress_release)break;timer_sleep(1);}while(timer_get_uptime_ms()<release_end);
+ if(suppress_release)released=false;
+ (void)timers_test_set_claim_hold(id,false);if(id)(void)scheduler_test_hold_reap(id,false);
+ bool cleanup_reaped=id&&timer_ref_wait_handle_gone(g_timer_ctx.handle,3000);
+ if(!cleanup_reaped&&id){(void)sem_signal(&g_timer_ctx.gate);(void)timers_test_set_claim_hold(id,false);(void)scheduler_request_kill(id);(void)scheduler_test_hold_reap(id,false);cleanup_reaped=timer_ref_wait_handle_gone(g_timer_ctx.handle,3000);}
+ timers_test_claim_hold_snapshot(&observation->claim_hold);g_timer_ctx.active=0;
 
 #ifdef HOBBYOS_REAPER_NEGATIVE_IGNORE_TIMER_REF
  return 0;
 #endif
-bool ok=gate&&armed&&sleeping&&claimed&&killed&&z&&cancelled&&ref&&blocked&&b.deferred_timer_ref>a.deferred_timer_ref&&released&&reaped&&!hs.active;if(ok){g_stale_id=id;g_stale_lifecycle=lc;g_stale_wait=wg;if(emit)serial_write_all("[REAPTEST][TIMER_REF] PASS gate=1 sleeping=1 claimed=1 kill=ACCEPTED exit=KILLED ref_before=1 deferred=1 released=1 stale=1 reaped=1\n");}else{timer_ref_test_stage_t last=created?TIMER_REF_STAGE_CREATED:TIMER_REF_STAGE_INIT;if(gate)last=TIMER_REF_STAGE_GATE_BLOCKED;if(armed)last=TIMER_REF_STAGE_HOLD_ARMED;if(sleeping)last=TIMER_REF_STAGE_SLEEPING_WITH_REF;if(claimed)last=TIMER_REF_STAGE_CLAIMED;if(killed)last=TIMER_REF_STAGE_KILL_ACCEPTED;if(z&&cancelled)last=TIMER_REF_STAGE_ZOMBIE_WITH_REF;if(blocked&&b.deferred_timer_ref>a.deferred_timer_ref)last=TIMER_REF_STAGE_REF_DEFERRED;if(released)last=TIMER_REF_STAGE_REF_RELEASED;if(reaped)last=TIMER_REF_STAGE_REAPED;g_stale_id=0;serial_write_all("[REAPTEST][TIMER_REF] FAIL failure_stage=");serial_write_all(timer_ref_stage_name((timer_ref_test_stage_t)(last+1)));serial_write_all(" last_completed=");serial_write_all(timer_ref_stage_name(last));serial_write_all(" cleanup=");serial_write_all(reaped?"REAPED":"FAILED");serial_write_all(" gate=");u64(gate);serial_write_all(" sleeping=");u64(sleeping);serial_write_all(" claimed=");u64(claimed);serial_write_all(" killed=");u64(killed);serial_write_all(" zombie=");u64(z);serial_write_all(" cancelled=");u64(cancelled);serial_write_all(" ref=");u64(ref);serial_write_all(" released=");u64(released);serial_write_all(" reaped=");u64(reaped);serial_write_all("\n");}return ok?0:1;
+ bool reaped=!suppress_release&&cleanup_reaped;
+ bool deferred=blocked&&wake_claimed;bool ok=gate&&armed&&sleeping&&claimed&&wake_claimed&&killed&&zombie&&cancelled&&deferred&&competitor_ok&&hold_observed&&release_command&&released&&reaped&&!observation->claim_hold.active&&!scheduler_test_reap_holds();
+ timer_ref_test_stage_t last=timer_ref_last_stage(created,gate,armed,sleeping,claimed,killed,zombie&&cancelled,deferred,competing,competitor_ok,hold_observed,released,reaped);
+ if(ok){g_stale_id=id;g_stale_lifecycle=lifecycle;g_stale_wait=wait_generation;}else g_stale_id=0;
+ if(emit){serial_write_all("[REAPTEST][TIMER_REF] ");serial_write_all(ok?"PASS":"FAIL");if(!ok){serial_write_all(" failure_stage=");serial_write_all(timer_ref_stage_name((timer_ref_test_stage_t)(last+1)));serial_write_all(" last_completed=");serial_write_all(timer_ref_stage_name(last));}serial_write_all(" mode=");serial_write_all(competing?"competing":"target");serial_write_all(" cleanup=");serial_write_all(cleanup_reaped?"REAPED":"FAILED");serial_write_all(" target_id=");u64(id);serial_write_all(" lifecycle=");u64(g_timer_ctx.handle.lifecycle_generation);serial_write_all(" wait_generation=");u64(wait_generation);serial_write_all(" gate=");u64(gate);serial_write_all(" hold_armed=");u64(armed);serial_write_all(" hold_observed=");u64(hold_observed);serial_write_all(" sleeping=");u64(sleeping);serial_write_all(" claimed=");u64(claimed);serial_write_all(" wake_claimed=");u64(wake_claimed);serial_write_all(" killed=");u64(killed);serial_write_all(" zombie=");u64(zombie);serial_write_all(" cancelled=");u64(cancelled);serial_write_all(" ref=");u64(ref);serial_write_all(" target_mask=");u64(observation->reap.mask);serial_write_all(" blocked=");u64(blocked);serial_write_all(" scan_reaped=");u64(scan_reaped);serial_write_all(" deferred=");u64(deferred);serial_write_all(" competitor=");u64(competing);serial_write_all(" competitor_reaped=");u64(competitor_reaped);serial_write_all(" competitor_gone=");u64(competitor_gone);serial_write_all(" competitor_target_present=");u64(competitor_target_present);serial_write_all(" legacy_blocked=");u64(legacy_blocked);serial_write_all(" release_command=");u64(release_command);serial_write_all(" released=");u64(released);serial_write_all(" acquire_release=");u64(acquire_release);serial_write_all(" nodes_pending=");u64(observation->wake_after.pending_nodes);serial_write_all(" nodes_claimed=");u64(observation->wake_after.claimed_nodes);serial_write_all(" node_refs=");u64(observation->wake_after.refs_held);serial_write_all(" wrong_lifecycle=");u64(observation->wake_after.found_wrong_lifecycle);serial_write_all(" global_ref_release_delta=");u64(observation->timers_after.task_refs_released-observation->timers_before.task_refs_released);serial_write_all(" stale_delta=");u64(observation->timers_after.stale_task_wakes-observation->timers_before.stale_task_wakes);serial_write_all(" dispatched_delta=");u64(observation->timers_after.dispatched-observation->timers_before.dispatched);serial_write_all(" reaped=");u64(reaped);serial_write_all(" cleanup_reaped=");u64(cleanup_reaped);serial_write_all(" residual_holds=");u64(scheduler_test_reap_holds());serial_write_all("\n");}
+ return ok?0:1;
 }
-static int timer_ref_test(void){return timer_ref_test_ex(true);}
-static int timer_ref_loop(uint32_t count){uint32_t pass=0;scheduler_test_set_lifecycle_log_quiet(true);for(;pass<count;pass++)if(timer_ref_test_ex(false))break;scheduler_test_set_lifecycle_log_quiet(false);timers_test_claim_hold_snapshot_t h;timers_test_claim_hold_snapshot(&h);task_reaper_stats_t r;scheduler_reaper_stats_snapshot(&r);bool ok=pass==count&&!h.active&&!r.free_inflight&&!scheduler_test_reap_holds();serial_write_all(ok?"[REAPTEST][TIMER_REF_LOOP] PASS count=":"[REAPTEST][TIMER_REF_LOOP] FAIL count=");u64(count);serial_write_all(" passes=");u64(pass);serial_write_all(" normal=0 killed=");u64(pass);serial_write_all(" residual=");u64(ok?0:1);serial_write_all("\n");return ok?0:1;}
+static int timer_ref_test(void){return timer_ref_test_ex(true,false,false);}
+static int timer_ref_competing_test(void){return timer_ref_test_ex(true,true,false);}
+static int timer_ref_loop(uint32_t count){uint32_t pass=0;scheduler_test_set_lifecycle_log_quiet(true);for(;pass<count;pass++)if(timer_ref_test_ex(false,false,false))break;scheduler_test_set_lifecycle_log_quiet(false);timers_test_claim_hold_snapshot_t h;timers_test_claim_hold_snapshot(&h);task_reaper_stats_t r;scheduler_reaper_stats_snapshot(&r);bool ok=pass==count&&!h.active&&!r.free_inflight&&!scheduler_test_reap_holds();serial_write_all(ok?"[REAPTEST][TIMER_REF_LOOP] PASS count=":"[REAPTEST][TIMER_REF_LOOP] FAIL count=");u64(count);serial_write_all(" passes=");u64(pass);serial_write_all(" normal=0 killed=");u64(pass);serial_write_all(" residual=");u64(ok?0:1);serial_write_all("\n");return ok?0:1;}
+#ifdef HOBBYOS_REAPTEST_NEGATIVE_NO_TIMER_RELEASE
+/* Keep the exact symbol as proof that the diagnostic-only image was built. */
+static __attribute__((noipa)) int timer_ref_no_release_negative(void){return timer_ref_test_ex(true,false,true);}
+#endif
 #ifdef HOBBYOS_REAPTEST_NEGATIVE_LATE_TIMER_HOLD
 static int timer_ref_late_negative(void){memset(&g_timer_ctx,0,sizeof(g_timer_ctx));g_timer_ctx.canary_begin=TIMER_REF_CANARY;g_timer_ctx.canary_end=~TIMER_REF_CANARY;sem_init(&g_timer_ctx.gate,0);task_create_options_t o={.name="reap-timer",.task_class=TASK_CLASS_NORMAL,.flags=TASK_FLAG_SYSTEM|TASK_FLAG_KILLABLE,.test_reap_hold=1};bool made=thread_create_ex_handle(timer_worker,&g_timer_ctx,&o,&g_timer_ctx.handle);task_snapshot_t s={0};bool gate=made&&reaptest_wait_snapshot(g_timer_ctx.handle.id,3000,pred_blocked_sem,NULL,&s);if(gate)(void)sem_signal(&g_timer_ctx.gate);timer_sleep(50);bool normal=snap(g_timer_ctx.handle.id,&s)&&s.state==TASK_ZOMBIE&&s.exit_reason==TASK_EXIT_NORMAL&&g_timer_ctx.result==TASK_WAIT_RESULT_TIMEOUT;bool no_claim=!timers_test_find_claimed_task_wake(g_timer_ctx.handle.id,NULL,NULL,NULL);bool late=timers_test_set_claim_hold(g_timer_ctx.handle.id,true);(void)timers_test_set_claim_hold(g_timer_ctx.handle.id,false);(void)scheduler_test_hold_reap(g_timer_ctx.handle.id,false);bool reaped=wait_gone(g_timer_ctx.handle.id,3000);bool ok=gate&&normal&&no_claim&&late&&reaped;serial_write_all(ok?"[REAPTEST][NEGATIVE] LATE_TIMER_HOLD_DETECTED\n":"[REAPTEST][NEGATIVE] LATE_TIMER_HOLD_MISSED\n");return ok?0:1;}
 #endif
@@ -552,7 +600,7 @@ static int negative_age_test(void){task_id_t id=held_zombie();if(!id)return 1;ta
 }
 int cmd_reaptest(int argc,char**argv)
 {
- if(argc<2){console_write("usage: reaptest fixture|priority|check|stats|normal N|killed N|grace|batch|snapshot|snapshot-boundary N|cleanup|timer-ref|notification|oncpu|stale|heap|concurrent-churn N K S|zombie-mem setup|cleanup|negative-age|all\n");return 1;}
+ if(argc<2){console_write("usage: reaptest fixture|priority|check|stats|normal N|killed N|grace|batch|snapshot|snapshot-boundary N|cleanup|timer-ref|timer-ref-competing|notification|oncpu|stale|heap|concurrent-churn N K S|zombie-mem setup|cleanup|negative-age|all\n");return 1;}
  if(!strcmp(argv[1],"fixture"))return fixture_test();
  if(!strcmp(argv[1],"fixture-loop")){uint32_t n=argc>2?count_arg_large(argv[2],0):1000;return n?fixture_loop(n):1;}
  if(!strcmp(argv[1],"priority"))return priority_test();
@@ -566,7 +614,11 @@ int cmd_reaptest(int argc,char**argv)
  if(!strcmp(argv[1],"cleanup"))return cleanup_test();
  if(!strcmp(argv[1],"notification"))return notification_test();
  if(!strcmp(argv[1],"timer-ref"))return timer_ref_test();
+ if(!strcmp(argv[1],"timer-ref-competing"))return timer_ref_competing_test();
  if(!strcmp(argv[1],"timer-ref-loop"))return timer_ref_loop(count_arg(argc>2?argv[2]:NULL,1000));
+#ifdef HOBBYOS_REAPTEST_NEGATIVE_NO_TIMER_RELEASE
+ if(!strcmp(argv[1],"timer-ref-no-release-negative"))return timer_ref_no_release_negative();
+#endif
 #ifdef HOBBYOS_REAPTEST_NEGATIVE_LATE_TIMER_HOLD
  if(!strcmp(argv[1],"timer-ref-late-negative"))return timer_ref_late_negative();
 #endif

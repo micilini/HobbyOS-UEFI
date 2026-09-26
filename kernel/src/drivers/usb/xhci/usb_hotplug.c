@@ -51,6 +51,18 @@ static void hp_timer_callback(void *ctx);
 static void hp_hub_poll_dpc(void *ctx);
 static void hp_hub_poll_timer_cb(void *ctx);
 
+_Static_assert(offsetof(xhci_port_regs_t, PortSC) % sizeof(uint32_t) == 0,
+               "xHCI PortSC must be naturally aligned");
+
+static volatile uint32_t *hp_portsc_reg(uint8_t port_1based)
+{
+    size_t offset = (size_t)(port_1based - 1u) *
+                        sizeof(xhci_port_regs_t) +
+                    offsetof(xhci_port_regs_t, PortSC);
+    return (volatile uint32_t *)((volatile uint8_t *)xhci_driver.port_regs +
+                                 offset);
+}
+
 static uint32_t hp_read_portsc(uint8_t port_1based)
 {
     if (port_1based == 0 || port_1based > xhci_driver.max_ports)
@@ -62,7 +74,7 @@ static void hp_write_portsc(uint8_t port_1based, uint32_t val)
 {
     if (port_1based == 0 || port_1based > xhci_driver.max_ports)
         return;
-    volatile uint32_t *reg = &xhci_driver.port_regs[port_1based - 1].PortSC;
+    volatile uint32_t *reg = hp_portsc_reg(port_1based);
 
     *reg = val;
 }
@@ -130,6 +142,11 @@ static void hp_fsm_run(void *ctx)
         p->state = HP_STATE_WAIT_RESET;
 
         timers_add(50, hp_timer_callback, p);
+        break;
+
+    case HP_STATE_RESET_PORT:
+    case HP_STATE_ADDRESS_DEVICE:
+        /* Reserved legacy states were previously explicit no-ops. */
         break;
 
     case HP_STATE_WAIT_RESET:

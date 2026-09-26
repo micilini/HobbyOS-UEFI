@@ -42,6 +42,15 @@ irq_external_common_entry:
     IRQ_SAVE_ALL
     sub rsp, 8
     mov edi, dword ptr [rsp + 128]
+    cld
+#if HOBBYOS_DEBUG_ASSERT
+    pushfq
+    pop rsi
+    shr rsi, 10
+    and esi, 1
+#else
+    xor esi, esi
+#endif
     call irq_external_dispatch
     add rsp, 8
     IRQ_RESTORE_ALL

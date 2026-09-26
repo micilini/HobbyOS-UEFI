@@ -130,7 +130,7 @@ void schedtest_async_snapshot(schedtest_async_snapshot_t *out)
     uint64_t after;
     if (!out)
         return;
-    do
+    for (;;)
     {
         before = __atomic_load_n(&g_async_snapshot_sequence,
                                  __ATOMIC_ACQUIRE);
@@ -153,7 +153,9 @@ void schedtest_async_snapshot(schedtest_async_snapshot_t *out)
             &g_async_scheduler_violations, __ATOMIC_ACQUIRE);
         after = __atomic_load_n(&g_async_snapshot_sequence,
                                 __ATOMIC_ACQUIRE);
-    } while (before != after || (after & 1u));
+        if (before == after && !(after & 1u))
+            break;
+    }
 }
 
 bool schedtest_async_snapshot_for_run(uint64_t run,

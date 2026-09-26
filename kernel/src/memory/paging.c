@@ -122,7 +122,7 @@ void paging_load_map(PageTable *pml4)
     __asm__ volatile("mov %0, %%cr3" ::"r"(pml4) : "memory");
 }
 
-PageTable *paging_create_bootstrap_table()
+PageTable *paging_create_bootstrap_table(void)
 {
     serial_write_all("[PAGING] Creating Robust Bootstrap Page Table...\n");
     irq_flags_t flags = spin_lock_irqsave(&g_paging_lock);

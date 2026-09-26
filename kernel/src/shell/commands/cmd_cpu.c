@@ -1,8 +1,10 @@
 #include "cmd_cpu.h"
 #include <stdbool.h>
+#include "../../drivers/serial.h"
 #include "../../graphics/console.h"
 #include "../../libc/string.h"
 #include "../../libc/memory.h"
+#include "../../smp/smp_topology.h"
 
 static inline void cpuid_ex(uint32_t leaf, uint32_t subleaf,
                             uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
@@ -118,6 +120,7 @@ int cmd_cpu(int argc, char **argv)
     bool f_avx2 = false;
     bool f_bmi1 = false;
     bool f_bmi2 = false;
+    bool f_hybrid = false;
     if (max_basic >= 7)
     {
         uint32_t a7, b7, c7, d7;
@@ -125,6 +128,7 @@ int cmd_cpu(int argc, char **argv)
         f_bmi1 = (b7 >> 3) & 1;
         f_avx2 = (b7 >> 5) & 1;
         f_bmi2 = (b7 >> 8) & 1;
+        f_hybrid = (d7 >> 15) & 1;
     }
 
     bool f_lm = false;
@@ -155,5 +159,30 @@ int cmd_cpu(int argc, char **argv)
     print_bool_feature("HTT", f_htt);
     console_write("\n");
 
-    return 0;
+    uint32_t core_type = 0;
+    if (max_basic >= 0x1au)
+    {
+        uint32_t a1a;
+        cpuid_ex(0x1au, 0, &a1a, NULL, NULL, NULL);
+        core_type = a1a >> 24;
+    }
+
+    bool ok = max_basic >= 1u && f_lm && g_cpu_count != 0 &&
+              g_cpu_count <= HOBBYOS_MAX_CPUS;
+    char record[384];
+    int required = ksnprintf(
+        record, sizeof(record),
+        "[CPU][SUMMARY] %s vendor=%s family=%u model=%u stepping=%u "
+        "max_basic=%u max_ext=%u logical_cpus=%u long_mode=%u htt=%u "
+        "hybrid=%u core_type=%u\n",
+        ok ? "PASS" : "FAIL", vendor, disp_family, disp_model, stepping,
+        max_basic, max_ext, g_cpu_count, f_lm ? 1u : 0u, f_htt ? 1u : 0u,
+        f_hybrid ? 1u : 0u, core_type);
+    if (required < 0 || (size_t)required >= sizeof(record))
+    {
+        serial_write_all("[CPU][SUMMARY] FAIL reason=format\n");
+        return 1;
+    }
+    serial_write_all(record);
+    return ok ? 0 : 1;
 }
