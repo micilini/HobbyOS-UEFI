@@ -4,7 +4,7 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 
-focused_artifact_dir=artifacts/build/taskman-visual-final
+focused_artifact_dir=${TASKMAN_VISUAL_EVIDENCE_DIR:-artifacts/build/taskman-visual-final}
 focused_screen_dir=$focused_artifact_dir/screens
 serial=.qemu/qemu-serial.log
 hmp=(python3 scripts/qemu_hmp.py --socket .qemu/hmp.sock)
@@ -56,6 +56,13 @@ check_active_naming(){
 }
 
 focused_preflight(){
+  if [[ ${HOBBYOS_TASKMAN_VISUAL_CURRENT:-0} == 1 ]]; then
+    python3 scripts/memory_current.py taskman-visual >"$focused_artifact_dir/current-scope.json"
+    [[ -n ${MEMORY_CURRENT_CANDIDATE:-} ]]
+    git diff --check
+    echo '[TASKMAN][VISUAL_PREFLIGHT] PASS contract=current'
+    return
+  fi
   [[ $(git branch --show-current) == feat/taskman ]]
   [[ $(git rev-parse HEAD) == "$visual_base_commit" ]]
   [[ $(git rev-parse 'HEAD^{tree}') == "$visual_base_tree" ]]
@@ -69,14 +76,32 @@ focused_preflight(){
 
 focused_static(){
   bash -n scripts/test-taskman-visual.sh
-  python3 -m py_compile scripts/taskman-capture.py \
-    scripts/verify-taskman-visual-evidence.py
-  rm -rf scripts/__pycache__
+  python3 -B - <<'PYTHON'
+from pathlib import Path
+for name in ('taskman-capture.py', 'verify-taskman-visual-evidence.py'):
+    compile((Path('scripts') / name).read_text(), name, 'exec')
+PYTHON
   check_active_naming
   echo '[TASKMAN][VISUAL_STATIC] PASS'
 }
 
 build_selftest(){
+  if [[ ${HOBBYOS_TASKMAN_VISUAL_CURRENT:-0} == 1 ]]; then
+    python3 -B - "$MEMORY_CURRENT_CANDIDATE" <<'PYTHON'
+import json, sys, shutil
+from pathlib import Path
+sys.path.insert(0, 'scripts')
+import memory_evidence as E
+root = Path(sys.argv[1])
+c = json.loads((root / 'candidate.json').read_text())
+E.verify_candidate(c, json.loads((root / 'build-receipt.json').read_text()))
+E.require('SELFTEST=1' in c['profile'], 'TASKMAN requires SELFTEST candidate')
+for name, row in c['artifacts'].items():
+    E.require(E.sha(root / name) == row['sha256'], 'TASKMAN payload candidate mismatch')
+    shutil.copyfile(root / name, Path(name))
+PYTHON
+    return
+  fi
   make kernel-check JOBS="$(nproc)" SELFTEST=1 SELFTEST_AUTORUN=0
   make image SELFTEST=1 SELFTEST_AUTORUN=0
 }
@@ -156,6 +181,12 @@ usage(){
 }
 
 case ${1:-} in
+  current)
+    export HOBBYOS_TASKMAN_VISUAL_CURRENT=1
+    focused_visual_gate
+    python3 scripts/verify-taskman-visual-evidence.py current \
+      --evidence "$focused_artifact_dir" --candidate "$MEMORY_CURRENT_CANDIDATE"
+    ;;
   naming) check_active_naming;;
   image-payload) python3 scripts/verify-taskman-visual-evidence.py all;;
   focused) focused_visual_gate;;

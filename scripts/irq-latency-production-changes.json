@@ -1,0 +1,153 @@
+{
+  "baseline_commit": "d68a3b4a2c97f55dfdcc445bfe42317e09e1c55e",
+  "new_units": {
+    "kernel/src/core/clocksource.c": {
+      "baseline_absent": true,
+      "current_sha256": "9d80dfd0dace9b81e8bb170628715a9fc77f985ade6971e35f5d6c8cf23801ed",
+      "kind": "qualified-clocksource",
+      "subjects": [
+        "clocksource",
+        "request-pvclock"
+      ]
+    },
+    "kernel/src/core/pvclock.c": {
+      "baseline_absent": true,
+      "current_sha256": "028aea988497c6006526292c98a8c3d0b3f42b92c0e28338a67d706cef2d05fe",
+      "kind": "qualified-clocksource",
+      "subjects": [
+        "pvclock",
+        "clocksource"
+      ]
+    }
+  },
+  "schema": 2,
+  "units": {
+    "kernel/src/core/clock.c": {
+      "baseline_sha256": "2f8444d3b83b3cf0aa5a9d594aa8b3e349f19775b0af6117f6498495b7bac0be",
+      "current_sha256": "77d0b4dfad008732e67c4c7973e73371ebd89c14de2f3c241507e6c2efd5e060",
+      "kind": "qualified-clocksource-integration",
+      "subjects": [
+        "clock-body",
+        "request-clock",
+        "request-pvclock",
+        "clocksource",
+        "pvclock"
+      ]
+    },
+    "kernel/src/core/interrupts.c": {
+      "baseline_sha256": "aaf3ba8bd899cd2ba147edb739facace3a94ba73128979b275ca52d97b7f8321",
+      "current_sha256": "b2bfcafe347bdd08b7a0b049f8f65b358ec6aef6ae0c5eef63d38a1d15a7cff8",
+      "kind": "instrumentation-only",
+      "subjects": [
+        "interior-controller"
+      ]
+    },
+    "kernel/src/core/kernel_init.c": {
+      "baseline_sha256": "bbc016a8466d11cc66f137348f8e8f4fc7e17eb29d8cc3d8cc257f623c1acf62",
+      "current_sha256": "238c3081e9def6e5324f31b9d1de02cbf9ddf367bcfe28bd1b4ef39762223d5d",
+      "kind": "qualified-clocksource-integration",
+      "subjects": [
+        "clocksource"
+      ]
+    },
+    "kernel/src/core/panic.c": {
+      "baseline_sha256": "aa66ecc251e2eb8cb958ff03f0ded3a831b2b58b742c9bbb28972fafb62051d6",
+      "current_sha256": "096b86ca745c4422e2e63c8e608a7e6ab4b760a8dea4886f76d19bb05d6f3d59",
+      "kind": "instrumentation-only",
+      "subjects": [
+        "warning-report",
+        "warning-emitter"
+      ]
+    },
+    "kernel/src/core/spinlock.c": {
+      "baseline_sha256": "a27ba473caba627d7a938930c9763123e10a2bd837a905950d9570d7962ce98d",
+      "current_sha256": "08d77dd9a15fd9d2f37f3957025f2bd7630a605bdeab83a0df3d1c2bfa3b18da",
+      "kind": "measured-local-correction",
+      "subjects": [
+        "spinlock-release"
+      ]
+    },
+    "kernel/src/cpu/mmio.c": {
+      "baseline_sha256": "a6e9ef7a24d3edc0f84f3709f5e3cffbddb78530f5a8be0e40f049827730a0ae",
+      "current_sha256": "b1532fda20eefed299051133db222b309fb20130660dd7d52b703ce5b0cc2b51",
+      "kind": "instrumentation-only",
+      "subjects": [
+        "mmio-identity",
+        "writeback-clock-integration"
+      ]
+    },
+    "kernel/src/memory/heap.c": {
+      "baseline_sha256": "abd5dde7538cce981ee82c5777a9006c13105eec9a5d44688bb3a72560da41bd",
+      "current_sha256": "e0de91e6881199e5161241638c3185b05846d54ed044ca7036c18885f512b432",
+      "kind": "measured-local-correction",
+      "subjects": [
+        "heap-preparation"
+      ]
+    },
+    "kernel/src/memory/kernel_tlb.c": {
+      "baseline_sha256": "82a4006de54ea8d8380deca9fe14e69dff0fa7ec912ec33b31a32b52ec9434e9",
+      "current_sha256": "e48e448c91220f52e3c4434259f301c7f6c41c064f2bb06ad600bf5312b52e31",
+      "kind": "measured-local-correction",
+      "subjects": [
+        "request-cycle-contract",
+        "request-service"
+      ]
+    },
+    "kernel/src/memory/pmem.c": {
+      "baseline_sha256": "f83f73ee4018d2660fe213221b3029f8d5fa84cdfba1bd398f0b2a6b49d0d900",
+      "current_sha256": "f85e0510d8d329fadff3b00be90017b5be809890e20c88a98f9fb24c559519bb",
+      "kind": "measured-local-correction",
+      "subjects": [
+        "pmm-observation",
+        "pmm-concurrent"
+      ]
+    },
+    "kernel/src/shell/diagnostic_result.c": {
+      "baseline_sha256": "af7479f8a6efa6a7b0b1ce5b19e9870ba3fd77333b30986bea2ae13481680368",
+      "current_sha256": "53aba97d8df19036c2217480be710edc9f1bd2116c1aea57fa0cf5436a217629",
+      "kind": "instrumentation-only",
+      "subjects": [
+        "stack-report",
+        "stack-emitter",
+        "warning-report",
+        "warning-emitter"
+      ]
+    },
+    "kernel/src/smp/cpu_request.c": {
+      "baseline_sha256": "985176cfb99470440598422abe2a78ff7592443f6445c003daab8e5dc57d16ff",
+      "current_sha256": "7fcdc6f675355a987375a8ea4f2749207585f32d25d41b157a87f16b3340ae4b",
+      "kind": "measured-local-correction",
+      "subjects": [
+        "request-cycle-contract",
+        "request-service",
+        "request-clock"
+      ]
+    },
+    "kernel/src/smp/cpu_request_state.c": {
+      "baseline_sha256": "d735f837742fe72d81839cac409367135f3131421a29d6094ad6c42fb3cecd29",
+      "current_sha256": "d735f837742fe72d81839cac409367135f3131421a29d6094ad6c42fb3cecd29",
+      "kind": "measured-local-correction",
+      "subjects": [
+        "request-cycle-contract",
+        "request-service"
+      ]
+    },
+    "kernel/src/smp/smp_boot.c": {
+      "baseline_sha256": "4abdb6691408d126bc0692dacb8c082abe95e71a9b65350604ef3fef58d8e070",
+      "current_sha256": "033003ebc5f775094b9309446cd110a92e6bbbb67b1e0fe429a346bbd7eeb784",
+      "kind": "qualified-clocksource-integration",
+      "subjects": [
+        "clocksource"
+      ]
+    },
+    "kernel/src/utils/bitmap.c": {
+      "baseline_sha256": "744f7fbe1503a6b6d00ffac8767cbcb9695472e9e4cfd23ac7648e96c697b1f0",
+      "current_sha256": "1605291b6d5313fa87946a66e7ac1200b2ddfc3d168c9cd20e622ab7b99bd040",
+      "kind": "measured-local-correction",
+      "subjects": [
+        "pmm-observation",
+        "bitmap-load"
+      ]
+    }
+  }
+}

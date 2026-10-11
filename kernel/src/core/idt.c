@@ -1,4 +1,7 @@
 #include "idt.h"
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+#include "irq_latency_boundary.h"
+#endif
 #include "interrupts.h"
 #include "../libc/memory.h"
 
@@ -88,16 +91,27 @@ void idt_load(void)
 
 void enable_interrupts(void)
 {
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+    irq_latency_enable();
+#else
     __asm__ volatile("sti\n\t" ::: "memory");
+#endif
 }
 
 void disable_interrupts(void)
 {
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+    irq_latency_disable();
+#else
     __asm__ volatile("cli\n\t" ::: "memory");
+#endif
 }
 
 irq_flags_t irq_save(void)
 {
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+    return irq_latency_save();
+#else
     irq_flags_t flags;
     __asm__ volatile(
         "pushfq\n\t"
@@ -107,16 +121,21 @@ irq_flags_t irq_save(void)
         :
         : "memory");
     return flags;
+#endif
 }
 
 void irq_restore(irq_flags_t flags)
 {
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+    irq_latency_restore(flags);
+#else
     __asm__ volatile(
         "pushq %0\n\t"
         "popfq\n\t"
         :
         : "r"(flags)
         : "memory", "cc");
+#endif
 }
 
 bool irq_is_enabled(void)

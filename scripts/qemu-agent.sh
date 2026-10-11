@@ -10,6 +10,14 @@ live(){ [[ -f $pidf ]] || return 1; local p; p=$(cat "$pidf" 2>/dev/null) || ret
 show_paths(){ echo "PID file: $pidf"; echo "HMP socket: $sock"; echo "QMP socket: $qmpsock"; echo "serial: $serial"; echo "debugcon: $debug"; echo "trace: $trace"; }
 case $act in
  start)
+  mkdir -p backups
+  exec {artifact_lock}>backups/.artifact-maintenance.lock
+  flock -s -n "$artifact_lock" || { echo 'Artifact maintenance owns the launch boundary' >&2; exit 1; }
+  case ${QEMU_FAULT_TRACE:-0} in
+    0) fault_args=(-d guest_errors) ;;
+    1) fault_args=(-no-reboot -d guest_errors,int,cpu_reset) ;;
+    *) echo 'QEMU_FAULT_TRACE must be 0 or 1' >&2; exit 2 ;;
+  esac
   SCOPE=qemu scripts/check-deps.sh
   mkdir -p "$r"; live && { echo 'QEMU agent already active' >&2; exit 1; }
   [[ -f $pidf ]] && rm -f "$pidf"; [[ -S $sock ]] && rm -f "$sock"; [[ -S $qmpsock ]] && rm -f "$qmpsock"; [[ -S $gdbsock ]] && rm -f "$gdbsock"
@@ -19,6 +27,29 @@ case $act in
   [[ $accel == tcg || $accel == kvm ]] || { echo 'ACCEL must be auto, kvm, or tcg' >&2; exit 2; }
   [[ $accel != kvm || (-e /dev/kvm && -r /dev/kvm && -w /dev/kvm) ]] || { echo 'ACCEL=kvm requested but /dev/kvm is unavailable' >&2; exit 1; }
   qemu=${QEMU:-qemu-system-x86_64}; cpu=max; [[ $accel == kvm ]] && cpu=host
+  case ${QEMU_CONTROL_PROFILE:-normal} in
+    normal) ;;
+    nx-disabled)
+      [[ $machine == q35 && $accel == tcg && ${SMP:-1} == 4 ]] || { echo 'nx-disabled requires Q35/TCG/SMP4' >&2; exit 2; }
+      cpu=max,-nx ;;
+    xapic)
+      [[ $machine == q35 && $accel == kvm && ${SMP:-4} == 4 ]] || { echo 'xapic requires Q35/KVM/SMP4' >&2; exit 2; }
+      cpu=host,-x2apic ;;
+    *) echo 'Unsupported control profile' >&2; exit 2 ;;
+  esac
+  source scripts/qemu-ram-profile.sh
+  configure_ram_profile 1
+  diagnostic_ram=()
+  if [[ -n ${IRQ_DIAGNOSTIC_RAM_PREALLOC:-} ]]; then
+    [[ ${IRQ_DIAGNOSTIC_RAM_CONTRACT:-} == anonymous-ram-preallocation-v1 &&
+       $machine_arg == q35 && $accel == kvm && ${SMP:-1} == 8 && ${MEM:-2G} == 2G &&
+       ${QEMU_CONTROL_PROFILE:-normal} == normal && ${QEMU_DEVICE_PROFILE:-direct} == direct &&
+       ( $IRQ_DIAGNOSTIC_RAM_PREALLOC == off || $IRQ_DIAGNOSTIC_RAM_PREALLOC == on ) ]] || {
+      echo 'Diagnostic RAM backend requires its explicit Q35/KVM/SMP8/2G contract' >&2; exit 2;
+    }
+    diagnostic_ram=(-object "memory-backend-ram,id=diagnostic.ram,size=2G,prealloc=$IRQ_DIAGNOSTIC_RAM_PREALLOC")
+    machine_arg=q35,memory-backend=diagnostic.ram
+  fi
   tcg_thread=${TCG_THREAD:-multi}; [[ $tcg_thread == multi || $tcg_thread == single ]] || exit 2; accel_arg=$accel; [[ $accel == tcg ]] && accel_arg="tcg,thread=$tcg_thread"
   fw=(); vars_copy=
   if [[ -n ${OVMF_FD:-} ]]; then fw=(-bios "$OVMF_FD")
@@ -34,6 +65,15 @@ case $act in
     input_devices=(-device nec-usb-xhci,id=xhci,msi=on,msix=off \
       -device usb-kbd,bus=xhci.0)
   fi
+  case ${QEMU_DEVICE_PROFILE:-direct} in
+    direct) ;;
+    hub-keyboard)
+      [[ $machine == q35 && ${SMP:-1} == 4 ]] || { echo 'hub-keyboard requires Q35/SMP4' >&2; exit 2; }
+      input_devices=(-device nec-usb-xhci,id=xhci,msi=on,msix=off
+        -device usb-hub,id=testhub,bus=xhci.0,port=1
+        -device usb-kbd,bus=xhci.0,port=1.1) ;;
+    *) echo 'Unsupported device profile' >&2; exit 2 ;;
+  esac
   gdb_args=(); pause_args=()
   if [[ -n ${QEMU_GDB_SOCKET:-} ]]; then
     gdb_args=(-chardev "socket,path=$gdbsock,server=on,wait=off,id=agent_gdb" \
@@ -45,11 +85,28 @@ case $act in
     *) echo 'QEMU_START_PAUSED must be 0 or 1' >&2; exit 2 ;;
   esac
   : >"$serial"; : >"$debug"; : >"$trace"
-  "$qemu" -machine "$machine" -accel "$accel_arg" -cpu "$cpu" -smp "${SMP:-1},sockets=1,cores=${SMP:-1},threads=1" -m "${MEM:-2G}" "${fw[@]}" -net none -drive "file=$image,format=raw,cache=writeback" -serial "file:$serial" -debugcon "file:$debug" -global isa-debugcon.iobase=0x402 -d guest_errors -D "$trace" "${input_devices[@]}" -display none -monitor "unix:$sock,server=on,wait=off" -qmp "unix:$qmpsock,server=on,wait=off" "${gdb_args[@]}" "${pause_args[@]}" -daemonize -pidfile "$pidf"
+  serial_args=(-serial "file:$serial")
+  if [[ -n ${QEMU_SERIAL_SOCKET:-} ]]; then
+    serial_args=(-chardev "socket,id=observed_serial,path=$QEMU_SERIAL_SOCKET" -serial chardev:observed_serial)
+  fi
+  launch=("$qemu" -machine "$machine_arg" -accel "$accel_arg" -cpu "$cpu" -smp "${SMP:-1},sockets=1,cores=${SMP:-1},threads=1" -m "${MEM:-2G}" "${fw[@]}" -net none -drive "file=$image,format=raw,cache=writeback" "${serial_args[@]}" -debugcon "file:$debug" -global isa-debugcon.iobase=0x402 "${fault_args[@]}" -D "$trace" "${input_devices[@]}" -display none -monitor "unix:$sock,server=on,wait=off" -qmp "unix:$qmpsock,server=on,wait=off" "${gdb_args[@]}" "${pause_args[@]}" -daemonize -pidfile "$pidf")
+  launch+=("${diagnostic_ram[@]}")
+  if [[ -n ${IRQ_DIAGNOSTIC_EXIT_TRACE:-} ]]; then
+    [[ ( $IRQ_DIAGNOSTIC_EXIT_TRACE == qemu-hpet-read-correlation-v1 || $IRQ_DIAGNOSTIC_EXIT_TRACE == qemu-hpet-counter-correlation-v2 ) && $machine == q35 && $accel == kvm && ${SMP:-1} == 8 && ${MEM:-2G} == 2G && ${QEMU_FAULT_TRACE:-0} == 0 ]] || { echo 'Invalid diagnostic exit trace profile' >&2; exit 2; }
+    launch+=(-msg timestamp=on)
+  fi
+  if [[ -n ${QEMU_VM_ID:-} ]]; then launch+=(-uuid "$QEMU_VM_ID"); fi
+  if [[ -n ${QEMU_LAUNCH_RECEIPT:-} ]]; then
+    python3 scripts/qemu-launch-receipt.py "$QEMU_LAUNCH_RECEIPT" "$image" "$kernel" "${launch[@]}"
+  fi
+  "${launch[@]}"
   qemu_version=$("$qemu" --version | head -n 1)
   image_hash=$(sha256sum "$image" | awk '{print $1}')
   kernel_hash=$(sha256sum "$kernel" | awk '{print $1}')
   printf 'MACHINE=%q\nACCEL=%q\nTCG_THREAD=%q\nSMP=%q\nMEM=%q\nIMAGE=%q\nIMAGE_SHA256=%q\nKERNEL_SHA256=%q\nQEMU_VERSION=%q\nGDB_SOCKET=%q\nSTART_PAUSED=%q\n' "$machine" "$accel" "$tcg_thread" "${SMP:-1}" "${MEM:-2G}" "$image" "$image_hash" "$kernel_hash" "$qemu_version" "${QEMU_GDB_SOCKET:-}" "${QEMU_START_PAUSED:-0}" >"$envf"
+  if [[ ${HOBBYOS_VALIDATION_CONTRACT:-} == guarded-kernel-stacks && -n ${HOBBYOS_STACK_NATIVE_AUDIT:-} ]]; then
+    python3 -B scripts/stack_native_audit.py prepare --runtime "$r" --kernel "$kernel" --image "$image"
+  fi
   for _ in {1..50}; do [[ -S $sock && -S $qmpsock ]] && "${hmp[@]}" command 'info status' >/dev/null 2>&1 && break; sleep .1; done
   [[ -S $qmpsock ]] || { echo 'QMP socket did not appear' >&2; exit 1; }
   live && "${hmp[@]}" command 'info status'; show_paths;;
@@ -58,10 +115,14 @@ case $act in
   if live; then echo 'process: alive'; [[ -S $sock ]] && echo 'socket: present'; "${hmp[@]}" command 'info status'; else echo 'process: inactive or stale'; [[ -S $sock ]] && echo 'socket: stale' || echo 'socket: absent'; exit 1; fi;;
  stop)
   if ! live; then echo 'QEMU agent is not active'; rm -f "$pidf" "$sock" "$qmpsock"; exit 0; fi
-  p=$(cat "$pidf"); "${hmp[@]}" quit || true
+  p=$(cat "$pidf"); audit_status=0
+  if [[ ${HOBBYOS_VALIDATION_CONTRACT:-} == guarded-kernel-stacks && -n ${HOBBYOS_STACK_NATIVE_AUDIT:-} ]]; then
+    python3 -B scripts/stack_native_audit.py capture --runtime "$r" || audit_status=$?
+  fi
+  "${hmp[@]}" quit || true
   for _ in {1..30}; do alivepid "$p" || break; sleep .1; done
   if alivepid "$p"; then echo 'HMP quit timed out; sending SIGTERM'; kill -TERM "$p"; for _ in {1..20}; do alivepid "$p" || break; sleep .1; done; fi
   if alivepid "$p"; then echo 'SIGTERM timed out; sending SIGKILL'; kill -KILL "$p"; fi
-  rm -f "$pidf" "$sock" "$qmpsock" "$gdbsock"; echo 'QEMU agent stopped; logs preserved';;
+  rm -f "$pidf" "$sock" "$qmpsock" "$gdbsock"; echo 'QEMU agent stopped; logs preserved'; exit "$audit_status";;
  logs) for f in "$serial" "$debug" "$trace"; do echo "== $f =="; [[ -f $f ]] && tail -n "${LINES:-40}" "$f" || echo '(missing)'; done;;
  *) echo "unknown action: $act" >&2; exit 2;; esac

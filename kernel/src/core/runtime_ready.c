@@ -19,6 +19,11 @@
 #define RUNTIME_RECORD_MAX 256u
 
 static volatile uint32_t g_ready_state;
+#if defined(HOBBYOS_SERIAL_PROOF_DIAGNOSTIC) && HOBBYOS_SERIAL_PROOF_DIAGNOSTIC
+static uint8_t g_boot_diagnostics_finished;
+bool runtime_ready_boot_diagnostics_finished(void)
+{ return __atomic_load_n(&g_boot_diagnostics_finished,__ATOMIC_ACQUIRE)!=0; }
+#endif
 static volatile uint8_t g_pci_scan_complete;
 static volatile uint8_t g_autorun_enabled;
 static volatile uint8_t g_autorun_passed;
@@ -81,6 +86,30 @@ static void record_emit(runtime_record_t *record)
     serial_write_all(record->bytes);
 }
 
+#if defined(HOBBYOS_SERIAL_PROOF_DIAGNOSTIC) && HOBBYOS_SERIAL_PROOF_DIAGNOSTIC
+static void record_failed_readiness(const runtime_ready_snapshot_t *snapshot)
+{
+    runtime_record_t record;
+    record_reset(&record);
+    record_text(&record,"\n[BOOT][READY_BLOCKERS] online=");record_u64(&record,snapshot->cpus_online);
+    record_text(&record," expected=");record_u64(&record,snapshot->cpus_expected);
+    record_text(&record," scheduler=");record_u64(&record,snapshot->scheduler_started);
+    record_text(&record," dpc=");record_u64(&record,snapshot->dpc_initialized);
+    record_text(&record," shell=");record_u64(&record,snapshot->shell_initialized && snapshot->shell_thread_started);
+    record_text(&record," input=");record_u64(&record,snapshot->input_valid);
+    record_text(&record," modal=");record_u64(&record,snapshot->modal_session_valid && snapshot->modal_ui_valid);
+    record_text(&record," pci=");record_u64(&record,snapshot->pci_scan_complete);
+    record_text(&record," violations=");record_u64(&record,snapshot->violations);
+    record_emit(&record);
+    record_reset(&record);
+    record_text(&record,"\n[BOOT][READY_USB] initialized=");record_u64(&record,snapshot->hotplug_initialized);
+    record_text(&record," active=");record_u64(&record,snapshot->hotplug_active);
+    record_text(&record," generation=");record_u64(&record,snapshot->hotplug_generation);
+    record_text(&record," quiet_ms=");record_u64(&record,snapshot->hotplug_quiet_ms);
+    record_emit(&record);
+}
+#endif
+
 static bool ready_state_advance(runtime_ready_state_t expected,
                                 runtime_ready_state_t desired)
 {
@@ -97,6 +126,9 @@ static bool ready_state_advance(runtime_ready_state_t expected,
 
 void runtime_ready_init(void)
 {
+#if defined(HOBBYOS_SERIAL_PROOF_DIAGNOSTIC) && HOBBYOS_SERIAL_PROOF_DIAGNOSTIC
+    __atomic_store_n(&g_boot_diagnostics_finished,0,__ATOMIC_RELEASE);
+#endif
     __atomic_store_n(&g_pci_scan_complete, 0, __ATOMIC_RELEASE);
     __atomic_store_n(&g_autorun_enabled, 0, __ATOMIC_RELEASE);
     __atomic_store_n(&g_autorun_passed, 0, __ATOMIC_RELEASE);
@@ -142,7 +174,7 @@ static bool runtime_services_snapshot(runtime_ready_snapshot_t *out)
     uint64_t now = clock_monotonic_ns();
     out->hotplug_quiet_ms = now >= hotplug.last_activity_ns ?
         (now - hotplug.last_activity_ns) / 1000000u : 0u;
-    out->violations = input_violations + session_violations + ui_violations;
+    out->violations = input_violations + session_violations + ui_violations + (hotplug.failed ? 1u : 0u);
     if (!scheduler_validate_runtime_invariants(&scheduler))
         out->violations += scheduler.violations ? scheduler.violations : 1u;
     if (!scheduler_validate_task_identity()) out->violations++;
@@ -202,6 +234,9 @@ bool runtime_ready_wait_and_publish(uint64_t timeout_ms,
     }
     __atomic_store_n(&g_ready_state, RUNTIME_READY_FAILED, __ATOMIC_RELEASE);
     __atomic_add_fetch(&g_ready_violations, 1, __ATOMIC_RELAXED);
+#if defined(HOBBYOS_SERIAL_PROOF_DIAGNOSTIC) && HOBBYOS_SERIAL_PROOF_DIAGNOSTIC
+    record_failed_readiness(&snapshot);
+#endif
     return false;
 }
 
@@ -235,7 +270,9 @@ void runtime_ready_mark_test_complete(bool autorun_enabled, bool passed)
                          __ATOMIC_RELEASE);
     }
     selftest_summary_t summary = {0};
+#ifdef HOBBYOS_SELFTEST
     if (autorun_enabled) selftest_last_summary(&summary);
+#endif
     record_reset(&record);
     record_text(&record, runtime_ok && (!autorun_enabled || passed) ?
         "\n[BOOT][TEST_READY] PASS autorun=" :
@@ -246,6 +283,9 @@ void runtime_ready_mark_test_complete(bool autorun_enabled, bool passed)
     if (!runtime_ok) record_text(&record, " reason=runtime");
     else if (autorun_enabled && !passed) record_text(&record, " reason=selftest");
     record_emit(&record);
+#if defined(HOBBYOS_SERIAL_PROOF_DIAGNOSTIC) && HOBBYOS_SERIAL_PROOF_DIAGNOSTIC
+    __atomic_store_n(&g_boot_diagnostics_finished,1,__ATOMIC_RELEASE);
+#endif
 }
 
 bool runtime_ready_is_ready(void)

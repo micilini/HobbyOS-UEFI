@@ -54,6 +54,8 @@ typedef struct {
     uint32_t raw_low;
     uint8_t read_mode;
     uint8_t kind;
+    uint32_t source;
+    uint64_t epoch;
 } clock_anomaly_event_t;
 
 bool clock_classify_sample(uint64_t cpu_last_raw_ns,
@@ -70,6 +72,8 @@ void clock_state_layout(uint64_t *begin_offset, uint64_t *end_offset,
 bool clock_monotonic_init(void);
 bool clock_monotonic_is_ready(void);
 uint64_t clock_monotonic_ns(void);
+/* A failed read leaves out unchanged; a cached floor is not fresh safety time. */
+bool clock_monotonic_read_ns(uint64_t *out);
 uint64_t clock_monotonic_us(void);
 uint64_t clock_monotonic_ms(void);
 void clock_stats_snapshot(clock_stats_t *out);

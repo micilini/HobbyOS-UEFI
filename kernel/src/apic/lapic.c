@@ -1,4 +1,6 @@
+#include "../core/irq_latency.h"
 #include "lapic.h"
+#include "../core/idt.h"
 
 #include "../acpi/madt.h"
 #include "../core/clock.h"
@@ -6,11 +8,15 @@
 #include "../cpu/mmio.h"
 #include "../drivers/serial.h"
 #include "../libc/memory.h"
-#include "../memory/paging.h"
+#include "../memory/mmio_mapping.h"
+#include "../memory/physical_translation.h"
 #include "../smp/cpu_limits.h"
 #include "../smp/smp_topology.h"
 
 static uint64_t g_lapic_base;
+static uint64_t g_lapic_discovery_msr;
+static uint8_t *g_lapic_registers;
+static mapping_view_t g_lapic_mapping;
 static uint8_t g_x2apic;
 static lapic_timer_calibration_t g_timer_cal[HOBBYOS_MAX_CPUS];
 static volatile uint64_t g_timer_irqs[HOBBYOS_MAX_CPUS];
@@ -38,14 +44,14 @@ void lapic_write(uint32_t reg, uint32_t value)
         return;
     }
     if (g_lapic_base)
-        mmio_write32((void *)(g_lapic_base + reg), value);
+        mmio_write32((void *)(g_lapic_registers + reg), value);
 }
 
 uint32_t lapic_read(uint32_t reg)
 {
     if (g_x2apic)
         return (uint32_t)cpu_read_msr(0x800u + (reg >> 4));
-    return g_lapic_base ? mmio_read32((void *)(g_lapic_base + reg)) : 0;
+    return g_lapic_base ? mmio_read32((void *)(g_lapic_registers + reg)) : 0;
 }
 
 uint32_t lapic_get_id(void)
@@ -94,12 +100,12 @@ static bool lapic_quiesce_current(lapic_quiescent_snapshot_t *out)
         out->masked_count++;
     if (lapic_lvt_mask(LAPIC_LVT_LINT0, 0)) out->masked_count++;
     if (lapic_lvt_mask(LAPIC_LVT_LINT1, 0)) out->masked_count++;
-    if (lapic_lvt_mask(LAPIC_LVT_ERROR, 0xFEu)) out->masked_count++;
+    if (lapic_lvt_mask(LAPIC_LVT_ERROR, INT_VECTOR_LAPIC_ERROR)) out->masked_count++;
     if (out->max_lvt >= 6u && lapic_lvt_mask(LAPIC_LVT_CMCI, 0))
         out->masked_count++;
 
     lapic_write(LAPIC_TPR, 0xF0u);
-    lapic_write(LAPIC_SPURIOUS, 0xFFu | (1u << 8));
+    lapic_write(LAPIC_SPURIOUS, INT_VECTOR_SPURIOUS | (1u << 8));
     out->tpr = lapic_read(LAPIC_TPR);
     out->svr = lapic_read(LAPIC_SPURIOUS);
     out->lvt_timer = lapic_read(LAPIC_LVT_TIMER);
@@ -175,6 +181,12 @@ static bool lapic_enable_for_current_cpu(void)
     return (apic_msr & (1ULL << 11)) != 0;
 }
 
+bool lapic_discovered_extent(uint64_t source, uint64_t *physical, uint64_t *bytes)
+{
+    if (!physical || !bytes || g_x2apic || !g_lapic_base || !g_lapic_discovery_msr || source != g_lapic_discovery_msr) return false;
+    *physical = g_lapic_base; *bytes = 4096; return true;
+}
+
 bool init_lapic(void)
 {
     g_lapic_base = get_lapic_base();
@@ -188,10 +200,12 @@ bool init_lapic(void)
     {
         if (!g_lapic_base)
             return false;
-        uint64_t base_page = g_lapic_base & ~0xFFFULL;
-        paging_map(base_page, base_page,
-                   PAGE_PRESENT | PAGE_RW | PAGE_PCD | PAGE_PWT);
-        __asm__ volatile("invlpg (%0)" : : "r"(base_page) : "memory");
+        g_lapic_discovery_msr = apic_msr;
+        mmio_origin_t origin;
+        if (!mmio_origin_resolve(MMIO_LAPIC, apic_msr, &origin)) return false;
+        if (mmio_mapping_acquire(&origin, CACHE_UNCACHEABLE, &g_lapic_mapping) != MAPPING_OK)
+            return false;
+        g_lapic_registers = g_lapic_mapping.cpu;
     }
     serial_write_all(g_x2apic ? "[LAPIC] System using X2APIC\n"
                                : "[LAPIC] System using XAPIC\n");
@@ -266,32 +280,65 @@ static void lapic_write_icr(uint32_t destination, uint32_t vector,
     lapic_wait_icr_idle();
 }
 
-void lapic_send_ipi(uint32_t apic_id, uint8_t vector)
+static uint64_t delivery_save(void *context)
+{ (void)context; return irq_save(); }
+static void delivery_restore(void *context, uint64_t flags)
+{ (void)context; irq_restore(flags); }
+static bool delivery_pending(void *context)
+{ (void)context; return (lapic_read(LAPIC_ICR0) & APIC_DS_PENDING) != 0; }
+static bool delivery_write32(void *context, uint32_t reg, uint32_t value)
+{ (void)context; lapic_write(reg, value); return true; }
+static bool delivery_write64(void *context, uint32_t msr, uint64_t value)
+{ (void)context; return cpu_write_msr_safe(msr, value); }
+static void delivery_publish(void *context)
 {
-    lapic_write_icr(apic_id, vector,
-                    APIC_DM_FIXED | APIC_LEVEL_ASSERT | APIC_TRIGGER_EDGE);
+    (void)context;
+    /* x2APIC WRMSR does not order earlier request/page-table stores. */
+    __asm__ volatile("mfence; lfence" ::: "memory");
+}
+static void delivery_relax(void *context)
+{ (void)context; __asm__ volatile("pause" ::: "memory"); }
+static const lapic_delivery_ops_t g_delivery_ops = {
+    delivery_save, delivery_restore, delivery_pending, delivery_write32,
+    delivery_write64, delivery_publish, delivery_relax
+};
+static lapic_delivery_result_t delivery_send(uint32_t id, uint32_t vector,
+                                            lapic_message_t message)
+{
+    IRQ_LATENCY_SCOPE(IRQ_PATH_ICR);
+    return lapic_delivery_send(&g_delivery_ops, NULL,
+        g_x2apic || g_lapic_base != 0, g_x2apic, id, vector, message);
 }
 
-void lapic_send_init(uint32_t apic_id)
+lapic_delivery_result_t lapic_send_ipi(uint32_t apic_id, uint32_t vector)
 {
-    lapic_write_icr(apic_id, 0,
-                    APIC_DM_INIT | APIC_LEVEL_ASSERT | APIC_TRIGGER_LEVEL);
-    for (volatile uint32_t i = 0; i < 10000u; i++)
-        __asm__ volatile("outb %%al, $0x80" : : "a"(0));
-    if (!g_x2apic)
-        lapic_write_icr(apic_id, 0,
-                        APIC_DM_INIT | APIC_LEVEL_DEASSERT |
-                            APIC_TRIGGER_LEVEL);
-    for (volatile uint32_t i = 0; i < 10000u; i++)
-        __asm__ volatile("outb %%al, $0x80" : : "a"(0));
+    return delivery_send(apic_id, vector, LAPIC_MESSAGE_FIXED);
 }
 
-void lapic_send_sipi(uint32_t apic_id, uint32_t trampoline_page)
+lapic_delivery_result_t lapic_send_init(uint32_t apic_id)
 {
-    lapic_write_icr(apic_id, (uint8_t)(trampoline_page & 0xFFu),
-                    APIC_DM_SIPI | APIC_LEVEL_ASSERT | APIC_TRIGGER_EDGE);
+    lapic_delivery_result_t result =
+        delivery_send(apic_id, 0, LAPIC_MESSAGE_INIT_ASSERT);
+    if (result != LAPIC_DELIVERY_SUBMITTED) return result;
+    for (volatile uint32_t i = 0; i < 10000u; i++)
+        __asm__ volatile("outb %%al, $0x80" : : "a"(0));
+    if (!g_x2apic) {
+        result = delivery_send(apic_id, 0, LAPIC_MESSAGE_INIT_DEASSERT);
+        if (result != LAPIC_DELIVERY_SUBMITTED) return result;
+    }
+    for (volatile uint32_t i = 0; i < 10000u; i++)
+        __asm__ volatile("outb %%al, $0x80" : : "a"(0));
+    return result;
+}
+
+lapic_delivery_result_t lapic_send_sipi(uint32_t apic_id, uint32_t trampoline_page)
+{
+    lapic_delivery_result_t result =
+        delivery_send(apic_id, trampoline_page, LAPIC_MESSAGE_STARTUP);
+    if (result != LAPIC_DELIVERY_SUBMITTED) return result;
     for (volatile uint32_t i = 0; i < 200u; i++)
         __asm__ volatile("outb %%al, $0x80" : : "a"(0));
+    return result;
 }
 
 bool lapic_timer_calibration_math(uint32_t elapsed_ticks, uint64_t elapsed_ns,
@@ -645,7 +692,7 @@ bool lapic_timer_validate_configuration(uint32_t slot,
     if (state.programmed && state.programming_generation &&
         state.mode == LAPIC_TIMER_ACTIVE_PERIODIC)
         out->passed_mask |= LAPIC_TIMER_VALID_PROGRAMMED;
-    if (state.programmed_vector == 34u &&
+    if (state.programmed_vector == INT_VECTOR_LAPIC_TIMER &&
         (state.lvt_value & 0xFFu) == 34u)
         out->passed_mask |= LAPIC_TIMER_VALID_VECTOR;
     if (state.programmed_divisor == 16u &&

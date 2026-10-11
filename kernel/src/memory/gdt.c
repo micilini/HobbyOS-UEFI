@@ -4,22 +4,10 @@
 #include "../libc/memory.h"
 #include "../memory/heap.h"
 #include "../drivers/serial.h"
+#include "physical_translation.h"
 
 GdtTable g_gdt;
 static GdtPtr g_gdtr;
-
-#define HHDM_OFFSET 0xFFFFFFFF80000000ULL
-
-static void *to_higher_half(void *ptr)
-{
-    uint64_t addr = (uint64_t)ptr;
-
-    if (addr < 0x100000000ULL && addr > 0)
-    {
-        return (void *)(addr | HHDM_OFFSET);
-    }
-    return ptr;
-}
 
 static void gdt_set_gate(GdtEntry *entry, uint32_t base, uint32_t limit, uint8_t access, uint8_t gran)
 {
@@ -100,14 +88,15 @@ GdtTable *gdt_create_per_cpu(void *tss_ptr)
 {
     serial_write_all("      [GDT] Allocating... ");
 
-    void *phys_ptr = kmalloc(sizeof(GdtTable));
-    if (!phys_ptr)
+    void *pointer = kmalloc(sizeof(GdtTable));
+    if (!pointer)
     {
         serial_write_all("FAIL (kmalloc)\n");
         return NULL;
     }
 
-    GdtTable *new_gdt = (GdtTable *)to_higher_half(phys_ptr);
+    (void)physical_require_address(pointer, sizeof(GdtTable));
+    GdtTable *new_gdt = pointer;
 
     serial_write_all("OK. Copying from global... ");
 

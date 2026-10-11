@@ -151,7 +151,7 @@ def record(args: argparse.Namespace) -> None:
 
 
 def parse_manifest(path: Path) -> dict[str, str]:
-    require(path.is_file(), f"missing {path.relative_to(ROOT)}")
+    require(path.is_file(), f"missing {path}")
     result: dict[str, str] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         digest, separator, name = line.partition("  ")
@@ -184,7 +184,7 @@ def verify_fair_source_manifests(scope: str) -> None:
     protected_before = AUTONOMOUS_ARTIFACT / "protected-before.sha256"
     clockevent_before = FAIR_ARTIFACT / "clockevent-worktree-before.sha256"
     for path in (source_before, protected_before, clockevent_before):
-        require(path.is_file(), f"missing {path.relative_to(ROOT)}")
+        require(path.is_file(), f"missing {path}")
     expected_source = {
         "kernel/src/core/timers.c", "kernel/src/core/timers.h",
         "kernel/src/shell/commands/cmd_synctest.c",
@@ -809,8 +809,11 @@ def verify_rendezvous_boot(
     return text
 
 
-def verify(scope: str) -> None:
-    verify_git(scope)
+def verify(scope: str, *, portable=None) -> None:
+    if portable is None:
+        verify_git(scope)
+    else:
+        portable.verify_source_identity()
     verify_baseline_manifest()
     verify_fair_source_manifests(scope)
     rows = read_rows()
@@ -1164,7 +1167,7 @@ def verify_boot_progress(args: argparse.Namespace) -> None:
 
 def verify_autonomous_boot_log(path: Path, smp: int,
                                require_taskdiag: bool = True) -> str:
-    require(path.is_file(), f"missing boot log: {path.relative_to(ROOT)}")
+    require(path.is_file(), f"missing boot log: {path}")
     text = path.read_text(encoding="utf-8", errors="replace")
     for marker in (
         f"[IRQ][BOOTSTRAP] CPUS_PREPARED cpus={smp}",

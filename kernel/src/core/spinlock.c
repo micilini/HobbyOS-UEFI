@@ -1,4 +1,5 @@
 #include "spinlock.h"
+#include "irq_latency_interior.h"
 #include "../smp/cpu_limits.h"
 
 #define SPINLOCK_OWNER_MASK 0x0000FFFFu
@@ -153,6 +154,9 @@ void spin_lock(spinlock_t *lock)
     uint32_t state = __atomic_fetch_add(&lock->tickets, SPINLOCK_NEXT_ONE,
                                         __ATOMIC_RELAXED);
     uint16_t ticket = spinlock_next(state);
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+    irq_latency_lock_ticket((uintptr_t)lock, (uint16_t)(ticket - spinlock_owner(state)));
+#endif
 #ifdef HOBBYOS_SELFTEST
     uint16_t distance = (uint16_t)(ticket - spinlock_owner(state));
     spinlock_test_observe(lock, distance);
@@ -167,31 +171,36 @@ void spin_lock(spinlock_t *lock)
 
 void spin_unlock(spinlock_t *lock)
 {
+#if defined(HOBBYOS_IRQ_ENTRY_DIAGNOSTIC) && HOBBYOS_IRQ_ENTRY_DIAGNOSTIC
+    irq_latency_interior_before_unlock((uintptr_t)lock);
+#endif
     __atomic_store_n(&lock->locked, 0, __ATOMIC_RELAXED);
 
-    uint32_t expected = __atomic_load_n(&lock->tickets, __ATOMIC_RELAXED);
-    for (;;)
-    {
-        uint32_t desired = (expected & ~SPINLOCK_OWNER_MASK) |
-                           (uint16_t)(spinlock_owner(expected) + 1u);
-        if (__atomic_compare_exchange_n(&lock->tickets, &expected, desired,
-                                        false, __ATOMIC_RELEASE,
-                                        __ATOMIC_RELAXED))
-        {
-            return;
-        }
-    }
+    /* x86 little-endian owner halfword: do not retry against new tickets.
+     * The locked RMW publishes prior stores and cannot carry into next. */
+    _Static_assert(__alignof__(spinlock_t) >= sizeof(uint32_t),
+                   "ticket word must be naturally aligned");
+    __asm__ volatile("lock addw $1, %0" : "+m"(lock->tickets) :: "memory", "cc");
 }
 
 irq_flags_t spin_lock_irqsave(spinlock_t *lock)
 {
     irq_flags_t flags = irq_save();
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+    irq_latency_lock_token_t token = irq_latency_lock_wait((uintptr_t)lock);
+#endif
     spin_lock(lock);
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+    irq_latency_lock_acquired((uintptr_t)lock, token);
+#endif
     return flags;
 }
 
 void spin_unlock_irqrestore(spinlock_t *lock, irq_flags_t flags)
 {
     spin_unlock(lock);
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+    irq_latency_lock_released((uintptr_t)lock);
+#endif
     irq_restore(flags);
 }

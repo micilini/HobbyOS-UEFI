@@ -1,0 +1,1335 @@
+{
+  "allowed_paths": [
+    "docs/foundation/validation-policy.md",
+    "docs/memory/address-consumers.md",
+    "docs/memory/source-inventory.json",
+    "docs/memory/tlb-baseline.md",
+    "docs/memory/tlb-coherency.md",
+    "kernel/src/apic/lapic.c",
+    "kernel/src/apic/lapic.h",
+    "kernel/src/apic/lapic_delivery.c",
+    "kernel/src/apic/lapic_delivery.h",
+    "kernel/src/core/idt.h",
+    "kernel/src/core/interrupt_vectors.h",
+    "kernel/src/core/interrupts.c",
+    "kernel/src/core/interrupts.h",
+    "kernel/src/core/irq_bootstrap.c",
+    "kernel/src/core/kernel_init.c",
+    "kernel/src/cpu/cpu_control_snapshot.c",
+    "kernel/src/memory/kernel_tlb.c",
+    "kernel/src/memory/kernel_tlb.h",
+    "kernel/src/memory/paging.c",
+    "kernel/src/memory/tlb_deferred.c",
+    "kernel/src/memory/tlb_deferred.h",
+    "kernel/src/memory/tlb_fixture.c",
+    "kernel/src/memory/tlb_fixture.h",
+    "kernel/src/memory/tlb_interval.c",
+    "kernel/src/memory/tlb_interval.h",
+    "kernel/src/shell/commands/cmd_tlbtest.c",
+    "kernel/src/shell/commands/cmd_tlbtest.h",
+    "kernel/src/shell/commands/registry.c",
+    "kernel/src/smp/cpu_request.c",
+    "kernel/src/smp/cpu_request.h",
+    "kernel/src/smp/cpu_request_state.c",
+    "kernel/src/smp/smp_boot.c",
+    "makefile",
+    "scripts/cpu-control-fixtures.py",
+    "scripts/cpu-control-mailbox-host.c",
+    "scripts/cpu-control-portable-replay.py",
+    "scripts/cpu-control-state-gate.py",
+    "scripts/memory-current-regression.py",
+    "scripts/memory-gdb-capture.py",
+    "scripts/memory-integrity-fixtures.py",
+    "scripts/memory-observation-gate.py",
+    "scripts/memory-qemu.py",
+    "scripts/memory-replay-fixtures.py",
+    "scripts/memory_current.py",
+    "scripts/qemu-agent.sh",
+    "scripts/qemu-launch-receipt.py",
+    "scripts/qemu-run.sh",
+    "scripts/test-assert-list.sh",
+    "scripts/test-timer-clockevent.sh",
+    "scripts/test-tlb-shootdown.sh",
+    "scripts/tlb-coherency-scope.json",
+    "scripts/tlb-deferred-worker-host.c",
+    "scripts/tlb-runtime-host.c",
+    "scripts/tlb-shootdown-fixtures.py",
+    "scripts/tlb-shootdown-gate.py",
+    "scripts/tlb-shootdown-host.c",
+    "scripts/tlb-shootdown-portable-replay.py",
+    "scripts/tlb-shootdown-review.py",
+    "scripts/tlb_current.py",
+    "scripts/verify-arch-contract.py",
+    "scripts/verify-memory-observation.py",
+    "scripts/verify-section-layout.py",
+    "scripts/verify-tlb-shootdown.py"
+  ],
+  "base_commit": "18e64098519e3787e5f5ced2328d60ef8084964c",
+  "base_tree": "e07550842e79512a0dc770728bb0e2b919c71ad6",
+  "historical_contracts": {
+    "scripts/cpu-control-scope.json": "8ff12ad6e43f1a2ce3e9fa9def4c3976ea942afe32c2abf9f37d83772d28f525",
+    "scripts/memory-current-scope.json": "8efc68ba77a24374906db59dd0d33cebee30b50b9fc5bbb1edbbc7ae9d93dc03"
+  },
+  "immutable_reviewed_anchors": {
+    "kernel/kernel.c": "3acff4762423c993cb938aed25f29ee90da23a000ba88d4604f5b6b769fecdc4",
+    "kernel/link.ld": "fbb37c56c69c1218b43fd3a02846a83f7feaa4327ea1c790ee797936764bbc12",
+    "kernel/src/acpi/acpi.c": "bdafdedeffb27a0e576b042acd62ffad189681561dfb8bffab47e6f0f49d41d9",
+    "kernel/src/acpi/acpi.h": "66d0f5fefd42587125fa90e1e032a47d811ce842549c0058c57802292940b37d",
+    "kernel/src/acpi/madt.c": "8b9da546bff6d3b68f43f608ffa818a484d1cef0718256b9172d751560a0de74",
+    "kernel/src/acpi/madt.h": "25249ad79cc26da182be8f7e6d555efa29d9f9aa1737cc8a572f4c5049b0b65a",
+    "kernel/src/acpi/sleep.c": "2ddb783ee4b825f782284f9f1e651d3b4937aea8cfbc1f0969dc3bf8e0131f5d",
+    "kernel/src/acpi/sleep.h": "6069af51c014afa0baba3af98ee5438852415e3248a0f7300073d092680ef279",
+    "kernel/src/apic/ioapic.c": "7aac4286aec4f18ee98aeec98da2b0124491c337706717f1a179db76964bad41",
+    "kernel/src/apic/ioapic.h": "04f0c0900ffefa66ede43f9c6f15401ba8a7e5ddc00251da53c67cbbfb9c43ea",
+    "kernel/src/apic/legacy_pic.c": "979299e6e7d65f079a03768a0aee1d9b6738e87837f78deda6e3f9d5e04d9c53",
+    "kernel/src/apic/legacy_pic.h": "b6c8c83103d975070fa3a1b2c03193fbe54afa49da2a7c903b161cb42c59015f",
+    "kernel/src/core/assert_selftest.c": "5bfe2b678d32c434571e8028f0762941c9607d07a1e16fd0bc9e3d0c416e5344",
+    "kernel/src/core/assert_selftest.h": "72af140e86d0fc4cade7765bc6185f787851293670a57e4a6c9db3b6708e7f04",
+    "kernel/src/core/build_profile.c": "8c2d688e54b945d4529dff363aa4506d8d0feba14f2d48382d8a40592faaa6ac",
+    "kernel/src/core/build_profile.h": "50dbd53edb2bbd51bf2689f0145bf05977b697a38736fcfe8c52a923d01505e3",
+    "kernel/src/core/clock.c": "2f8444d3b83b3cf0aa5a9d594aa8b3e349f19775b0af6117f6498495b7bac0be",
+    "kernel/src/core/clock.h": "f281a4c15c739d5457eab82e6821894734659e2259820070e92c130f2f1ec9d6",
+    "kernel/src/core/dpc.c": "9caf0826723bcac9666966942bdf091bcbe8e6ec909e7a7ae2fdb785555be1ce",
+    "kernel/src/core/dpc.h": "65899b079e64d75fbd4714d9a474bc039770e3124e50811aa24ab4f026c917fc",
+    "kernel/src/core/entry.S": "ce34fd7fb5f7884de4a2f71fb47e6c228d633fc28a5ac209825ad908a403920c",
+    "kernel/src/core/idt.c": "6f8757d3f75e493cb2f2c63c2cdc62af5d515a9204bfe30e4f4d2106d6799613",
+    "kernel/src/core/input_event.h": "100a2df7426e01502841431c577212fa66a21a904254526c9df27a8b626f2fbb",
+    "kernel/src/core/input_queue.c": "281533b63b946e6696526c540b3cbfceaac26b9d8e14bcceff132f27a2cd0eaa",
+    "kernel/src/core/input_queue.h": "72e5ac626d54b980563b58f11cde1f458da932ec2897549169694f6110fcd224",
+    "kernel/src/core/input_router.c": "c992ba11d7467cfa49cc0a70def994567e1927b53711894090329aa833aec6ae",
+    "kernel/src/core/input_router.h": "f1aff73820999c81adfd330cd70d813207728df30db29c5a6ba2827401e5d55f",
+    "kernel/src/core/interrupt_context.c": "590c99494bc106e70d9ed6b623f92205993cfe757db86e43b3835fd18ba1ce4f",
+    "kernel/src/core/interrupt_context.h": "ef58517c42961e7d8dd167d1ddac2d7c4f840536e7ca12142f9d04be7e3e688f",
+    "kernel/src/core/interrupt_stubs.S": "6eb54f9e84d7d1880983ada3b3866fd7c34dc42f7a036f067b1b30072cbd1198",
+    "kernel/src/core/io.h": "34a219c875279a841a5bd7e866f2167e9785d5796cf830ae95d3608d61c03a6b",
+    "kernel/src/core/irq_bootstrap.h": "5145b4795a4a235c96965d0168b6e578cb7fc0b9f7104929a075b89e8960a383",
+    "kernel/src/core/irq_stats.c": "054bdf8cca984ce0065d78e63823b208e0699fc1e1e0858c22ce2ed7fdd096fe",
+    "kernel/src/core/irq_stats.h": "6c8c946c44dfa56b603d773e56f33d4f925e6647718c8aa95a57ae8461b79171",
+    "kernel/src/core/kernel_init.h": "ba1d20b199bdef6aae558184463d135b53f0401e63d57ac4bd82df589b4a2302",
+    "kernel/src/core/list.h": "12333cdd6e208679443b3c6ddf79983895539e4f660d56014b46e160c8f8ddd8",
+    "kernel/src/core/modal_session.c": "7986f8218507134019708d90a9cc77b232eba343c8b65186773bc770bc8c1834",
+    "kernel/src/core/modal_session.h": "e105428bd62a3a6862d3bb601210dab5d8e4255d7148eaa3dc43ebb184e8df8a",
+    "kernel/src/core/modal_ui.c": "ecfef61a1ac37a1457f86b257f43888fdc4f716b4de36f076dcfb072639c8215",
+    "kernel/src/core/modal_ui.h": "86d3560b802a6b25f58d96244e2969330aa97b2c9b204d3212a0d8a9504410ea",
+    "kernel/src/core/panic.c": "fd2c12c0ceb39da83ecaeb53c7cc8ef1989a98a5837037410eb257d018eb2acd",
+    "kernel/src/core/panic.h": "40e3dd2b96fd60b0d5ef8afd044525fa9fd6d71c6009c6dbac5d215185784be7",
+    "kernel/src/core/queue.h": "6e2599961d0a4fea65cff9fc748d89c5e5ba5722491663a29940c84e34db189c",
+    "kernel/src/core/runtime_ready.c": "209c021a8dfe96eea82df5ee9d096966082d6c5f46e3bec6bd36eb18c2758d45",
+    "kernel/src/core/runtime_ready.h": "d892fb6c54b1de2e0a4685270529cca2d1f771b5f92695225f838afc8785e9ed",
+    "kernel/src/core/scheduler.c": "766d76b960a4e379f62dee825cf20c3658c205ae8bb1bd3dd862b23be47dd2e6",
+    "kernel/src/core/scheduler.h": "875513010a300fa8551daeea2a2e583f7b60d9541cb192314ed21f126f94da91",
+    "kernel/src/core/selftest.c": "36818d0e07c9e7827ce88251622401b382578cdd84120f54703118f72bc1cd1d",
+    "kernel/src/core/selftest.h": "45d4a0acbd499719b5a84f3dc64658c0497be5170d0296597867bd86439e2552",
+    "kernel/src/core/semaphore.c": "06969e56b74bb4922def7e912175d996fe7aad991e0855f7c61ce15fe9bb2f51",
+    "kernel/src/core/semaphore.h": "f0b9f829d7e7216074ebd79c184ce07a0c715a38b5208930fca42d4010fe10e5",
+    "kernel/src/core/spinlock.c": "a27ba473caba627d7a938930c9763123e10a2bd837a905950d9570d7962ce98d",
+    "kernel/src/core/spinlock.h": "e7eeb8e6ea2b6fd271c7640023f99043b81c1ddf147b2d887f8d5f5f4dac5c9b",
+    "kernel/src/core/switch.S": "90675365a39a574f498288e751264f9873c55ae50e07ac6ae5f8b832614d7b99",
+    "kernel/src/core/task.h": "bcf8fe97bc895bf7e83a05aeaf86cbbd1d818e862dd21cdca05a2616b9661802",
+    "kernel/src/core/task_format.c": "2ba46851fd9246060e3cf64056e0013d9237a25b7f41d321b3cf5433daa19863",
+    "kernel/src/core/task_format.h": "404285390c07e56a8baa31838e8479464d6ae7c2d6ffaedde4ebea9231f9fd8b",
+    "kernel/src/core/task_lifecycle.c": "c0d02ea9729f2b0270b2fa3a66fdff68e27d92600902cdb734fd1cba3717188d",
+    "kernel/src/core/task_lifecycle.h": "1f171f88daeae9a279fc13fe5695bc8d614d58827f457bedc11c4f640ad47543",
+    "kernel/src/core/task_metrics.c": "cda2ea3c28986bfbe6f5ec89e886117286d74e273e575caabece925345797ded",
+    "kernel/src/core/task_metrics.h": "6658d865975efa6cab620b1525c1aea3a6e684d7ceb9e6fdbf8f990dcd44cac1",
+    "kernel/src/core/timers.c": "680152b32a5dff05d341d8daa5ab512b763012937327e8b50fa23b8d273de9b8",
+    "kernel/src/core/timers.h": "8e78c4c9c8e726fd2ba4e7f13b83ca95a4a863182354dd6cc9805bd49522f5ff",
+    "kernel/src/cpu/arch_selftest.c": "17a016cb7dcd68f04b64afdb8107d896cbabf228f8dcc4d4714ffd1e43b97e82",
+    "kernel/src/cpu/arch_selftest.h": "aa4cf07a393b82e538bb4ef83cafc2f229057bd24ba1303f3a2cac5b4f17da4c",
+    "kernel/src/cpu/control_policy.c": "7c73d5ba1e7447c5532d6fde77eabea8ac1726480549b0b86d173ccabbb96079",
+    "kernel/src/cpu/control_policy.h": "c7bd67d0bac365cf7b3c4f78f4d41e7de336e5e54c3541e627846586a25b45b2",
+    "kernel/src/cpu/control_policy_bits.h": "759d9c8ac071a9ce6221f4175efd33932c32b58e1ecda0dfbfbe814dc5136aab",
+    "kernel/src/cpu/cpu.c": "0ba569919143dc146f95b38f3367c977c188ffbdde829993028d584cbbe9ed27",
+    "kernel/src/cpu/cpu.h": "5a49185d51c6f5f55ee5efeadfeab16d293c4a60fe2e9ae172d5c3bf6954f067",
+    "kernel/src/cpu/cpu_control_snapshot.h": "6463327c136d05ff72c18b462ea57a1dabdef9d579cf7d79e672080fb6ab1863",
+    "kernel/src/cpu/mmio.c": "a6e9ef7a24d3edc0f84f3709f5e3cffbddb78530f5a8be0e40f049827730a0ae",
+    "kernel/src/cpu/mmio.h": "d7b47391452f762642c1ea574e20584db423b5729d986c2d64fbb0f57dfcb707",
+    "kernel/src/cpu/tss.c": "ba5dd609d48998383a3e875f20fc5adbf680e13cc22af68b3d9f41042641deba",
+    "kernel/src/cpu/tss.h": "60b3c78b27e2abe9ab18bc61dcd9c984a842839d52b132fdc61e9902173600cd",
+    "kernel/src/drivers/keyboard.c": "e84c7e1ee08259d5e2c5841c72d801cd3c86998fe3ca16bb6501aa97e9cb926d",
+    "kernel/src/drivers/keyboard.h": "40567529edeebc77927443ea0dd159f9791d62b3779550cacfa3e9d491c71ab2",
+    "kernel/src/drivers/pci.c": "cef3c5665e37de9deba55a6a8a77bff575d60287fca994596c18d84ba56aeab4",
+    "kernel/src/drivers/pci.h": "70508e062a62e5ea20ab9eb708cf3b893f08797461d13f206bc9771cdcf9e10b",
+    "kernel/src/drivers/pci_descriptors.c": "d7c4b6bf20f7574b55a61f2f3b54558da97705db30d13ccc9b58d627c3a91c43",
+    "kernel/src/drivers/pci_descriptors.h": "19f1fd380fb352e85cd20777d6ebed7bd98208cd490f22fd86c947928aa258fb",
+    "kernel/src/drivers/ps2.c": "a23b6edeef6223210923956b8f2d690169ed180cc5d59b20423760171510ecb8",
+    "kernel/src/drivers/ps2.h": "34fb31603eb6eba65dd52b94f0898f532f1c54d6bbcc1c97ccfe0ca055e75c4e",
+    "kernel/src/drivers/serial.c": "f8f88de33528a90a9f549a18f8f35fe52fa082c2e339241c14dbde03601b3139",
+    "kernel/src/drivers/serial.h": "a2fd37b50ca4e7f98d0531d0294e476b6dd3b9cb7f703d7476ebc67bd149f24e",
+    "kernel/src/drivers/timer.c": "04899929bc2946c3aa38f8f3215cf140ebad01b2f2f57f57a6d8539913e0d29f",
+    "kernel/src/drivers/timer.h": "4162776de23c3209c924e5afe0a79ef337c6981f09b282748e09c5b5fe3ee72a",
+    "kernel/src/drivers/usb/xhci/usb_hotplug.c": "56b2dbcafc08e01223dec9d54c1d41f76331bdab516342f3fc16bbd4ae874e7b",
+    "kernel/src/drivers/usb/xhci/usb_hotplug.h": "78a6f65b07d14581acd2b7c96583e212567fc0d578aed76a04efa335e1ea6bb3",
+    "kernel/src/drivers/usb/xhci/usb_hub.c": "9dee729c78069ae4589ccee2d291e939825e27242624a593ec27a40322fb9a85",
+    "kernel/src/drivers/usb/xhci/usb_hub.h": "0da011780ebe2aeb645fec1de1894afa0d44238409cba7c414d7653481dd9416",
+    "kernel/src/drivers/usb/xhci/xhci.c": "ed8f702a9646a855acc21846b5a6c6eea7b9cc54a17bbde0e5129f4677731501",
+    "kernel/src/drivers/usb/xhci/xhci.h": "9720a29956f9dfc4b4af17125478ffabe6429f9c3f1d326b7a6b9ab11baf513d",
+    "kernel/src/drivers/watchdog/acpi_wdat.c": "0aeb8f1fa013e7a2ef3dcc34a04aa281b87442b70dc2e82b0cc0c8950bd9478f",
+    "kernel/src/drivers/watchdog/acpi_wdat.h": "074db62e636cde321393882d4654be840d597f44e234914cd062995037420b9b",
+    "kernel/src/drivers/watchdog/acpi_wddt.c": "044175b416b8447f4d8568d8842ea7d5f27f9dee31d04ad68f4f97d867ba19b7",
+    "kernel/src/drivers/watchdog/acpi_wddt.h": "4a89c7d52bb526d48e1d594aa8247ef36c168939ed04a19569cc22b2b434a6df",
+    "kernel/src/drivers/watchdog/acpi_wdrt.c": "125456a811cd9acd69c31120d389622b9c4ec2fdbe1cf53eb7a3a2bc9c29d211",
+    "kernel/src/drivers/watchdog/acpi_wdrt.h": "0140a07e0c1eb7794f8bba7030d2a18d98c6e8095f6a82121fe20894c1f6eb3b",
+    "kernel/src/drivers/watchdog/intel_tco.c": "9667f8c324df7d749f17e48dfe8ed52d8e7f0264fddd7abefb8f0467ed4f223e",
+    "kernel/src/drivers/watchdog/intel_tco.h": "ba243f786e64bf73af0e662cf77c5a434748deb6e88e0582484c8a90e5150c1d",
+    "kernel/src/graphics/console.c": "fbabed3f8fd0a7c75c35cbfde77b5729ad4a126c448d2f5519454f6ce19562f7",
+    "kernel/src/graphics/console.h": "7737e5a295cab00f07704a8f15aaf23cadf3a5736da073f337ec22f2281a5164",
+    "kernel/src/graphics/graphics.c": "2f7a316d7ea69b44e9bb07442de8f6ffd4f719dd91c931661c9729ef05e37ad5",
+    "kernel/src/graphics/graphics.h": "e147856001d2ed1f555ac681f95f0ed09d28dff1bbc23ebc2a4bb3c28a17ed31",
+    "kernel/src/graphics/splash.c": "1f198e8b6082a1f7573b625bf71a715c5227c91a7699cf71c43e715c7c7517b5",
+    "kernel/src/graphics/splash.h": "031779f77348cf9942191b1d4dc6452b7e6546a8f7ac4f001c119a247ba8e30c",
+    "kernel/src/graphics/terminal.c": "f55eb4382672ebb9e31456535325640b5bf860713916733151911b63ef5193dc",
+    "kernel/src/graphics/terminal.h": "2b54b2e4a29911aca3a2ea7b71643e0aeeae483868d998f2fe961d696d4c2136",
+    "kernel/src/libc/format_selftest.c": "96046f9cfd820b07c7d1fd4c2fb35bc7798bdf46cc16bcafd8e019d34d2efc9a",
+    "kernel/src/libc/format_selftest.h": "c57d3dda5b9f5d9d56160c2af813d61746f88343ccf50f774d08b60ec8b63eac",
+    "kernel/src/libc/memory.c": "7dae199dac890426cbf3d4ac27adde39e9b0a7c9f65c270067c1e7fd055f55d9",
+    "kernel/src/libc/memory.h": "23f1cc5caa220dbdb4f32a94df8ea8e7e3e268fc44f6ec6b7394c06edf16a6e6",
+    "kernel/src/libc/string.c": "4ed514e00d8d65c6e8ea4ffe796374776d011d0e90c59df49b01d6dc12c170c3",
+    "kernel/src/libc/string.h": "e1dccc023932fb54f7fb7877d8e32b1e8d81d90d47a2a12c631453eff00d1a7a",
+    "kernel/src/memory/cache_attributes.c": "c9a7979042bcfb5954adc5d01751c1cdde49f0ef807c01e3c0bef205cce4e5e8",
+    "kernel/src/memory/cache_attributes.h": "3433682899c7b35d6d65ea9a17e3d2eeeba4216b2355a43ed519eaa5b8291131",
+    "kernel/src/memory/gdt.c": "db6732bc740b5755655b5f4a6666c5d19ad4a566a42e1b02c046e8af2692af57",
+    "kernel/src/memory/gdt.h": "3a1c5760eab08a02804c8becc103a10b406f7c17e4b22aae0be68f224190cec1",
+    "kernel/src/memory/heap.c": "dfd2d1911ccc859bfebd141674efb571c33687077b18023265147ff4a6a33e39",
+    "kernel/src/memory/heap.h": "ff17045842be1740d8a6dbfc02fa3b61cee16422ef3ef3aa0a8b361555c45064",
+    "kernel/src/memory/memory_observation.c": "35dcd5107fef62e69304163ebb55c06bdaa0cf5fea64f56862cca2e98d369107",
+    "kernel/src/memory/memory_observation.h": "4ad76718391f4b8044a1217e5bbb99f394d08a4118ed587126600f756334e2ac",
+    "kernel/src/memory/memory_observe_decode.c": "47db3088af210baa91c2a3a9b572bcc4ce6832a719fc90a6b9e869f1aa88ab9e",
+    "kernel/src/memory/memory_observe_decode.h": "72146c5c7abd0437f997ab236cd5d0a199f3fae4b80d66ca8e9e40966a75a616",
+    "kernel/src/memory/page_table_decode.c": "754efcfd04d638214bfff9dbce85c2c457766e6435a7f8d6e2b06b12c236bc3a",
+    "kernel/src/memory/page_table_decode.h": "1e58f3b6caf7ed26ec27107a9a43522394ed2e1e51be1e5b30411d9b51b43238",
+    "kernel/src/memory/paging.h": "089475d2bc90810955d07e056af596b36717aaf29f10bff892b7cb3740a799b7",
+    "kernel/src/memory/paging_inspect.h": "62ac20dbe39d588989de46eb7e82367561d3ec46f9c3118826377a1c959563f4",
+    "kernel/src/memory/pmem.c": "512caf6fb2d467535715cf2ea1643419b080e5587dad814fd58cc188a4b98648",
+    "kernel/src/memory/pmem.h": "135a303c5342ea8956a00cac8db8e62e6b829350ed336d9d08edc809da08073d",
+    "kernel/src/power/power.c": "7d24291fe230a10065259c558efc7356d14db923469252dc1625cd7d03945e78",
+    "kernel/src/power/power.h": "26a2766aa5fc20f4af3a2b2cb266fc79e1d663019825da337df3edda6c0496ba",
+    "kernel/src/shell/command.h": "f12ec4e29cc9251eec3979779d5b80a645e34320ecba066c589450d2776d1c9b",
+    "kernel/src/shell/commands/cmd_accounttest.c": "f34179fd4bbb155a81da5e3a29b61ef29f01ac38d85724ef9440699aab39146e",
+    "kernel/src/shell/commands/cmd_accounttest.h": "9536a41461b0dec05ca905027430c31b76abba6ea353aee94e2d407564fe7663",
+    "kernel/src/shell/commands/cmd_acpi.c": "06c8c93ce5e069cdd980bfbef66b495f6186ec3f3eab2bea2bb2de28ec25a095",
+    "kernel/src/shell/commands/cmd_acpi.h": "7f139158e6feeb03529737745f1e26361008fad93e3b7d2e420584f18bc19532",
+    "kernel/src/shell/commands/cmd_alloctest.c": "e2345f0b6a1c7371f9853d55e4d5f369dc69c341d2f4a2d4323f1073d5b4b535",
+    "kernel/src/shell/commands/cmd_alloctest.h": "d81e2fe87586ff9ab48bf1fd963bc270eab2bf80008a6841acd35e76339a98ed",
+    "kernel/src/shell/commands/cmd_clear.c": "c61af87c5fb4e5f07cd779d80f364f9bcbb9da431a9017740b1eec6cffa9fa0d",
+    "kernel/src/shell/commands/cmd_clear.h": "b744f477e8500d5eb93bfc9e77652b4239e1a1377567635d76461e6aa76977c9",
+    "kernel/src/shell/commands/cmd_cpu.c": "3769ca69891feb30586a3610dcb531a3e416fa0a473fef88037caae45a1e9c03",
+    "kernel/src/shell/commands/cmd_cpu.h": "4c4dd0bb3e4784f605aab345c4bf2cbf50698448d34291701dfc8a833af3de12",
+    "kernel/src/shell/commands/cmd_echo.c": "284ec45ea3870b4a8a2c5eb5275860f517cba37fd7fc8ead523efb100205e6fd",
+    "kernel/src/shell/commands/cmd_echo.h": "e2d16226ed72c3d39db5efb9ef6d68a89b2b80f366a66a6dc35e85218269468b",
+    "kernel/src/shell/commands/cmd_help.c": "c11472b6c5c076de7822cedbe32b014ea42a6404e33654c2f3e9fe3fb878c0d9",
+    "kernel/src/shell/commands/cmd_help.h": "3f1592d8dc3d76acea1b08d76cd3f09cad1e0b40e731844d2bf10a058bf21a3f",
+    "kernel/src/shell/commands/cmd_inputtest.c": "264e398d77f9fe1522ebf9722e16bf1e2e8ecf37f91304553a6370fe2ef5cb13",
+    "kernel/src/shell/commands/cmd_inputtest.h": "919b27a2ff0a0e3b50a1f226d480703a158f631b37d788a64d9f42a5e0fd1671",
+    "kernel/src/shell/commands/cmd_irq.c": "ffffaf55ee7f6aeef6ebeac195b0c0ac30047e7f860171e2c96174a36fc1fd6a",
+    "kernel/src/shell/commands/cmd_irq.h": "0f77ba86752950852c6f82dceb9af418e8df67f81fcce1c7e1d5bf710f530b63",
+    "kernel/src/shell/commands/cmd_kill.c": "8a8fa61a350d7bb98a39bc5beb93b42f53fb203f3232f7a36304fc30c29d9f53",
+    "kernel/src/shell/commands/cmd_kill.h": "6bdf496c67e5878f44cc6595a1c3f4cdc2e0b1b18acb2df5722ce9f70c10959d",
+    "kernel/src/shell/commands/cmd_killtest.c": "6ffcf3d9721919f766988f59524a21e9a2a66ce10fa6542a80e4c00b22746f87",
+    "kernel/src/shell/commands/cmd_killtest.h": "7a956c74de5e053078167b86078b16e64443a12970ecef3ca59e46bf515a2c4c",
+    "kernel/src/shell/commands/cmd_locktest.c": "9cfde172d82b287e9d641a953ec14b9c07d38855270450c4d89f3361ab96126a",
+    "kernel/src/shell/commands/cmd_locktest.h": "8da4fe200112828ffe8defbcc4744add1dbe60d2103928e4c946e0ebd9abc396",
+    "kernel/src/shell/commands/cmd_mem.c": "2318831fc4697376d4e24b3223e6c6671ffa0bcf04256821cd8212e180264368",
+    "kernel/src/shell/commands/cmd_mem.h": "04ee28e5443bb4cca710f5d45f1e5d8a5a688848b5a24a14252fad0638fe0561",
+    "kernel/src/shell/commands/cmd_memory_observation.c": "2b3a796a4185d7518d5b13811a947a0bf0a6cf965f81a84384d708845ccc3023",
+    "kernel/src/shell/commands/cmd_memory_observation.h": "4211739c1355e8ae782f3553771eed18e8489b2c9d90405c1fd3bc0d6e641c49",
+    "kernel/src/shell/commands/cmd_modaltest.c": "74a6509b2506ff8e7a4d6d3b0f0d8ae68809fa1886d33c3a1cf00f32c5e1fbe6",
+    "kernel/src/shell/commands/cmd_modaltest.h": "c969cc23a003bf7027881a1f5e7fda7cbdb3083d98a30110f3645a40907d1377",
+    "kernel/src/shell/commands/cmd_panic.c": "c9e4be8b0a4a321978033ad83c78268f12d832ef6bed45e9ad7169a9f1793150",
+    "kernel/src/shell/commands/cmd_panic.h": "a5e5b494dad20e234b9e8d23753541adbdf53af9bcde87793a7b71ca3b9ff647",
+    "kernel/src/shell/commands/cmd_pci.c": "ab4dcb28abfbdc6876cc60ab25e40950f8fd2bf0b4d7d53003bda3b2f4c2a8da",
+    "kernel/src/shell/commands/cmd_pci.h": "0848713dd4838fa740be0db172a95f4151f152e41e3efa7196bd98e048e0b33a",
+    "kernel/src/shell/commands/cmd_power.c": "5258bbe8e99a113bf0642217dcea9a12ff62dc66140a5e889710e74f895b6820",
+    "kernel/src/shell/commands/cmd_power.h": "39e2c9e1a0f86c8e343cfd2ba593c063a07ac69de42fb4195194fb92a8220dec",
+    "kernel/src/shell/commands/cmd_profiletest.c": "6b5f51a26205c8c3dcff04079621f4d379512a2fb5da08651db293bc9a632dd4",
+    "kernel/src/shell/commands/cmd_profiletest.h": "031cb3542ff266de2b8a5f1757186ab9ec96b04d7f747ef696d6adddc56605af",
+    "kernel/src/shell/commands/cmd_ps.c": "0c48a4eafb754a5e09c5e485020f8765863ebf43966a01d092caf24da9bd0944",
+    "kernel/src/shell/commands/cmd_ps.h": "d4ea35671e2cc1961972ccba463d1ee073936fef0237050ee10357b13aec33f5",
+    "kernel/src/shell/commands/cmd_reaptest.c": "ec2f0714493c36cf63ccf49043cccb28a9a8c10557fb74591ac454b6dcc468c9",
+    "kernel/src/shell/commands/cmd_reaptest.h": "dc90f15aba25691f6f00285261f0210302747bc379f68a882c661965ab12884c",
+    "kernel/src/shell/commands/cmd_schedtest.c": "47ab881859ce32846a95e46b76e891116122e40bd82b78dadf930deab3dc9673",
+    "kernel/src/shell/commands/cmd_schedtest.h": "1cd4423d9be64f1e6281e72667c8e2b2feaab960bf89ecad5c468df6fcf6249c",
+    "kernel/src/shell/commands/cmd_smpstress.c": "4418bd9e05bda82e741ff02632b1258eca6a2b25f565298ed5f74fc27134fc35",
+    "kernel/src/shell/commands/cmd_smpstress.h": "376fbc1a1892552c534523fe4773ccd75b3fcc18989ad835eb70125a3109b53b",
+    "kernel/src/shell/commands/cmd_synctest.c": "c8b71873aae282d08dc314be776362da2c3cc0862cace0b039e1f0f440446084",
+    "kernel/src/shell/commands/cmd_synctest.h": "079a05edb8e0244957707b94c4a55c1a509e63f7815d57039a0f2815035f1e9a",
+    "kernel/src/shell/commands/cmd_taskdiag.c": "a4a27c841edd5b0b03370624825af449d2255b07be1e525fc17245ca6d5bdae2",
+    "kernel/src/shell/commands/cmd_taskdiag.h": "a669bd1137b7cf82da43165ca403762f9c5c9b87f455c2bd12d0dca6d0a66975",
+    "kernel/src/shell/commands/cmd_taskman.c": "c969937a84ac39bf343eca6dc3060c021a3cdd6ff047c4d10b2655b99604960f",
+    "kernel/src/shell/commands/cmd_taskman.h": "38bf60b5622126ed0e20492268d5601dc2eb9d1684f85ff1dfe8ef667ee56d7f",
+    "kernel/src/shell/commands/cmd_taskmantest.c": "78730c7fc2e6e2887c28927fd7fe83a5e2c3633a0772fad73471554a782fc312",
+    "kernel/src/shell/commands/cmd_taskmantest.h": "efaf89651f74f65554f10ffc5dc087f13b0229b0de27c01708a428b5ebe978bb",
+    "kernel/src/shell/commands/cmd_tasktest.c": "040f145c6c2ad3a364b158ba06452fc4ea562c0f7fbc6354a10c2ec8ccc4d13d",
+    "kernel/src/shell/commands/cmd_tasktest.h": "08a334df3200026d8482c625e1958cae2f306314ecbb583186ea78c12dae578e",
+    "kernel/src/shell/commands/cmd_usbdiag.c": "93168981873c0515c40a9dd30db79b284954536fae08556d43f56a7641ff29a7",
+    "kernel/src/shell/commands/cmd_usbdiag.h": "f4715512562d334aa70d2d092af433877e5fb73aa55920fd9ed11b0b086ac196",
+    "kernel/src/shell/commands/cmd_version.c": "1b230d7964d1fe11bb8d6bd469caffab587b1cc5540224c8f551f79fb312d890",
+    "kernel/src/shell/commands/cmd_version.h": "dc21d316e3236c651b672870d8be287f066919fe8dcf3135ec163eb87e480c84",
+    "kernel/src/shell/commands/registry.h": "1143b4e03c1c66e45f155cdc487cc3e263c1fac8424148ead91c309e559a87a5",
+    "kernel/src/shell/commands/taskman_view.c": "2d115daf48e864fb9a0e5b6320ccded46a959c9b5b47487ef4a8b64b67267c3a",
+    "kernel/src/shell/commands/taskman_view.h": "231d9077cf08daf25a7e1d18c11bf3e568fa9f2d3976de80c6eda10c4f9a2fe3",
+    "kernel/src/shell/diagnostic_result.c": "af7479f8a6efa6a7b0b1ce5b19e9870ba3fd77333b30986bea2ae13481680368",
+    "kernel/src/shell/diagnostic_result.h": "cd0ff007127ddab33a1a98b21533fa52fd3502a10957dcd8a5efb8636c82fc80",
+    "kernel/src/shell/shell.c": "a5780ace403b157ceec1b3fcc0c37e15bde3a998ced90a6fc1a9cc35c37e4557",
+    "kernel/src/shell/shell.h": "8089f10b6efa768d1e792878f7dcf74491ab896a1df9266b343584b6422bebb1",
+    "kernel/src/smp/ap_entry.S": "d9043cf8c1cc0be4c89548b494f3523037b1e75baf59e123eedf048ac880933a",
+    "kernel/src/smp/cpu_limits.h": "88690ad61643f95313fb032fd7792d82ff98742cc87c62a60307345450ebe9a4",
+    "kernel/src/smp/smp_boot.h": "63e122ae93dbd5a22b98006aa2f272ecdc2e56a63ee95c84e731ad854a025c9e",
+    "kernel/src/smp/smp_topology.c": "d48340e56ccb11526f3d5dbd717c224f0a6b5a7ce9dbd383c3909680c8532dc1",
+    "kernel/src/smp/smp_topology.h": "01c163653381f0f73eeaafe552c2973176a2127476d7bd1b6fec897265db5b70",
+    "kernel/src/smp/trampoline.S": "f0a9ee9264044d8b64f80512e6aaf67e57a59684477eb2f6a146638b2e49067c",
+    "kernel/src/timer/hpet.c": "66b54c370f8c9f5ec21ed30ab5b31502acf8480ef9bfd3bfacd035fec6141f95",
+    "kernel/src/timer/hpet.h": "4e7423c73fc9727ac76d0ba32e2c647fe5282840ace74e2bcb17c14fa9c67a89",
+    "kernel/src/utils/bitmap.c": "8754f978ab47905de88227a10a9ef6d12a9aed8f0db989331dcddae3ebfcf169",
+    "kernel/src/utils/bitmap.h": "1b237f8af8de19aa0548c4b0c69e9e4cdfcee4f2cdf1e8a2da749250733c503e",
+    "kernel/src/utils/bits.h": "8a0a9e19459923c84fe8d121863c808f9d383c46ee8d4960ecc17c0a6e415e74"
+  },
+  "instruction_sites": [
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" : : \"r\"(base_page) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/apic/ioapic.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" : : \"r\"(base_page) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/apic/lapic.c"
+    },
+    {
+      "instruction": "mov cr3, rax",
+      "label": "_start",
+      "occurrence": 1,
+      "path": "kernel/src/core/entry.S"
+    },
+    {
+      "instruction": "__asm__ volatile(\"cpuid\" : \"=a\"(a), \"=b\"(b), \"=c\"(c), \"=d\"(d) : \"a\"(leaf), \"c\"(subleaf) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/core/panic.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mov %%cr3, %0\" : \"=r\"(cr3) :: \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/core/panic.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"cpuid\" : \"=a\"(*eax), \"=b\"(*ebx), \"=c\"(*ecx), \"=d\"(*edx) : \"a\"(leaf), \"c\"(subleaf) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/cpu/arch_selftest.c"
+    },
+    {
+      "instruction": "__asm__ volatile( \".globl arch_test_unrelated_gp_site\\n\\t\" \"arch_test_unrelated_gp_site:\\n\\t\" \"wrmsr\\n\\t\" : : \"c\"(ARCH_TEST_PKRS_MSR), \"a\"(0u), \"d\"(1u) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/cpu/arch_selftest.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mov %%cr0, %0\" : \"=r\"(value) :: \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/cpu/control_policy.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mov %%cr3, %0\" : \"=r\"(value) :: \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/cpu/control_policy.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mov %%cr4, %0\" : \"=r\"(value) :: \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/cpu/control_policy.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mov %0, %%cr0\" :: \"r\"(value) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/cpu/control_policy.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mov %0, %%cr3\" :: \"r\"(value) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/cpu/control_policy.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mov %0, %%cr4\" :: \"r\"(value) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/cpu/control_policy.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"wbinvd\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/cpu/control_policy.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"cpuid\" : \"=a\"(a), \"=b\"(b), \"=c\"(c), \"=d\"(d) : \"a\"(leaf), \"c\"(subleaf) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/cpu/cpu.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"rdmsr\" : \"=a\"(low), \"=d\"(high) : \"c\"(msr));",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/cpu/cpu.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"wrmsr\" : : \"c\"(msr), \"a\"(low), \"d\"(high) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/cpu/cpu.c"
+    },
+    {
+      "instruction": "__asm__ volatile( \".globl cpu_read_msr_safe_site\\n\\t\" \".globl cpu_read_msr_safe_fixup\\n\\t\" \"cpu_read_msr_safe_site:\\n\\t\" \"rdmsr\\n\\t\" \"movl $1, %2\\n\\t\" \"cpu_read_msr_safe_fixup:\\n\\t\" \".pushsection .cpu_msr_fixup,\\\"a\\\",@progbits\\n\\t\" \".balign 16\\n\\t\" \".quad cpu_read_msr_safe_site, cpu_read_msr_safe_fixup\\n\\t\" \".popsection\\n\\t\" : \"=a\"(low), \"=d\"(high), \"+r\"(completed) : \"c\"(msr) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/cpu/cpu.c"
+    },
+    {
+      "instruction": "__asm__ volatile( \".globl cpu_write_msr_safe_site\\n\\t\" \".globl cpu_write_msr_safe_fixup\\n\\t\" \"cpu_write_msr_safe_site:\\n\\t\" \"wrmsr\\n\\t\" \"movl $1, %0\\n\\t\" \"cpu_write_msr_safe_fixup:\\n\\t\" \".pushsection .cpu_msr_fixup,\\\"a\\\",@progbits\\n\\t\" \".balign 16\\n\\t\" \".quad cpu_write_msr_safe_site, cpu_write_msr_safe_fixup\\n\\t\" \".popsection\\n\\t\" : \"+r\"(completed) : \"c\"(msr), \"a\"(low), \"d\"(high) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/cpu/cpu.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mov %%cr0, %0\" : \"=r\"(out->paging.cr0));",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/cpu/cpu_control_snapshot.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mov %%cr3, %0\" : \"=r\"(out->paging.cr3));",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/cpu/cpu_control_snapshot.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mov %%cr4, %0\" : \"=r\"(out->paging.cr4));",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/cpu/cpu_control_snapshot.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" ::\"r\"(ring_virt) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" ::\"r\"(buf_virt) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" ::\"r\"(out_phys + off) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" ::\"r\"(dcbaa_virt) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" ::\"r\"(sp_array_virt) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" ::\"r\"(buf_virt) : \"memory\");",
+      "label": "",
+      "occurrence": 2,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" ::\"r\"(ptr) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" ::\"r\"(ring_virt) : \"memory\");",
+      "label": "",
+      "occurrence": 2,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" ::\"r\"(erst_virt) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ __volatile__(\"invlpg (%0)\" ::\"r\"(p) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" ::\"r\"(out_phys + off) : \"memory\");",
+      "label": "",
+      "occurrence": 2,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" ::\"r\"(input_ctx) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" ::\"r\"(buffer) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" ::\"r\"((uint64_t)buf_full + off) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mov %%cr3, %0\" : \"=r\"(value) :: \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/memory/kernel_tlb.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mov %%cr4, %0\" : \"=r\"(value) :: \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/memory/kernel_tlb.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" :: \"r\"(address) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/memory/kernel_tlb.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mov %0, %%cr3\" :: \"r\"(root) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/memory/kernel_tlb.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" ::\"r\"(vaddr) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/memory/paging.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mov %0, %%cr3\" ::\"r\"(pml4) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/memory/paging.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"cpuid\" : \"=a\"(a), \"=b\"(b), \"=c\"(c), \"=d\"(d) : \"a\"(leaf), \"c\"(subleaf));",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/shell/commands/cmd_cpu.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence; wbinvd\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/smp/smp_boot.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" ::\"r\"(virt_addr) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/smp/smp_topology.c"
+    },
+    {
+      "instruction": "wbinvd",
+      "label": "smp_trampoline_entry",
+      "occurrence": 1,
+      "path": "kernel/src/smp/trampoline.S"
+    },
+    {
+      "instruction": "mov cr0, eax",
+      "label": "smp_trampoline_entry",
+      "occurrence": 1,
+      "path": "kernel/src/smp/trampoline.S"
+    },
+    {
+      "instruction": "cpuid",
+      "label": "trampoline_cpuid_basic_max",
+      "occurrence": 1,
+      "path": "kernel/src/smp/trampoline.S"
+    },
+    {
+      "instruction": "cpuid",
+      "label": "trampoline_cpuid_basic_features",
+      "occurrence": 1,
+      "path": "kernel/src/smp/trampoline.S"
+    },
+    {
+      "instruction": "cpuid",
+      "label": "trampoline_cpuid_extended_max",
+      "occurrence": 1,
+      "path": "kernel/src/smp/trampoline.S"
+    },
+    {
+      "instruction": "cpuid",
+      "label": "trampoline_cpuid_extended_features",
+      "occurrence": 1,
+      "path": "kernel/src/smp/trampoline.S"
+    },
+    {
+      "instruction": "wbinvd",
+      "label": "3",
+      "occurrence": 1,
+      "path": "kernel/src/smp/trampoline.S"
+    },
+    {
+      "instruction": "wrmsr",
+      "label": "trampoline_write_pat",
+      "occurrence": 1,
+      "path": "kernel/src/smp/trampoline.S"
+    },
+    {
+      "instruction": "wbinvd",
+      "label": "trampoline_write_pat",
+      "occurrence": 1,
+      "path": "kernel/src/smp/trampoline.S"
+    },
+    {
+      "instruction": "mov cr4, eax",
+      "label": "trampoline_write_pat",
+      "occurrence": 1,
+      "path": "kernel/src/smp/trampoline.S"
+    },
+    {
+      "instruction": "mov cr3, eax",
+      "label": "trampoline_write_pat",
+      "occurrence": 1,
+      "path": "kernel/src/smp/trampoline.S"
+    },
+    {
+      "instruction": "wrmsr",
+      "label": "trampoline_write_efer",
+      "occurrence": 1,
+      "path": "kernel/src/smp/trampoline.S"
+    },
+    {
+      "instruction": "mov cr3, eax",
+      "label": "trampoline_write_efer",
+      "occurrence": 1,
+      "path": "kernel/src/smp/trampoline.S"
+    },
+    {
+      "instruction": "mov cr0, eax",
+      "label": "trampoline_write_efer",
+      "occurrence": 1,
+      "path": "kernel/src/smp/trampoline.S"
+    },
+    {
+      "instruction": "rdmsr",
+      "label": "trampoline_64",
+      "occurrence": 1,
+      "path": "kernel/src/smp/trampoline.S"
+    },
+    {
+      "instruction": "wrmsr",
+      "label": "trampoline_64",
+      "occurrence": 1,
+      "path": "kernel/src/smp/trampoline.S"
+    },
+    {
+      "instruction": "__asm__ volatile(\"invlpg (%0)\" ::\"r\"(base_page) : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/timer/hpet.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence; lfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/apic/lapic.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"lfence; rdtsc\" : \"=a\"(low), \"=d\"(high) :: \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/core/panic.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" : : : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/cpu/mmio.h"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 2,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 3,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 4,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 5,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 6,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 7,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 8,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 9,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 10,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 11,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ __volatile__(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ __volatile__(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 2,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 12,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 13,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 14,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 15,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 16,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 17,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 18,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 19,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 20,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 21,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 22,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 23,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 24,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 25,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 26,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 27,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 28,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"lfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ __volatile__(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 3,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 29,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 30,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 31,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 32,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 33,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 34,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 35,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 36,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 37,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 38,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 39,
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"lfence; rdtsc; lfence\" : \"=a\"(low), \"=d\"(high) : : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/shell/commands/cmd_profiletest.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence; lfence; rdtsc; lfence\" : \"=a\"(low), \"=d\"(high) : : \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/shell/commands/cmd_profiletest.c"
+    },
+    {
+      "instruction": "__asm__ volatile(\"mfence\" ::: \"memory\");",
+      "label": "",
+      "occurrence": 1,
+      "path": "kernel/src/smp/smp_boot.c"
+    }
+  ],
+  "interrupt_dispatch_sha256": "b80131f3f766616ab2c631d81f553812a5a131c45d09636186c55ff1520a2a88",
+  "name": "tlb-coherency",
+  "promoted_anchors": {
+    "docs/foundation/validation-policy.md": {
+      "old_sha256": "ee1e864ba64aecde15e1130fc34ca6aea262051671704398b445d28b2bc918ae",
+      "purpose": "Document exact rolling scope promotion."
+    },
+    "docs/memory/address-consumers.md": {
+      "old_sha256": "739ad252d35a7010b11f098951988419ae122d9355b2bfb44077bea44bf78b8a",
+      "purpose": "Document new isolated fixture and invalidation consumers."
+    },
+    "docs/memory/source-inventory.json": {
+      "old_sha256": "cc5c51457f3a57c99f8d07aa8c18b6955d192a2177e24fe6f079fcc4b12b1ae9",
+      "purpose": "Refresh changed source/line/hash anchors."
+    },
+    "kernel/src/apic/lapic.c": {
+      "old_sha256": "f9b9c55e05cd0eff44269336a7ddaff151626ed12e31a25ea99120507843e474",
+      "purpose": "Bind checked delivery primitives, retain boot delays and emergency broadcast; use catalog aliases."
+    },
+    "kernel/src/apic/lapic.h": {
+      "old_sha256": "19f4bc74f4dceb328b6de4c7f0ca2ccae5b904f42a75ac36f63b3f1a105f753d",
+      "purpose": "Expose checked IPI, INIT and SIPI results."
+    },
+    "kernel/src/core/idt.h": {
+      "old_sha256": "25d1dda6707a79199fe07e751f4f3c2c3f075703e79aa7227f658a50df23ed91",
+      "purpose": "Import the shared catalog without changing IDT ABI."
+    },
+    "kernel/src/core/interrupts.c": {
+      "old_sha256": "ab86c9528733a581e0b12bebfeba9db2dfe0602d237ac0d302cc82c3e8323304",
+      "purpose": "Dedicated request dispatch with one EOI and existing IRQ accounting."
+    },
+    "kernel/src/core/interrupts.h": {
+      "old_sha256": "879691bae606fa90f7bd3773fbb900714c393101166b5bafffa5cf960b06645a",
+      "purpose": "Import the shared rendezvous vector constant."
+    },
+    "kernel/src/core/irq_bootstrap.c": {
+      "old_sha256": "f636868690c9a87a5abe023f4b32d98474beac47c80fb3ec7e90772306393fe4",
+      "purpose": "Retain and report failed rendezvous wake delivery."
+    },
+    "kernel/src/core/kernel_init.c": {
+      "old_sha256": "ebcdbd3575835b4b5b8462e3dd7889b8f2370dc41606ccefbb28662e9d967594",
+      "purpose": "Seal local bootstrap invalidation and initialize the bounded memory worker."
+    },
+    "kernel/src/cpu/cpu_control_snapshot.c": {
+      "old_sha256": "0b22aab232fa543dd1fc8d48252c237292165e5dbfc79abfeb4a1a417e4d8522",
+      "purpose": "Reject complete observation when checked notification failed."
+    },
+    "kernel/src/memory/paging.c": {
+      "old_sha256": "3d9bcc33520e42afc13315424c8f527279a5d725ca2e52c6041f2669ae4c3503",
+      "purpose": "Checked fixed-window SELFTEST PTE ownership, replacement and cleanup."
+    },
+    "kernel/src/shell/commands/registry.c": {
+      "old_sha256": "a310e5067ef7a76654ce9df284494c1048027b447bd28f2ee5cde42e048dc4e4",
+      "purpose": "Register only SELFTEST-owned TLB workloads."
+    },
+    "kernel/src/smp/smp_boot.c": {
+      "old_sha256": "48ccd0f1beea159dd9bba7da3c141090ca12a699372219225e996690add5ac3c",
+      "purpose": "Propagate checked INIT/SIPI failure to bounded AP boot failure."
+    },
+    "makefile": {
+      "old_sha256": "9ea02d2782b2b235bd1033ee3dbf245e7ad132384e6636484d41d0bf2e7243dd",
+      "purpose": "Explicit production service and isolated fixture source dependencies."
+    },
+    "scripts/cpu-control-fixtures.py": {
+      "old_sha256": "69a95e53cd687e71471338c710b504d41670b364a5b88057423af1d2695bfbde",
+      "purpose": "Retain all policy negatives while selecting the explicit successor source and instruction anchors."
+    },
+    "scripts/cpu-control-mailbox-host.c": {
+      "old_sha256": "c66817c9983c4d4c2482271a947d7a0b942874a2c50e76439b6c27259de41cdc",
+      "purpose": "Adapt the actual observer test sender to checked results and verify indeterminate sends cannot report complete collection."
+    },
+    "scripts/cpu-control-portable-replay.py": {
+      "authorized_change": "Preserve the explicitly selected successor contract when replay helpers are imported by retained CPU policy fixtures.",
+      "old_sha256": "db3bae4b79a0501633c21948b07c24ef7b8d8a16ef5a36f9ff2cf93b3bc6830b"
+    },
+    "scripts/cpu-control-state-gate.py": {
+      "old_sha256": "a9933397fe430d1ae3665d4e378428adbfd8e6c3708e45ef04d3e540e680ddbe",
+      "purpose": "Reuse unchanged policy host and ordering checks with the explicit successor scope; preserve the original contract."
+    },
+    "scripts/memory-current-regression.py": {
+      "old_sha256": "6c21bfeea667e30ffc67c3c8f80ca2843692620781104d2e1801f17ce20e980a",
+      "purpose": "Propagate the named current contract to all native families."
+    },
+    "scripts/memory-gdb-capture.py": {
+      "old_sha256": "be55567ed0e2c25d074e3064eb15dd8ed97252172611d5acd18798a243a453b8",
+      "purpose": "Read-only current IDT/dispatch and fixture corroboration."
+    },
+    "scripts/memory-integrity-fixtures.py": {
+      "old_sha256": "2ca97d83e61b6b1053575b844efacad3350bc5c9dc90e6b0898471180739c315",
+      "purpose": "Retain manifest and protected-source mutations under the explicit invalidation successor, with exact expected rejecting boundaries."
+    },
+    "scripts/memory-observation-gate.py": {
+      "old_sha256": "e7efeb1b22724510c44d67ef2ec00e1b7bf4c01c8cf40c50c49d4b00303ece15",
+      "purpose": "Promote only approved LAPIC/dispatch anchors for current observation."
+    },
+    "scripts/memory-qemu.py": {
+      "old_sha256": "4a8a19b76248695d591efbcc0684646c55310b5f21ef3c4045209739707804bd",
+      "purpose": "Named APIC supplements and new framed workload with existing transport."
+    },
+    "scripts/memory-replay-fixtures.py": {
+      "old_sha256": "588ced646b828207ef1e07e67641100925f91609e3fb6458b8e7a85d3d7e50bf",
+      "purpose": "Make retained capture mutations independent of the CPU collection generation and checksum digit after preceding TLB workloads."
+    },
+    "scripts/memory_current.py": {
+      "old_sha256": "4d2e08d4e2f5b2e33fe87b701beff82b4793c351ed17085c760909d455b65b9e",
+      "purpose": "Select the explicit invalidation rolling scope."
+    },
+    "scripts/qemu-agent.sh": {
+      "old_sha256": "3bf42d126958e70a4906228fa7b213479528ef07ca3272a38421b3dd2631d17d",
+      "purpose": "Exact named APIC-supplement CPU models."
+    },
+    "scripts/qemu-launch-receipt.py": {
+      "old_sha256": "af49856fc2d5601a4e4f3aff3e37c6e5d3d41d7c1b2fac3ea30b07c163943266",
+      "purpose": "Bind named APIC supplements to actual launch arguments."
+    },
+    "scripts/qemu-run.sh": {
+      "old_sha256": "558094b737fa59cf48e957739d055e143550f16af4983cc6bd5ce4c6ab5ca58c",
+      "purpose": "Exact named APIC-supplement launch arguments."
+    },
+    "scripts/test-assert-list.sh": {
+      "old_sha256": "3292a5518ae422211e0f594bc69585cf6c94967edd69b68b220639aca41fe0f5",
+      "purpose": "Promote the dedicated dispatch anchor without changing assertion oracles."
+    },
+    "scripts/test-timer-clockevent.sh": {
+      "old_sha256": "296e8fc9e3a33f90b926badb435105a725eea54217b3a407efb727e6d76c3ecc",
+      "purpose": "Replace current LAPIC whole-file pin with unchanged timer-function anchors."
+    },
+    "scripts/verify-arch-contract.py": {
+      "old_sha256": "6f0e4f266f2810b9700c99057ea78bceb470f971c0cd438b4524fd4553f2174a",
+      "purpose": "Audit exact new invalidation/ICR sites while retaining MSR recovery."
+    },
+    "scripts/verify-memory-observation.py": {
+      "old_sha256": "39bbead91ace335b837289f1bb9b1ed3a583b7fe3155b74e8d9a3a24af35a5c5",
+      "purpose": "Named profile additions while retaining generic observation semantics."
+    },
+    "scripts/verify-section-layout.py": {
+      "old_sha256": "8d68f901eab8ddfb56e68da0ddc712bf06b7c51026bf880fb27b582ae283a90d",
+      "purpose": "Retain the accepted trampoline ABI under the new scope."
+    }
+  },
+  "protected_functions": {
+    "kernel/src/apic/lapic.c": {
+      "init_lapic": "f717b57cbe01e6bbfb357d67fc731240c7f9772e3a6e26ccc7fb1b055f447096",
+      "init_lapic_ap": "21271b2a6bd87c74732c699bb868d8d797127f7dc20e7e5312f68177c980d6b0",
+      "lapic_append_text": "0c6555ac4524f17ba3c525315808661474b18358a10e5e9eeeb95488edaa6e71",
+      "lapic_append_u32": "0835b92ae26e6ee92ab3bdabbed0c32f35a6cc5b91e8e62076b30545d954c019",
+      "lapic_bind_quiescent_slot": "8dec65cd1a60eea33ca0bfabe3f5b6fb2fbc5602c2a77773cedeee637955cbd7",
+      "lapic_enable_for_current_cpu": "d23aa6ae6462b70c5a804d1e6569541875a0bfd182a3226d3f614008057c41d3",
+      "lapic_eoi": "a0c6efda4710692f69bce1087d61f2a70e46180e6cfc06dd84ec919769ef0328",
+      "lapic_get_id": "8ead842f68e01c49733ca2ab3c6a817349a4d523c01658c45a2c8fb286b73b7d",
+      "lapic_is_x2apic": "5e3642c05b052fc9684113797ece3f6bd8a1ad374b196d0b8341ee243115cbe8",
+      "lapic_log_quiescent": "f13ea26ac184cf624733b8256fd686d5feea765dde024ee85fb3ce3243d93f60",
+      "lapic_lvt_mask": "121c6709b8a5c02921fc44aa9db26b2a03baf3e7db786a6e47cf040b5ffb741a",
+      "lapic_quiesce_current": "a04f17635802bbbde4b8ee68243f2315d16b2ab001bd7952991686f7fc74607f",
+      "lapic_quiescent_snapshot": "a4b2eff885872a5dec7619b912222834c60ff2c95f7c04fbc97cc6d2cdca5d58",
+      "lapic_read": "6e33431effc838f9a08aedcb3c24be13c0dcdd62af47d56680932e7bbd4394dd",
+      "lapic_send_broadcast_halt": "237df59c408a39c33c6fdfb38ce0b3f43d108b8311c5e5bef93df54a3735dfc8",
+      "lapic_set_normal_delivery": "731f6d5ce3815cfaf0ffc1491244036c280ffbd12cabc844e555004f2a8d148e",
+      "lapic_timer_calibrate": "f02e8cfcbfa7a1e537bdb11267268d0ab68d7497aceb2628dcbd8a0ebae4b8dc",
+      "lapic_timer_calibration_from_samples": "37e79a012c7d56f9badf4e58073328888257cce43b38e74328faeece8d007031",
+      "lapic_timer_calibration_math": "62b32697474cae7112e1deda884db5d565bb884885568ffeeb4aa5ae1cafe691",
+      "lapic_timer_calibration_sample": "b3ce2042099944b8c2185d381164a4a7fc22c179755c3b7f2d74060e580dd81f",
+      "lapic_timer_disable": "1f4300790dd33f2dee6a858733174ce335075e55ccdfea0cb873175be830fae8",
+      "lapic_timer_enable_periodic": "3811cfe4a2cf084b48a354e5f37c1fb0b070db85705fa030ec92c9d8374fdbcb",
+      "lapic_timer_get_calibration": "34c67bd757c73f9d93ab4df221dec342b474ea0a9837377718a6aec0d825f7f2",
+      "lapic_timer_is_active": "58b1eb10abb85f7aaac7f529e4bf01226d6f234465ab558c7d82a6b6ee71e280",
+      "lapic_timer_model_selftest": "0428bf12910494d151b10e70f7ff1d1eb7ee2b131866c2b3762172914e4cff34",
+      "lapic_timer_prepare_periodic": "c6a4e666a102857c28fa68be1cc5ea8a60460567cb0a57c3387b6e0795ce9afc",
+      "lapic_timer_record_irq": "6da9da63949d53198653f3ca59e1159bc92ab5ce78c8171b80c440236401bd10",
+      "lapic_timer_record_irq_at": "4e1f124d65164017498bd01e5bf5202e5617def2c3ff9d11070a13f316921248",
+      "lapic_timer_start_periodic": "8ef6fa2a85827f655b923c45eae719363f5786a800860a9c71319cc427270ebb",
+      "lapic_timer_state_program": "d089c44c76b3c9c3c569b81c4b4b6e34f4b4073dc6c8f1ae387a74bcb6c86ae1",
+      "lapic_timer_state_snapshot": "a02bac4cd5409c317013d40cdc4fbc3abc8a736291937c0a2b994a260a99225e",
+      "lapic_timer_validate_configuration": "9901fac01d24b0ed4a9e83813f99b1e7389c0ced63efa22a0035c8fab7d79905",
+      "lapic_wait_icr_idle": "a4cf5c355dcf8286e2054d5e9ecd765215560e42a4ebdcd16ff68358124344d5",
+      "lapic_write": "006782aabacaba7b96ebcd402bc42b84e19ed391253cee3b8ad2e4a516954733",
+      "lapic_write_icr": "98f508881bc14ac297f79234c205b36e5211a2fb9f1eb998d683593d6878c18e"
+    },
+    "kernel/src/core/interrupts.c": {
+      "__attribute__": "aa979e4a2b66deabfe704770bf21298c9fc8c1662aa8fb9021b9039caa172ebf",
+      "interrupts_consume_reschedule": "86f23fa1639e2aff88926e49f4aeb092c3ed77f20f671ac148d8609e22f84633",
+      "interrupts_request_reschedule": "61b3c76de593c2f162294f18cc6d9d796d112b367542b1d009b78552287adac0",
+      "irq_hpet_timer_handler_inner": "9838690c1f2c64c21e49c4f61a0b174149f1c73263202444d77f74d871138429",
+      "irq_keyboard_handler_inner": "0a4d7bc337599f294c96a90dd5f53fff30b7a2a5b9cbc7c4aeab531d3ce96b07",
+      "irq_lapic_timer_handler_inner": "c01b0ded71d63ef6e4423e2ffef62feb622004a5a30e6405f96182b6784db40f",
+      "irq_runtime_rendezvous_wake_handler_inner": "2330abee039066552f460ed715190562c253ce2d9feaee5a0fa7bca221f1a5ed",
+      "irq_xhci_handler_inner": "455d7c837f3638d9ae47bf8ac3a76c1679ada8e1bac81e34b599d8eee3f4d0b9"
+    },
+    "kernel/src/core/irq_bootstrap.c": {
+      "irq_bootstrap_activate_clockevent": "d75e1c62e7ddd6281879f4b41d6c8b11e091343930151c17c50330adf6699b0e",
+      "irq_bootstrap_advance": "70bae91459402bfc6233d377634604c11428f8f55431ca1f61d195f769386033",
+      "irq_bootstrap_all_iso_resolutions_valid": "00756d5ea8be2b2201769b60031283d3e00203391bad0c1ebdd368f5f98f61ad",
+      "irq_bootstrap_append_text": "c1f2d2005dfd61a30566d19b4606614521bc961fc0fadb8b5a6809a5eab78294",
+      "irq_bootstrap_append_u64": "6af019379410ff4a0d74025fadbe751b27458348e5996153cb1f165fc1d68832",
+      "irq_bootstrap_controllers_quiescent": "623c82835cfeb290ad96e77deb627588fbee1891ce7e5e6bdfd6f0d08446f491",
+      "irq_bootstrap_cpu_adopt_scheduler_state": "8649989c86fed0bb86af067fc7d68b89be110d0e04f162fba081a5b0efa02fa5",
+      "irq_bootstrap_cpu_complete_runtime": "00d5b7b80182f4620564fc2d543546217ad79491be9279cad5dd66f80257b684",
+      "irq_bootstrap_cpu_irq_ready": "0559240c0a04c76469ee0f5656897a16d8a7c07767c67945fcbca0e78fd870d7",
+      "irq_bootstrap_cpu_load_snapshot": "068e3a644a2deb748525468ca792952fb129462d47f13f341354c2b39e8e3f8b",
+      "irq_bootstrap_cpu_mark_failure": "475a6032cce8531a76c39db5647319595011d4586f883d20afcac05bcea75d6b",
+      "irq_bootstrap_cpu_prepare": "ee2ebe16c3883e96cd808c15a0d9a29427e66d659a36fb3797a6ed8db121a57d",
+      "irq_bootstrap_cpu_publish_runtime": "35b2988924cfa812c4b70adde67642934728658970cdfa872aa88c89a0e2d31f",
+      "irq_bootstrap_cpu_refresh_journal": "139fdaf992e9d96d86eb98ffe13c11d61b313ee9a289ac5a4ac308745735eba4",
+      "irq_bootstrap_cpu_result_name": "fdc70c736c7bf4f98258c6bf00f419906d9c25b2d1c0f3197833fd9902d815bc",
+      "irq_bootstrap_cpu_run_runtime": "3d178c16dc1bb4264cf5678300678d629fe8be70fffcad7496da439a1cb0e80b",
+      "irq_bootstrap_cpu_snapshot": "06d9322c998a5b4fac7f504edc307a04074310c1e89818a16ba135487f6e550d",
+      "irq_bootstrap_cpu_stage_advance": "6056b46ca4b10dc7f57add5e7b1f9e4f16cdcf6b3f845b0242d0aef35195d808",
+      "irq_bootstrap_cpu_stage_name": "7adba6f39aa6eb63e46f3d3c4bd7888623a0d4c9ec5553673e361a30e05d7c59",
+      "irq_bootstrap_cpu_timeout_reason": "bf33d281e071eb9c509a94fa27e0f1ad39e145e96761900f9df34cc72e333543",
+      "irq_bootstrap_cpu_verify_local_timer": "1c29655bfad77f95ac1cd5921a4392b26a81c590722e630774150891a8b5f413",
+      "irq_bootstrap_cpu_wait_release": "a54e3cecfc6ba6e626dfc600d886ca864785ac4f383c932c8996ea7bc97b8a1c",
+      "irq_bootstrap_fail": "065869f1c26a28e722af154dadb4076aa63014036d8174d5e2ef6b1a2c87affe",
+      "irq_bootstrap_hpet_probe_fail": "bccfe97573b3c5dcce91100b74f6747324e3768d4a1ac3ad1e824d49c692d23f",
+      "irq_bootstrap_hpet_routes_masked": "7d9ee93f78bc831596586c3cd20d72bf7f051bf2a0e97cb8b6325bfee3a6ca01",
+      "irq_bootstrap_init": "8af63104d5a98f5340961259aa15f22cd1c2c4f36d6468315c42e75a8d45ffeb",
+      "irq_bootstrap_iso_resolution_valid": "a68e47e38e864226fb901f3098aa7d0911bf60feefd5e484efc5a6c381c8819d",
+      "irq_bootstrap_log_cpu_ready_summary": "c21b416ad03c54174419aafa48b52dfb4787792ad4d05c7a6f8b21d8a3c0fd17",
+      "irq_bootstrap_log_cpu_ready_timeout": "d92d5f8a623ea8808c0e3518baf0a0f7569de0adcd8da041d3ad2a1f14a9f1c2",
+      "irq_bootstrap_log_cpu_runtime_error": "240fbeb5872b9c1d0b80eec6e94c57c168867334f9ece73fec185d47441af175",
+      "irq_bootstrap_log_state": "f70b730dfef30e35c31996a90dd5e2b70168b645b1ccf0b3f42c6f06ad026087",
+      "irq_bootstrap_mark_timer_verified": "a6f73b48b8a580016beed61a4133e2d41b1c0d68eed034055afe8d35bf231999",
+      "irq_bootstrap_model_selftest": "1fe712aac0fab275c795766563555d0680ea8e995eca1d1bf33ce3c6e12fb429",
+      "irq_bootstrap_release_cpus": "27c366b5f2d4ab328c30ffbbee0433c3d596640c9f735aa89e3f871eee08d6c1",
+      "irq_bootstrap_release_services": "424afc724ad0fe696d36f08373b796afc53dd79f138aed39754df846713fb124",
+      "irq_bootstrap_routes_prepared": "bba1f10335250db082ce406ffe6da61d74293af5df240fd6e8309efc5b0239ad",
+      "irq_bootstrap_runtime_abort": "e834c53f308b729678867126f87c52d0c273590ee6bfcafc671925e7f8809dc0",
+      "irq_bootstrap_services_are_ready": "f69186771da7e97e3d71d4bebb760f9b1461c9e7b8e95929da7202f55eb19cf1",
+      "irq_bootstrap_snapshot": "26df15566084cbf7c9f7e14bb9ab681616138dfe550261863f3c4a9743e65736",
+      "irq_bootstrap_state": "ef037a6ee8ba137dd0b310f5f987b588e1014cc36e1ce6ff2bad7881774c9691",
+      "irq_bootstrap_timer_mode_name": "91372d42dbcfdc637dcb709e39e67b30d469e1638fdc09c6cc4138844d7baa38",
+      "irq_bootstrap_topology_state_name": "2944e7fff58126eac5c28cc6ea02bcb790d409ec3a5e37caa97c7ba8d59e5b47",
+      "irq_bootstrap_validate": "e2a5211c874fd7e57ed7439c759b7b414e3436410ef0b5a2bc95335f41614ba8",
+      "irq_bootstrap_verify_bsp_lapic": "3341be34af59a407fbc4b08ad0166fc2621dcc336edb3c6d7e6683d97755ca2a",
+      "irq_bootstrap_verify_hpet_clocksource": "bcd05a20865fbd1cebbb2d683ea066e27344ab8480d827811eed58d70384cf43",
+      "irq_bootstrap_wait_all_runtime_ready": "f75cd6714ab99899014d44fd92913f42e26a6c61ace7875784dede214394f9df",
+      "irq_bootstrap_wait_vector_from_baseline": "1b7c3f83420316e497c8ed3055f990daf41a772cbbbd528db5d9175dc782d926"
+    },
+    "kernel/src/core/kernel_init.c": {
+      "kinit_debug": "669febf1f19cd72dae6d22b54bda6566cc12a3959749ef096a7c69fcb7fc63f5",
+      "kinit_progress": "793a9d7eda95966600ab984a235c5ae332b24ce62ad8cd1998d81901a0152880",
+      "kinit_progress_format_line": "0668530ae9b5d88f05d94015c5ce6ab346b2072079421202dd909b12d989d9a2",
+      "kinit_progress_format_probe": "bb0334e8f75e05e8f048220b9eb3b59a06d0ad6e307053f6f5b3a9787e282de9"
+    },
+    "kernel/src/cpu/cpu_control_snapshot.c": {
+      "cpu_control_read_local": "08f07660032ab6a4ed7bcbdaaf0b4145ae2f544e9a8ffcf2ebbf2dda98a04729",
+      "cpu_control_snapshot_irq": "7b04d70d5d2adb7dd8cc8c95e335497508e4cb7917def3c434c97a21b3f1e26b",
+      "cpu_control_snapshot_release": "f3edcc14979e0778bfc48baacbe5733ee8b9425a6de218d5dd4cf60285af1eaf"
+    },
+    "kernel/src/memory/paging.c": {
+      "alloc_table": "adb12cac49d3cf1222476b43db8df18958e9aa5bd2184c5c9dc8c572a759f77e",
+      "init_paging": "efeea2bc68db2311443b622c4bbcfb98ebdf63d3cd11fa7cb6496ab5c69d00c8",
+      "observer_cached": "26442a5799e56b54c4d583a12d0fec4058a0577687ba5796cc697b6fc0a6ebb7",
+      "observer_read": "35a199126ff84c83950b1e6d16119d95860b8c292f5fec7a1704c96f2f4b0e9c",
+      "observer_root": "f6bfd527ae41efbf86356cf63ff262d163f6022517cc65fe214848e7f07ebb9b",
+      "observer_table": "9f4353c8c52cda383ff9af43399619706904e14909b8f0ebd2469316a77c8a82",
+      "paging_create_bootstrap_table": "6dc18f01d849291decf591d40a425b2b362e3b5c374172d6554681981b5787c8",
+      "paging_get_physical_address": "8d23b4d4726eeffdcc79448759a624753325f69f1240504da7285e13efb86f0a",
+      "paging_inspect": "0d483ef6110f291b3f2b3c27fe0840b3fdc46efb631c4b12180ad2f294ea413e",
+      "paging_inspect_copy_identity": "d941b703892a694f319cd1dcb4e85e225ed9a4363807a452498ec238f4118724",
+      "paging_inspect_initial_allocations": "666430a1d48901a413dead5067b071c5ec80cb9c5ce2218d7462d8c35fd51fca",
+      "paging_inspect_tables": "6755627430f1e83319b80f214bf4df79607cf9d388d8b61fb4cbd615fa14a3c6",
+      "paging_load_map": "5b3ae0be22914b0fe496bbbc80101cbab2282a3b5a9dab2deb263ae239b61732",
+      "paging_map": "76d4a62ab6dbb683c87b8a14eed35b9ca4e35e1ca48ddcaa9b120dbc5dadfc73"
+    },
+    "kernel/src/shell/commands/registry.c": {
+      "dispatch_accounttest": "27b353114247be37481a50ad491bb6625f73e00b66eadf559205569468336b1b",
+      "dispatch_inputtest": "da6b4d126e0e5d6f8a2f353a1522a8809122792402be354b78776fe46a0e6229",
+      "dispatch_killtest": "f5f5a1f2e9e974ce604c5ba79cc27cc0a3ba330403bdfc7aac27b595b38dcf59",
+      "dispatch_modaltest": "a46e0e91b9a5a3f16e8ea660bc04acfe51384e9f738b1bdeb59b75ac889001a9",
+      "dispatch_reaptest": "d5300b835d424d2ef49d130f0195c755193081f584eef92c49479f8e723a675d",
+      "dispatch_schedtest": "f5705af140cfecfea64e221ed1da75073df53437ad85ea16dee70dfff282a616",
+      "dispatch_synctest": "5c32fc54e394a3182993dff17d4988c4d70e71c05705a13b107fbcb78e2e20d0",
+      "dispatch_taskmantest": "71452337e3bef8391c1a8c6416f774b17eeea2cf1faf0e3327c008b4ca780e96",
+      "shell_command_matches": "93e6df3b30999ec4fd45dff91a8219887905522e4f6bd5b7ad075e4e1f72fb15",
+      "shell_registry_find": "30359285cfa69a0bb0af785858501e096b6e071583650cf903b3939ea98e574b",
+      "shell_registry_get_all": "3d83c6c852d9895eb733dd0952843ae3a59c977bcfb0ab7672cc9a7897ef5f5b",
+      "shell_registry_validate": "e1afc4330a3ad1f2aeab7d58900d01f22019d759f0e36027ef3a3322c2418760"
+    },
+    "kernel/src/smp/smp_boot.c": {
+      "ap_kernel_entry": "ae83978229cae59fa37613d7c48aed8df0206edef11b7371d12feeaba0da1861",
+      "smp_find_trampoline_page": "0d5f802a7385025c1ec915d51857ee56b0b89e084d13a2beae935541d260b702",
+      "smp_print_dec": "e698115e580479bb8cbd73a2ecca8b9139a4c30dd58addfed3a0168b6d62f97a",
+      "smp_print_hex": "c64045601deebe9ad6e6c31a19ab6a4545382d458286f435b4c8d6abc0457313"
+    }
+  },
+  "purposes": {
+    "docs/foundation/validation-policy.md": "Document exact rolling scope promotion.",
+    "docs/memory/address-consumers.md": "Document new isolated fixture and invalidation consumers.",
+    "docs/memory/source-inventory.json": "Refresh changed source/line/hash anchors.",
+    "docs/memory/tlb-baseline.md": "Separate current paging, request and handler measurements.",
+    "docs/memory/tlb-coherency.md": "Protocol, vector, ordering, context and lifetime proof.",
+    "kernel/src/apic/lapic.c": "Bind checked delivery primitives, retain boot delays and emergency broadcast; use catalog aliases.",
+    "kernel/src/apic/lapic.h": "Expose checked IPI, INIT and SIPI results.",
+    "kernel/src/apic/lapic_delivery.c": "Validated physical ICR encoding and IRQ-safe ordered transaction.",
+    "kernel/src/apic/lapic_delivery.h": "Separate controller submission results from remote completion.",
+    "kernel/src/core/idt.h": "Import the shared catalog without changing IDT ABI.",
+    "kernel/src/core/interrupt_vectors.h": "Fixed allocated vector catalog with collision and range assertions.",
+    "kernel/src/core/interrupts.c": "Dedicated request dispatch with one EOI and existing IRQ accounting.",
+    "kernel/src/core/interrupts.h": "Import the shared rendezvous vector constant.",
+    "kernel/src/core/irq_bootstrap.c": "Retain and report failed rendezvous wake delivery.",
+    "kernel/src/core/kernel_init.c": "Seal local bootstrap invalidation and initialize the bounded memory worker.",
+    "kernel/src/cpu/cpu_control_snapshot.c": "Reject complete observation when checked notification failed.",
+    "kernel/src/memory/kernel_tlb.c": "Production root validation, local invalidation and eligible memory worker.",
+    "kernel/src/memory/kernel_tlb.h": "Production root validation, local invalidation and eligible memory worker.",
+    "kernel/src/memory/paging.c": "Checked fixed-window SELFTEST PTE ownership, replacement and cleanup.",
+    "kernel/src/memory/tlb_deferred.c": "Bounded copied request queue and generation handles.",
+    "kernel/src/memory/tlb_deferred.h": "Bounded copied request queue and generation handles.",
+    "kernel/src/memory/tlb_fixture.c": "Owned A/B translations, actual loads, concurrent initiators and retirement proof.",
+    "kernel/src/memory/tlb_fixture.h": "Owned A/B translations, actual loads, concurrent initiators and retirement proof.",
+    "kernel/src/memory/tlb_interval.c": "Checked canonical interval and local invalidation strategy.",
+    "kernel/src/memory/tlb_interval.h": "Checked canonical interval and local invalidation strategy.",
+    "kernel/src/shell/commands/cmd_tlbtest.c": "Strict fixed-argument fixture dispatch and exact handler result.",
+    "kernel/src/shell/commands/cmd_tlbtest.h": "SELFTEST command declaration.",
+    "kernel/src/shell/commands/registry.c": "Register only SELFTEST-owned TLB workloads.",
+    "kernel/src/smp/cpu_request.c": "Eligible thread admission, immutable all-CPU notification, bounded wait and panic handling.",
+    "kernel/src/smp/cpu_request.h": "Request identity, publication, lifetime and context contract.",
+    "kernel/src/smp/cpu_request_state.c": "Actual claim/completion and quarantine transitions shared with host tests.",
+    "kernel/src/smp/smp_boot.c": "Propagate checked INIT/SIPI failure to bounded AP boot failure.",
+    "makefile": "Explicit production service and isolated fixture source dependencies.",
+    "scripts/cpu-control-fixtures.py": "Retain all policy negatives while selecting the explicit successor source and instruction anchors.",
+    "scripts/cpu-control-mailbox-host.c": "Adapt the actual observer test sender to checked results and verify indeterminate sends cannot report complete collection.",
+    "scripts/cpu-control-portable-replay.py": "Preserve the explicitly selected successor contract when replay helpers are imported by retained CPU policy fixtures.",
+    "scripts/cpu-control-state-gate.py": "Reuse unchanged policy host and ordering checks with the explicit successor scope; preserve the original contract.",
+    "scripts/memory-current-regression.py": "Propagate the named current contract to all native families.",
+    "scripts/memory-gdb-capture.py": "Read-only current IDT/dispatch and fixture corroboration.",
+    "scripts/memory-integrity-fixtures.py": "Retain manifest and protected-source mutations under the explicit invalidation successor, with exact expected rejecting boundaries.",
+    "scripts/memory-observation-gate.py": "Promote only approved LAPIC/dispatch anchors for current observation.",
+    "scripts/memory-qemu.py": "Named APIC supplements and new framed workload with existing transport.",
+    "scripts/memory-replay-fixtures.py": "Make retained capture mutations independent of the CPU collection generation and checksum digit after preceding TLB workloads.",
+    "scripts/memory_current.py": "Select the explicit invalidation rolling scope.",
+    "scripts/qemu-agent.sh": "Exact named APIC-supplement CPU models.",
+    "scripts/qemu-launch-receipt.py": "Bind named APIC supplements to actual launch arguments.",
+    "scripts/qemu-run.sh": "Exact named APIC-supplement launch arguments.",
+    "scripts/test-assert-list.sh": "Promote the dedicated dispatch anchor without changing assertion oracles.",
+    "scripts/test-timer-clockevent.sh": "Replace current LAPIC whole-file pin with unchanged timer-function anchors.",
+    "scripts/test-tlb-shootdown.sh": "Canonical public gate entry point.",
+    "scripts/tlb-coherency-scope.json": "Fixed allowed purposes, immutable anchors and protected function regions.",
+    "scripts/tlb-deferred-worker-host.c": "Exercise the actual IRQ admission and memory worker concurrently with substituted platform primitives, queue saturation and retained failures.",
+    "scripts/tlb-runtime-host.c": "Actual runtime wrapper under concurrent substituted CPU, IRQ, clock and sender primitives.",
+    "scripts/tlb-shootdown-fixtures.py": "Targeted semantic, artifact and aggregate negative controls.",
+    "scripts/tlb-shootdown-gate.py": "Source-bound current build and campaign orchestration.",
+    "scripts/tlb-shootdown-host.c": "Real C sender, state, interval, context and queue adversarial tests.",
+    "scripts/tlb-shootdown-portable-replay.py": "Portable current acceptance replay without VM or omitted binaries.",
+    "scripts/tlb-shootdown-review.py": "Focused exact-mode delivery assembly and fresh replay.",
+    "scripts/tlb_current.py": "Explicit approved-base scope and architectural-site successor.",
+    "scripts/verify-arch-contract.py": "Audit exact new invalidation/ICR sites while retaining MSR recovery.",
+    "scripts/verify-memory-observation.py": "Named profile additions while retaining generic observation semantics.",
+    "scripts/verify-section-layout.py": "Retain the accepted trampoline ABI under the new scope.",
+    "scripts/verify-tlb-shootdown.py": "Independent raw request and A/B coherence predicate."
+  },
+  "schema": 1,
+  "trampoline_abi": {
+    "new_instruction_sites": {
+      "trampoline_cpuid_basic_features": 148,
+      "trampoline_cpuid_basic_max": 130,
+      "trampoline_cpuid_extended_features": 218,
+      "trampoline_cpuid_extended_max": 198,
+      "trampoline_write_efer": 459,
+      "trampoline_write_pat": 420
+    },
+    "patch_offsets": {
+      "smp_trampoline_base": 788,
+      "smp_trampoline_cr0": 752,
+      "smp_trampoline_cr3": 728,
+      "smp_trampoline_cr4": 736,
+      "smp_trampoline_efer": 744,
+      "smp_trampoline_entry": 0,
+      "smp_trampoline_entry_ptr": 776,
+      "smp_trampoline_gdt_end": 720,
+      "smp_trampoline_gdt_start": 688,
+      "smp_trampoline_gdtr": 720,
+      "smp_trampoline_pat": 760,
+      "smp_trampoline_stack": 768,
+      "smp_trampoline_status": 792,
+      "smp_trampoline_x2apic_flag": 784
+    },
+    "sha256": "c9289c967d4d432d6f8036c270784a257ac31c035c6e5dacc5ee0f3753594862",
+    "size": 796,
+    "temporary_stack_reserve": 256
+  }
+}

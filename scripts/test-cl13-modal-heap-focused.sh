@@ -4,7 +4,14 @@ set -Eeuo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 
-artifact_dir=artifacts/build
+if [[ ${1:-} == current ]]; then
+  : "${MEMORY_CURRENT_CAMPAIGN:?current mode requires a collected campaign}"
+  : "${MODAL_HEAP_EVIDENCE_DIR:?current mode requires a fresh evidence directory}"
+  exec python3 -B scripts/memory-current-regression.py modal \
+    --campaign "$MEMORY_CURRENT_CAMPAIGN" --evidence "$MODAL_HEAP_EVIDENCE_DIR"
+fi
+
+artifact_dir=${MODAL_HEAP_EVIDENCE_DIR:-artifacts/build}
 serial=.qemu/qemu-serial.log
 hmp=(python3 scripts/qemu_hmp.py --socket .qemu/hmp.sock)
 harness_start_line=0

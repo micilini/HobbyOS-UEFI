@@ -8,9 +8,11 @@
 #include "../memory/gdt.h"
 #include "../libc/string.h"
 #include "../memory/paging.h"
+#include "../memory/physical_translation.h"
+#include "../memory/kernel_stack.h"
+#include "../core/panic.h"
 #include <string.h>
 
-#define HHDM_OFFSET 0xFFFFFFFF80000000ULL
 #define PAGE_SIZE 4096
 #define IST_STACK_SIZE (32 * 1024)
 
@@ -19,40 +21,10 @@ uint32_t g_cpu_count = 0;
 uint32_t g_bsp_apic_id = 0;
 static cpu_slot_t g_bsp_slot = CPU_SLOT_INVALID;
 
-static uint64_t align_down(uint64_t addr)
+static void *checked_cpu_pointer(void *pointer, size_t size)
 {
-    return addr & ~(PAGE_SIZE - 1);
-}
-
-static uint64_t align_up(uint64_t addr)
-{
-    return (addr + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-}
-
-static void *map_and_convert(void *phys_ptr, size_t size)
-{
-    uint64_t phys_addr = (uint64_t)phys_ptr;
-
-    if (phys_addr >= HHDM_OFFSET)
-        return phys_ptr;
-
-    uint64_t virt_addr = phys_addr | HHDM_OFFSET;
-
-    uint64_t start_page = align_down(virt_addr);
-    uint64_t end_page = align_up(virt_addr + size);
-    uint64_t pages_count = (end_page - start_page) / PAGE_SIZE;
-
-    for (uint64_t i = 0; i < pages_count; i++)
-    {
-        uint64_t v = start_page + (i * PAGE_SIZE);
-        uint64_t p = v & ~HHDM_OFFSET;
-
-        paging_map(v, p, 0x03);
-    }
-
-    __asm__ volatile("invlpg (%0)" ::"r"(virt_addr) : "memory");
-
-    return (void *)virt_addr;
+    (void)physical_require_address(pointer, size);
+    return pointer;
 }
 
 static void serial_print_hex(uint64_t n)
@@ -268,7 +240,8 @@ bool smp_topology_init(void)
 void smp_prepare_cpu_structures()
 {
     serial_write_all("[SMP] Allocating CPU Structs (w/ Mapping)...\n");
-    uint32_t stack_size = 16 * 1024;
+    _Static_assert(SMP_AP_STACK_BYTES==STACK_TASK_BYTES && IST_STACK_SIZE==STACK_IST_BYTES,
+                   "CPU stack capacities must remain unchanged");
 
     for (uint32_t i = 0; i < g_cpu_count; i++)
     {
@@ -277,34 +250,31 @@ void smp_prepare_cpu_structures()
 
         if (g_cpus[i].is_bsp)
         {
-            serial_write_all(" [BSP] SKIP\n");
+            extern uint8_t bsp_stack_top[];
+            if (!kernel_stack_bind_bsp(i,g_cpus[i].apic_id)) kpanic("BSP guarded stack ownership failed");
+            g_cpus[i].stack_top=(uintptr_t)bsp_stack_top;
+            g_cpus[i].tss_ptr=tss_get();
+            serial_write_all(" [BSP] GUARDED\n");
             continue;
         }
         serial_write_all(" [AP] Allocating...\n");
 
-        void *stack_phys = kmalloc(stack_size);
-        if (!stack_phys)
-        {
-            serial_write_all("FAIL (kmalloc)\n");
-            continue;
-        }
-
-        void *stack_virt_base = map_and_convert(stack_phys, stack_size);
-        g_cpus[i].stack_top = (uint64_t)stack_virt_base + stack_size;
+        if (!kernel_stack_cpu(STACK_KIND_AP_BOOT,i,g_cpus[i].apic_id,&g_cpus[i].stack_top))
+            kpanic("AP guarded boot stack allocation failed");
 
         serial_write_all("OK (Virt: ");
         serial_print_hex(g_cpus[i].stack_top);
         serial_write_all(")\n");
 
         serial_write_all("      [2] TSS... ");
-        void *tss_phys = kmalloc(sizeof(Tss64));
-        if (!tss_phys)
+        void *tss_pointer = kmalloc(sizeof(Tss64));
+        if (!tss_pointer)
         {
             serial_write_all("FAIL (kmalloc)\n");
             continue;
         }
 
-        Tss64 *tss_virt = (Tss64 *)map_and_convert(tss_phys, sizeof(Tss64));
+        Tss64 *tss_virt = (Tss64 *)checked_cpu_pointer(tss_pointer, sizeof(Tss64));
 
         serial_write_all("OK (Virt: ");
         serial_print_hex((uint64_t)tss_virt);
@@ -319,35 +289,23 @@ void smp_prepare_cpu_structures()
 
         serial_write_all("      [2.2] IST... ");
 
-        void *ist1 = kmalloc(IST_STACK_SIZE);
-        void *ist2 = kmalloc(IST_STACK_SIZE);
-        void *ist3 = kmalloc(IST_STACK_SIZE);
-
-        if (!ist1 || !ist2 || !ist3)
-        {
-            serial_write_all("FAIL (kmalloc)\n");
-            continue;
-        }
-
-        void *ist1_v = map_and_convert(ist1, IST_STACK_SIZE);
-        void *ist2_v = map_and_convert(ist2, IST_STACK_SIZE);
-        void *ist3_v = map_and_convert(ist3, IST_STACK_SIZE);
-
-        tss_virt->ist1 = (uint64_t)ist1_v + IST_STACK_SIZE;
-        tss_virt->ist2 = (uint64_t)ist2_v + IST_STACK_SIZE;
-        tss_virt->ist3 = (uint64_t)ist3_v + IST_STACK_SIZE;
+        uint64_t ist[3];
+        for (unsigned n=0;n<3;++n)
+            if (!kernel_stack_cpu((stack_kind_t)(STACK_KIND_IST1+n),i,g_cpus[i].apic_id,&ist[n]))
+                kpanic("AP guarded IST allocation failed");
+        tss_virt->ist1=ist[0];tss_virt->ist2=ist[1];tss_virt->ist3=ist[2];
 
         serial_write_all("OK\n");
 
         serial_write_all("      [3] GDT... ");
-        void *gdt_phys = kmalloc(sizeof(GdtTable));
-        if (!gdt_phys)
+        void *gdt_pointer = kmalloc(sizeof(GdtTable));
+        if (!gdt_pointer)
         {
             serial_write_all("FAIL (kmalloc)\n");
             continue;
         }
 
-        GdtTable *gdt_virt = (GdtTable *)map_and_convert(gdt_phys, sizeof(GdtTable));
+        GdtTable *gdt_virt = (GdtTable *)checked_cpu_pointer(gdt_pointer, sizeof(GdtTable));
 
         extern GdtTable g_gdt;
         memcpy(gdt_virt, &g_gdt, sizeof(GdtTable));

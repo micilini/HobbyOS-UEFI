@@ -1,0 +1,4998 @@
+{
+  "schema": 1,
+  "base_revision": "0f6629ce6ee9c9e04fdde236ddac36f5b5531d49",
+  "line_anchor": "Per-file SHA-256 below; physical-boundary substitutions are enumerated in the current scope contract.",
+  "method": "Comment/string masking, balanced call parentheses, function/definition discrimination; broad pointer casts require semantic reconciliation in address-consumers.md.",
+  "source_sha256": "15db3a56682fff29c806be43c9b93a8f33114c8194ee3833ce66e5ec54994580",
+  "files": [
+    {
+      "path": "bootloader/main.c",
+      "sha256": "636c8f6b5f05e01588547c324e784b90ce264f1aca3a4be3305ce2bf45c24375",
+      "size": 5397
+    },
+    {
+      "path": "bootloader/src/acpi.c",
+      "sha256": "aa0a4b6df3a9a0d5e5e75e6ea5cf192ac7f424b8d82e83fd41b9eef56690eb97",
+      "size": 945
+    },
+    {
+      "path": "bootloader/src/acpi.h",
+      "sha256": "c5ee2d980d1a9de423ea7496e8a426259870a5857553ea6bc651eeea0d623061",
+      "size": 81
+    },
+    {
+      "path": "bootloader/src/bmp.c",
+      "sha256": "f079e3df1963322ec824c75664be4676646e30e92d10e3af07161bb2b6a6169d",
+      "size": 1850
+    },
+    {
+      "path": "bootloader/src/bmp.h",
+      "sha256": "1208205376f176d952cb05263a100d9590f03c96f1b7c3f2e6d6bcf178008fb0",
+      "size": 154
+    },
+    {
+      "path": "bootloader/src/boot.h",
+      "sha256": "ac63cfa2ecd9239fbc1ee879c827659354b71dfbb9a5175d3371d8f44b116821",
+      "size": 180
+    },
+    {
+      "path": "bootloader/src/file.c",
+      "sha256": "90d794f815ff493f9dc6fcd516eb7f50d0a77d6a495b0a9e279b14d4ba996653",
+      "size": 1474
+    },
+    {
+      "path": "bootloader/src/file.h",
+      "sha256": "06cd9ba229abfbb2a6ded5c9f61bc0a049796c9bdf26cc7778d3a26790cba43d",
+      "size": 166
+    },
+    {
+      "path": "bootloader/src/font.c",
+      "sha256": "81350196601ec57e62492e9fd8e4797d2a57cb1b7bf328060e5ed95de8cf0acf",
+      "size": 1719
+    },
+    {
+      "path": "bootloader/src/font.h",
+      "sha256": "8ab9b434cec54d30d1c8e1172f635f1229e4844d788b275de7240bd45f96cc38",
+      "size": 118
+    },
+    {
+      "path": "bootloader/src/gop.c",
+      "sha256": "4734827b14a5f76c2360d03069e1277d57fb831e5e789292cd233734b0213e3f",
+      "size": 7611
+    },
+    {
+      "path": "bootloader/src/gop.h",
+      "sha256": "8399d5f4822e4bd194b1b287676ad63cc113a3a2eb17206049cb49066883975b",
+      "size": 107
+    },
+    {
+      "path": "bootloader/src/kernel_loader.c",
+      "sha256": "b2ac9617a2b4f23b1fdc6c1c5a02347b9fe4a19bbb6d1b870bc67e44ee732f39",
+      "size": 4933
+    },
+    {
+      "path": "bootloader/src/kernel_loader.h",
+      "sha256": "8083f449088f9329023141b5dbb68a63dab6b7974c0f1ababeb4f3da1ca42b23",
+      "size": 121
+    },
+    {
+      "path": "bootloader/src/mem.c",
+      "sha256": "1ae35d17fa4a085d2e5497a6768333b0db12bab6823d572d58556c36c1cddb72",
+      "size": 1896
+    },
+    {
+      "path": "bootloader/src/mem.h",
+      "sha256": "b21c1a619af2d70c03f2026c9351fc7a05bd10ba2bd350849cd2412b8bbfa4aa",
+      "size": 84
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "sha256": "6696b9eb4a8d90c0fc41ae68614ee8e1724f2e273fa56ba4022dd9cbd57a83b9",
+      "size": 12044
+    },
+    {
+      "path": "bootloader/src/serial.h",
+      "sha256": "755595cad84c4be538c4fd2ea40f792f79f6b1d9c2ccff0afbdb6a7358d215d2",
+      "size": 425
+    },
+    {
+      "path": "bootloader/src/starter.c",
+      "sha256": "b0020ff92b0800d20623d864aa393d22816cfe011698f81a8db2c646d9a03a56",
+      "size": 2287
+    },
+    {
+      "path": "bootloader/src/starter.h",
+      "sha256": "bd9f6a30e7a135a3863c65d205b073b0478905caa48a5a00c0078d48d49ec628",
+      "size": 174
+    },
+    {
+      "path": "bootloader/src/utils.c",
+      "sha256": "e52ef4f914286b1ca1c67cf11e07c9a484482d63340961b580c91c80bd8668ba",
+      "size": 328
+    },
+    {
+      "path": "bootloader/src/utils.h",
+      "sha256": "e23cb3b90b513e213a8e58ac60237e5643e2f6ab0ed0888d55407c0474728366",
+      "size": 110
+    },
+    {
+      "path": "kernel/kernel.c",
+      "sha256": "ca0a197d983e3aee3a1221696d7b3c5823bcb0cd5d7bbbfaeeddd4fe801d76b4",
+      "size": 8573
+    },
+    {
+      "path": "kernel/link.ld",
+      "sha256": "cae3c133076897f506bd64ad966e2dca50058a64f76e6bc714496fc3f035813f",
+      "size": 2379
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "sha256": "f1a35e5964445c499f5b804e17edce937fd0f69f6bafa94c614cb77ce5db0304",
+      "size": 15429
+    },
+    {
+      "path": "kernel/src/acpi/acpi.h",
+      "sha256": "83b3e63a195614125118fd34e6c3bc45e1a0ed7e3ce33bd1ee4646b8b73d8544",
+      "size": 3013
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "sha256": "8b9da546bff6d3b68f43f608ffa818a484d1cef0718256b9172d751560a0de74",
+      "size": 18414
+    },
+    {
+      "path": "kernel/src/acpi/madt.h",
+      "sha256": "25249ad79cc26da182be8f7e6d555efa29d9f9aa1737cc8a572f4c5049b0b65a",
+      "size": 3890
+    },
+    {
+      "path": "kernel/src/acpi/sleep.c",
+      "sha256": "2ddb783ee4b825f782284f9f1e651d3b4937aea8cfbc1f0969dc3bf8e0131f5d",
+      "size": 3810
+    },
+    {
+      "path": "kernel/src/acpi/sleep.h",
+      "sha256": "6069af51c014afa0baba3af98ee5438852415e3248a0f7300073d092680ef279",
+      "size": 160
+    },
+    {
+      "path": "kernel/src/apic/ioapic.c",
+      "sha256": "0001d90af773c38a035e9baaf18fde28b6f0b1945c6d9f47d0c1ed3e1a794a21",
+      "size": 18086
+    },
+    {
+      "path": "kernel/src/apic/ioapic.h",
+      "sha256": "8e25943e57cc860f457a9026f34edd158e6accbbcab7e961f951ac0c6916a6e1",
+      "size": 3256
+    },
+    {
+      "path": "kernel/src/apic/lapic.c",
+      "sha256": "46e797e2f79b46f3189e05b01e6772521de733466511d9f37f3533ae59bee158",
+      "size": 27795
+    },
+    {
+      "path": "kernel/src/apic/lapic.h",
+      "sha256": "54945c74631b9d02813a98d7c4c2e87490aab749182fbef4f6bb26b78329af05",
+      "size": 5691
+    },
+    {
+      "path": "kernel/src/apic/lapic_delivery.c",
+      "sha256": "8501ad03d3069a6289ac10055f3db07fb6f8189f52568f14212ca6ee3c1fb95d",
+      "size": 2782
+    },
+    {
+      "path": "kernel/src/apic/lapic_delivery.h",
+      "sha256": "f54aaded7ed37baa7c760798082d7b1201f4ca5a1021d5c5d8af18b15331dbb9",
+      "size": 1333
+    },
+    {
+      "path": "kernel/src/apic/legacy_pic.c",
+      "sha256": "979299e6e7d65f079a03768a0aee1d9b6738e87837f78deda6e3f9d5e04d9c53",
+      "size": 2058
+    },
+    {
+      "path": "kernel/src/apic/legacy_pic.h",
+      "sha256": "b6c8c83103d975070fa3a1b2c03193fbe54afa49da2a7c903b161cb42c59015f",
+      "size": 607
+    },
+    {
+      "path": "kernel/src/core/assert_selftest.c",
+      "sha256": "5bfe2b678d32c434571e8028f0762941c9607d07a1e16fd0bc9e3d0c416e5344",
+      "size": 17170
+    },
+    {
+      "path": "kernel/src/core/assert_selftest.h",
+      "sha256": "72af140e86d0fc4cade7765bc6185f787851293670a57e4a6c9db3b6708e7f04",
+      "size": 2051
+    },
+    {
+      "path": "kernel/src/core/build_profile.c",
+      "sha256": "8c2d688e54b945d4529dff363aa4506d8d0feba14f2d48382d8a40592faaa6ac",
+      "size": 3936
+    },
+    {
+      "path": "kernel/src/core/build_profile.h",
+      "sha256": "50dbd53edb2bbd51bf2689f0145bf05977b697a38736fcfe8c52a923d01505e3",
+      "size": 743
+    },
+    {
+      "path": "kernel/src/core/clock.c",
+      "sha256": "2f8444d3b83b3cf0aa5a9d594aa8b3e349f19775b0af6117f6498495b7bac0be",
+      "size": 19087
+    },
+    {
+      "path": "kernel/src/core/clock.h",
+      "sha256": "f281a4c15c739d5457eab82e6821894734659e2259820070e92c130f2f1ec9d6",
+      "size": 2292
+    },
+    {
+      "path": "kernel/src/core/dpc.c",
+      "sha256": "9caf0826723bcac9666966942bdf091bcbe8e6ec909e7a7ae2fdb785555be1ce",
+      "size": 2709
+    },
+    {
+      "path": "kernel/src/core/dpc.h",
+      "sha256": "65899b079e64d75fbd4714d9a474bc039770e3124e50811aa24ab4f026c917fc",
+      "size": 347
+    },
+    {
+      "path": "kernel/src/core/entry.S",
+      "sha256": "7503b1da26247c74211fa373ff56f20a9a3d49033c96ccacdd6174ae9b039a13",
+      "size": 2479
+    },
+    {
+      "path": "kernel/src/core/idt.c",
+      "sha256": "6f8757d3f75e493cb2f2c63c2cdc62af5d515a9204bfe30e4f4d2106d6799613",
+      "size": 4201
+    },
+    {
+      "path": "kernel/src/core/idt.h",
+      "sha256": "bd9b149188362ae1a924a98b4c13efcaf83c032bba3a594348a59ef1c6db8b83",
+      "size": 1041
+    },
+    {
+      "path": "kernel/src/core/input_event.h",
+      "sha256": "100a2df7426e01502841431c577212fa66a21a904254526c9df27a8b626f2fbb",
+      "size": 938
+    },
+    {
+      "path": "kernel/src/core/input_queue.c",
+      "sha256": "281533b63b946e6696526c540b3cbfceaac26b9d8e14bcceff132f27a2cd0eaa",
+      "size": 9485
+    },
+    {
+      "path": "kernel/src/core/input_queue.h",
+      "sha256": "72e5ac626d54b980563b58f11cde1f458da932ec2897549169694f6110fcd224",
+      "size": 2805
+    },
+    {
+      "path": "kernel/src/core/input_router.c",
+      "sha256": "c992ba11d7467cfa49cc0a70def994567e1927b53711894090329aa833aec6ae",
+      "size": 13320
+    },
+    {
+      "path": "kernel/src/core/input_router.h",
+      "sha256": "f1aff73820999c81adfd330cd70d813207728df30db29c5a6ba2827401e5d55f",
+      "size": 2668
+    },
+    {
+      "path": "kernel/src/core/interrupt_context.c",
+      "sha256": "590c99494bc106e70d9ed6b623f92205993cfe757db86e43b3835fd18ba1ce4f",
+      "size": 10231
+    },
+    {
+      "path": "kernel/src/core/interrupt_context.h",
+      "sha256": "ef58517c42961e7d8dd167d1ddac2d7c4f840536e7ca12142f9d04be7e3e688f",
+      "size": 1481
+    },
+    {
+      "path": "kernel/src/core/interrupt_stubs.S",
+      "sha256": "6eb54f9e84d7d1880983ada3b3866fd7c34dc42f7a036f067b1b30072cbd1198",
+      "size": 1369
+    },
+    {
+      "path": "kernel/src/core/interrupt_vectors.h",
+      "sha256": "9fe06967586d8f792bf9de6bb84621095c851a5d3193084ae19c24b523bdfdb2",
+      "size": 1547
+    },
+    {
+      "path": "kernel/src/core/interrupts.c",
+      "sha256": "aaf3ba8bd899cd2ba147edb739facace3a94ba73128979b275ca52d97b7f8321",
+      "size": 13238
+    },
+    {
+      "path": "kernel/src/core/interrupts.h",
+      "sha256": "60f13a76b7b0190bdd8e01eb50e9093654a6fc6e1879e494e6cd250c6ac6d79e",
+      "size": 3225
+    },
+    {
+      "path": "kernel/src/core/io.h",
+      "sha256": "34a219c875279a841a5bd7e866f2167e9785d5796cf830ae95d3608d61c03a6b",
+      "size": 894
+    },
+    {
+      "path": "kernel/src/core/irq_bootstrap.c",
+      "sha256": "ae8a853c61f62b5b22cb506e70578bc3bc735c5111e708eaea69a6de352bc5b7",
+      "size": 66659
+    },
+    {
+      "path": "kernel/src/core/irq_bootstrap.h",
+      "sha256": "5145b4795a4a235c96965d0168b6e578cb7fc0b9f7104929a075b89e8960a383",
+      "size": 4284
+    },
+    {
+      "path": "kernel/src/core/irq_stats.c",
+      "sha256": "054bdf8cca984ce0065d78e63823b208e0699fc1e1e0858c22ce2ed7fdd096fe",
+      "size": 4712
+    },
+    {
+      "path": "kernel/src/core/irq_stats.h",
+      "sha256": "6c8c946c44dfa56b603d773e56f33d4f925e6647718c8aa95a57ae8461b79171",
+      "size": 344
+    },
+    {
+      "path": "kernel/src/core/kernel_init.c",
+      "sha256": "bbc016a8466d11cc66f137348f8e8f4fc7e17eb29d8cc3d8cc257f623c1acf62",
+      "size": 13235
+    },
+    {
+      "path": "kernel/src/core/kernel_init.h",
+      "sha256": "ba1d20b199bdef6aae558184463d135b53f0401e63d57ac4bd82df589b4a2302",
+      "size": 135
+    },
+    {
+      "path": "kernel/src/core/list.h",
+      "sha256": "12333cdd6e208679443b3c6ddf79983895539e4f660d56014b46e160c8f8ddd8",
+      "size": 2558
+    },
+    {
+      "path": "kernel/src/core/modal_session.c",
+      "sha256": "7986f8218507134019708d90a9cc77b232eba343c8b65186773bc770bc8c1834",
+      "size": 12057
+    },
+    {
+      "path": "kernel/src/core/modal_session.h",
+      "sha256": "e105428bd62a3a6862d3bb601210dab5d8e4255d7148eaa3dc43ebb184e8df8a",
+      "size": 2989
+    },
+    {
+      "path": "kernel/src/core/modal_ui.c",
+      "sha256": "ecfef61a1ac37a1457f86b257f43888fdc4f716b4de36f076dcfb072639c8215",
+      "size": 28773
+    },
+    {
+      "path": "kernel/src/core/modal_ui.h",
+      "sha256": "86d3560b802a6b25f58d96244e2969330aa97b2c9b204d3212a0d8a9504410ea",
+      "size": 4081
+    },
+    {
+      "path": "kernel/src/core/panic.c",
+      "sha256": "aa66ecc251e2eb8cb958ff03f0ded3a831b2b58b742c9bbb28972fafb62051d6",
+      "size": 46611
+    },
+    {
+      "path": "kernel/src/core/panic.h",
+      "sha256": "40e3dd2b96fd60b0d5ef8afd044525fa9fd6d71c6009c6dbac5d215185784be7",
+      "size": 5080
+    },
+    {
+      "path": "kernel/src/core/queue.h",
+      "sha256": "6e2599961d0a4fea65cff9fc748d89c5e5ba5722491663a29940c84e34db189c",
+      "size": 589
+    },
+    {
+      "path": "kernel/src/core/runtime_ready.c",
+      "sha256": "760db86fa240f24d9813f4afcc340a3a55c30a87fd9c9be291215b6574dc2336",
+      "size": 11359
+    },
+    {
+      "path": "kernel/src/core/runtime_ready.h",
+      "sha256": "d892fb6c54b1de2e0a4685270529cca2d1f771b5f92695225f838afc8785e9ed",
+      "size": 1528
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "sha256": "b783d8ad35f2c2f5660953af69e17bd5fdfa57478e8d5c782302bfcd33660016",
+      "size": 114293
+    },
+    {
+      "path": "kernel/src/core/scheduler.h",
+      "sha256": "875513010a300fa8551daeea2a2e583f7b60d9541cb192314ed21f126f94da91",
+      "size": 15098
+    },
+    {
+      "path": "kernel/src/core/selftest.c",
+      "sha256": "36818d0e07c9e7827ce88251622401b382578cdd84120f54703118f72bc1cd1d",
+      "size": 62904
+    },
+    {
+      "path": "kernel/src/core/selftest.h",
+      "sha256": "45d4a0acbd499719b5a84f3dc64658c0497be5170d0296597867bd86439e2552",
+      "size": 1613
+    },
+    {
+      "path": "kernel/src/core/semaphore.c",
+      "sha256": "06969e56b74bb4922def7e912175d996fe7aad991e0855f7c61ce15fe9bb2f51",
+      "size": 10851
+    },
+    {
+      "path": "kernel/src/core/semaphore.h",
+      "sha256": "f0b9f829d7e7216074ebd79c184ce07a0c715a38b5208930fca42d4010fe10e5",
+      "size": 1815
+    },
+    {
+      "path": "kernel/src/core/spinlock.c",
+      "sha256": "a27ba473caba627d7a938930c9763123e10a2bd837a905950d9570d7962ce98d",
+      "size": 6254
+    },
+    {
+      "path": "kernel/src/core/spinlock.h",
+      "sha256": "e7eeb8e6ea2b6fd271c7640023f99043b81c1ddf147b2d887f8d5f5f4dac5c9b",
+      "size": 1506
+    },
+    {
+      "path": "kernel/src/core/switch.S",
+      "sha256": "90675365a39a574f498288e751264f9873c55ae50e07ac6ae5f8b832614d7b99",
+      "size": 533
+    },
+    {
+      "path": "kernel/src/core/task.h",
+      "sha256": "3290739fe3cb492de8e92fd428b013d198126efae8293603db5dd88d4091257c",
+      "size": 4381
+    },
+    {
+      "path": "kernel/src/core/task_format.c",
+      "sha256": "2ba46851fd9246060e3cf64056e0013d9237a25b7f41d321b3cf5433daa19863",
+      "size": 16058
+    },
+    {
+      "path": "kernel/src/core/task_format.h",
+      "sha256": "404285390c07e56a8baa31838e8479464d6ae7c2d6ffaedde4ebea9231f9fd8b",
+      "size": 3355
+    },
+    {
+      "path": "kernel/src/core/task_lifecycle.c",
+      "sha256": "c0d02ea9729f2b0270b2fa3a66fdff68e27d92600902cdb734fd1cba3717188d",
+      "size": 4426
+    },
+    {
+      "path": "kernel/src/core/task_lifecycle.h",
+      "sha256": "1f171f88daeae9a279fc13fe5695bc8d614d58827f457bedc11c4f640ad47543",
+      "size": 1332
+    },
+    {
+      "path": "kernel/src/core/task_metrics.c",
+      "sha256": "cda2ea3c28986bfbe6f5ec89e886117286d74e273e575caabece925345797ded",
+      "size": 6583
+    },
+    {
+      "path": "kernel/src/core/task_metrics.h",
+      "sha256": "6658d865975efa6cab620b1525c1aea3a6e684d7ceb9e6fdbf8f990dcd44cac1",
+      "size": 1329
+    },
+    {
+      "path": "kernel/src/core/timers.c",
+      "sha256": "680152b32a5dff05d341d8daa5ab512b763012937327e8b50fa23b8d273de9b8",
+      "size": 22757
+    },
+    {
+      "path": "kernel/src/core/timers.h",
+      "sha256": "8e78c4c9c8e726fd2ba4e7f13b83ca95a4a863182354dd6cc9805bd49522f5ff",
+      "size": 3256
+    },
+    {
+      "path": "kernel/src/cpu/arch_selftest.c",
+      "sha256": "17a016cb7dcd68f04b64afdb8107d896cbabf228f8dcc4d4714ffd1e43b97e82",
+      "size": 42487
+    },
+    {
+      "path": "kernel/src/cpu/arch_selftest.h",
+      "sha256": "aa4cf07a393b82e538bb4ef83cafc2f229057bd24ba1303f3a2cac5b4f17da4c",
+      "size": 3651
+    },
+    {
+      "path": "kernel/src/cpu/control_policy.c",
+      "sha256": "7c73d5ba1e7447c5532d6fde77eabea8ac1726480549b0b86d173ccabbb96079",
+      "size": 12767
+    },
+    {
+      "path": "kernel/src/cpu/control_policy.h",
+      "sha256": "c7bd67d0bac365cf7b3c4f78f4d41e7de336e5e54c3541e627846586a25b45b2",
+      "size": 3262
+    },
+    {
+      "path": "kernel/src/cpu/control_policy_bits.h",
+      "sha256": "759d9c8ac071a9ce6221f4175efd33932c32b58e1ecda0dfbfbe814dc5136aab",
+      "size": 1820
+    },
+    {
+      "path": "kernel/src/cpu/cpu.c",
+      "sha256": "0ba569919143dc146f95b38f3367c977c188ffbdde829993028d584cbbe9ed27",
+      "size": 8252
+    },
+    {
+      "path": "kernel/src/cpu/cpu.h",
+      "sha256": "5a49185d51c6f5f55ee5efeadfeab16d293c4a60fe2e9ae172d5c3bf6954f067",
+      "size": 1294
+    },
+    {
+      "path": "kernel/src/cpu/cpu_control_snapshot.c",
+      "sha256": "6551d4a4152ce9d2444c9003804d84b434aaa85533fd5087efbb474202724df4",
+      "size": 7147
+    },
+    {
+      "path": "kernel/src/cpu/cpu_control_snapshot.h",
+      "sha256": "6463327c136d05ff72c18b462ea57a1dabdef9d579cf7d79e672080fb6ab1863",
+      "size": 880
+    },
+    {
+      "path": "kernel/src/cpu/mmio.c",
+      "sha256": "a6e9ef7a24d3edc0f84f3709f5e3cffbddb78530f5a8be0e40f049827730a0ae",
+      "size": 10582
+    },
+    {
+      "path": "kernel/src/cpu/mmio.h",
+      "sha256": "d7b47391452f762642c1ea574e20584db423b5729d986c2d64fbb0f57dfcb707",
+      "size": 6799
+    },
+    {
+      "path": "kernel/src/cpu/tss.c",
+      "sha256": "4050ed27fbc03eed5f6ca1878b6dea0ee46257ae559117bff9bed694d24da5ae",
+      "size": 2196
+    },
+    {
+      "path": "kernel/src/cpu/tss.h",
+      "sha256": "195d339cf90d2109f120357d3aec828848775083e83f755209b736c53f792295",
+      "size": 654
+    },
+    {
+      "path": "kernel/src/drivers/keyboard.c",
+      "sha256": "e84c7e1ee08259d5e2c5841c72d801cd3c86998fe3ca16bb6501aa97e9cb926d",
+      "size": 11905
+    },
+    {
+      "path": "kernel/src/drivers/keyboard.h",
+      "sha256": "40567529edeebc77927443ea0dd159f9791d62b3779550cacfa3e9d491c71ab2",
+      "size": 548
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "sha256": "9b2e77789c8ac570950fa611a465ed06ec605a508f62375b674ba2d214ebd446",
+      "size": 16385
+    },
+    {
+      "path": "kernel/src/drivers/pci.h",
+      "sha256": "2d1d3394461d528bceab77ba35fd575b2951472a723c72182c5ab9670a45cce2",
+      "size": 1647
+    },
+    {
+      "path": "kernel/src/drivers/pci_descriptors.c",
+      "sha256": "d7c4b6bf20f7574b55a61f2f3b54558da97705db30d13ccc9b58d627c3a91c43",
+      "size": 4337
+    },
+    {
+      "path": "kernel/src/drivers/pci_descriptors.h",
+      "sha256": "19f1fd380fb352e85cd20777d6ebed7bd98208cd490f22fd86c947928aa258fb",
+      "size": 430
+    },
+    {
+      "path": "kernel/src/drivers/ps2.c",
+      "sha256": "a23b6edeef6223210923956b8f2d690169ed180cc5d59b20423760171510ecb8",
+      "size": 523
+    },
+    {
+      "path": "kernel/src/drivers/ps2.h",
+      "sha256": "34fb31603eb6eba65dd52b94f0898f532f1c54d6bbcc1c97ccfe0ca055e75c4e",
+      "size": 342
+    },
+    {
+      "path": "kernel/src/drivers/serial.c",
+      "sha256": "f8f88de33528a90a9f549a18f8f35fe52fa082c2e339241c14dbde03601b3139",
+      "size": 9193
+    },
+    {
+      "path": "kernel/src/drivers/serial.h",
+      "sha256": "a2fd37b50ca4e7f98d0531d0294e476b6dd3b9cb7f703d7476ebc67bd149f24e",
+      "size": 241
+    },
+    {
+      "path": "kernel/src/drivers/timer.c",
+      "sha256": "04899929bc2946c3aa38f8f3215cf140ebad01b2f2f57f57a6d8539913e0d29f",
+      "size": 11733
+    },
+    {
+      "path": "kernel/src/drivers/timer.h",
+      "sha256": "4162776de23c3209c924e5afe0a79ef337c6981f09b282748e09c5b5fe3ee72a",
+      "size": 1293
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_hotplug.c",
+      "sha256": "3f5ac63d6cfeae70bab7b6fc612b1812d7ef5882db3624c0da6c00eb3996bc89",
+      "size": 13571
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_hotplug.h",
+      "sha256": "e91ff591e7648e48084ea9d46f1fe7362822db9d699308f75c50244cfe491c51",
+      "size": 1619
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_hub.c",
+      "sha256": "d04a3bf13ae374cd5a34af8c94b552c7338dcd695435567f9e4efd3c125951ad",
+      "size": 30804
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_hub.h",
+      "sha256": "0ef1761e446d757cdf4a89cc0ed445007450bea1ea76edbad8b5b5ad6a2f647c",
+      "size": 4727
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_ownership.c",
+      "sha256": "9a63c28e4dd9fbc89f7af52ab6185dc9c4f4a1e1f358da3678e3814df704158e",
+      "size": 4429
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_ownership.h",
+      "sha256": "121718f99d659f306071b0bd140a315f861d248d8601bd50d75a32925a383105",
+      "size": 2147
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "sha256": "d1455b34473d18ba26f0c24ccc36a0aee96a15592cd8f299c13dd72ffda40f49",
+      "size": 116256
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.h",
+      "sha256": "f116c37b15838dcdd20ebf3708d2bb4bcf72d886e24a161ccff00c22a4e01a52",
+      "size": 9464
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci_dma.c",
+      "sha256": "38f9876f5d8ad90165449484805a645c5d655ebaf8c3ed862fd20021bdb536f4",
+      "size": 2516
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci_dma.h",
+      "sha256": "74060e47380ba408e2b3366695bc78c7503055dcaa110477d655ea9105501934",
+      "size": 610
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "sha256": "6b33fe5af80f12cbb3de4ceaa64975b422465b94755969e8d2ba057190b3ab2b",
+      "size": 11513
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.h",
+      "sha256": "a5976a989407f778c5e355279fa9a3d39ba2ec3ec6fd1fec467851023c0de995",
+      "size": 207
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wddt.c",
+      "sha256": "044175b416b8447f4d8568d8842ea7d5f27f9dee31d04ad68f4f97d867ba19b7",
+      "size": 879
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wddt.h",
+      "sha256": "4a89c7d52bb526d48e1d594aa8247ef36c168939ed04a19569cc22b2b434a6df",
+      "size": 77
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdrt.c",
+      "sha256": "bef26e6ece4fe50894e34a8fad2f9836ce6352b2d46d76c9c9540a350a44daa6",
+      "size": 2825
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdrt.h",
+      "sha256": "0140a07e0c1eb7794f8bba7030d2a18d98c6e8095f6a82121fe20894c1f6eb3b",
+      "size": 77
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/intel_tco.c",
+      "sha256": "c8f9eb87e102b37fce7c1cde3e86764419188f7c488276f3a68aa1c6ea69d8bc",
+      "size": 6034
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/intel_tco.h",
+      "sha256": "ba243f786e64bf73af0e662cf77c5a434748deb6e88e0582484c8a90e5150c1d",
+      "size": 120
+    },
+    {
+      "path": "kernel/src/graphics/console.c",
+      "sha256": "fbabed3f8fd0a7c75c35cbfde77b5729ad4a126c448d2f5519454f6ce19562f7",
+      "size": 28053
+    },
+    {
+      "path": "kernel/src/graphics/console.h",
+      "sha256": "7737e5a295cab00f07704a8f15aaf23cadf3a5736da073f337ec22f2281a5164",
+      "size": 3276
+    },
+    {
+      "path": "kernel/src/graphics/graphics.c",
+      "sha256": "2f7a316d7ea69b44e9bb07442de8f6ffd4f719dd91c931661c9729ef05e37ad5",
+      "size": 3643
+    },
+    {
+      "path": "kernel/src/graphics/graphics.h",
+      "sha256": "e147856001d2ed1f555ac681f95f0ed09d28dff1bbc23ebc2a4bb3c28a17ed31",
+      "size": 766
+    },
+    {
+      "path": "kernel/src/graphics/splash.c",
+      "sha256": "5fcb7f5cf45cfb1d57d85fce56f212c534a9005ebf1c557ffe751b7012c18012",
+      "size": 15283
+    },
+    {
+      "path": "kernel/src/graphics/splash.h",
+      "sha256": "031779f77348cf9942191b1d4dc6452b7e6546a8f7ac4f001c119a247ba8e30c",
+      "size": 563
+    },
+    {
+      "path": "kernel/src/graphics/terminal.c",
+      "sha256": "f55eb4382672ebb9e31456535325640b5bf860713916733151911b63ef5193dc",
+      "size": 560
+    },
+    {
+      "path": "kernel/src/graphics/terminal.h",
+      "sha256": "2b54b2e4a29911aca3a2ea7b71643e0aeeae483868d998f2fe961d696d4c2136",
+      "size": 112
+    },
+    {
+      "path": "kernel/src/libc/format_selftest.c",
+      "sha256": "96046f9cfd820b07c7d1fd4c2fb35bc7798bdf46cc16bcafd8e019d34d2efc9a",
+      "size": 13678
+    },
+    {
+      "path": "kernel/src/libc/format_selftest.h",
+      "sha256": "c57d3dda5b9f5d9d56160c2af813d61746f88343ccf50f774d08b60ec8b63eac",
+      "size": 319
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "sha256": "7dae199dac890426cbf3d4ac27adde39e9b0a7c9f65c270067c1e7fd055f55d9",
+      "size": 3147
+    },
+    {
+      "path": "kernel/src/libc/memory.h",
+      "sha256": "23f1cc5caa220dbdb4f32a94df8ea8e7e3e268fc44f6ec6b7394c06edf16a6e6",
+      "size": 290
+    },
+    {
+      "path": "kernel/src/libc/string.c",
+      "sha256": "4ed514e00d8d65c6e8ea4ffe796374776d011d0e90c59df49b01d6dc12c170c3",
+      "size": 11642
+    },
+    {
+      "path": "kernel/src/libc/string.h",
+      "sha256": "e1dccc023932fb54f7fb7877d8e32b1e8d81d90d47a2a12c631453eff00d1a7a",
+      "size": 960
+    },
+    {
+      "path": "kernel/src/memory/boot_address.c",
+      "sha256": "85b32d631fd8063e53a9c31da97fa4698a94cd006037769620c2ae0723ce943d",
+      "size": 8136
+    },
+    {
+      "path": "kernel/src/memory/boot_address.h",
+      "sha256": "e49fb39d40e5ae9087c3e0f06bbabf7c83b631e1248ad9559f8b2c9c9a3d3610",
+      "size": 831
+    },
+    {
+      "path": "kernel/src/memory/bootstrap_claim.c",
+      "sha256": "bd47387a43788fc90fa2b89f3a1f2ec13f4aca78f9da515ef3acc52da732dab0",
+      "size": 2584
+    },
+    {
+      "path": "kernel/src/memory/bootstrap_claim.h",
+      "sha256": "6b51ecf48f46a5db50c9465f6468f9755c192ed51fd79fb5c9c41d94f4e8a127",
+      "size": 429
+    },
+    {
+      "path": "kernel/src/memory/bootstrap_lifetime.c",
+      "sha256": "eea2add616964016c0430c88ae37a098ef79f479b45cc2edb84fc2a5ca06486a",
+      "size": 4286
+    },
+    {
+      "path": "kernel/src/memory/bootstrap_memory.h",
+      "sha256": "52f56880b4d266263d178539c7e2f617a7e3a434ec7aef02acf0d579045b2414",
+      "size": 2478
+    },
+    {
+      "path": "kernel/src/memory/bootstrap_tables.c",
+      "sha256": "02cfcb76cdb4471795914488e1599cad4baf71c7411d575635ae1d4a524a5c6b",
+      "size": 4521
+    },
+    {
+      "path": "kernel/src/memory/bootstrap_tables.h",
+      "sha256": "f10c5ebe5c187c767929ae95cef960e57335a6461bc85ac866dce7bca37dad2c",
+      "size": 987
+    },
+    {
+      "path": "kernel/src/memory/cache_attributes.c",
+      "sha256": "c9a7979042bcfb5954adc5d01751c1cdde49f0ef807c01e3c0bef205cce4e5e8",
+      "size": 1100
+    },
+    {
+      "path": "kernel/src/memory/cache_attributes.h",
+      "sha256": "3433682899c7b35d6d65ea9a17e3d2eeeba4216b2355a43ed519eaa5b8291131",
+      "size": 662
+    },
+    {
+      "path": "kernel/src/memory/device_origin.c",
+      "sha256": "275927305b51dfbb2addda65098992483f2af26a6e22f2662a2885059493cc10",
+      "size": 4061
+    },
+    {
+      "path": "kernel/src/memory/dma_buffer.c",
+      "sha256": "ef1fbe0b038cd6b9873d2d28d18e13d633443abedf5dd217847a4032c0f7c04d",
+      "size": 6502
+    },
+    {
+      "path": "kernel/src/memory/dma_buffer.h",
+      "sha256": "aec7d723ee7808ad168853fc16b7882212d1ee72ba3debb6a3ab9d8f144a8c1f",
+      "size": 1586
+    },
+    {
+      "path": "kernel/src/memory/firmware_mapping.h",
+      "sha256": "bdafba04f90659f38c76f0a3fcf517d505c93f8125c8bf8cc095624f864a3280",
+      "size": 538
+    },
+    {
+      "path": "kernel/src/memory/gdt.c",
+      "sha256": "3b8b8cfe59e506d550f8bc02ed3dd9cc9069ad5bd0d87abe7da1e61ac915d89b",
+      "size": 2992
+    },
+    {
+      "path": "kernel/src/memory/gdt.h",
+      "sha256": "3a1c5760eab08a02804c8becc103a10b406f7c17e4b22aae0be68f224190cec1",
+      "size": 1051
+    },
+    {
+      "path": "kernel/src/memory/guard_probe.c",
+      "sha256": "4be8c04993245c6ca997fb40588cdbbec342e4b321fc3c30e16a90f60e6e301c",
+      "size": 4087
+    },
+    {
+      "path": "kernel/src/memory/guard_probe.h",
+      "sha256": "81e096289588bb1bef72ceecddc1a6c0a79b20344ec06e8525c63eb8e006da4a",
+      "size": 1096
+    },
+    {
+      "path": "kernel/src/memory/guard_probe_access.S",
+      "sha256": "c03417737e0454e7e076f4c8436af4a092191ef7e80e1ca0b3cf4d12442b6428",
+      "size": 898
+    },
+    {
+      "path": "kernel/src/memory/guard_probe_match.c",
+      "sha256": "b95d1d6ebc5de204d3a3f0ef0fa4db76369824c99496f9f178944890b17e32af",
+      "size": 815
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "sha256": "abd5dde7538cce981ee82c5777a9006c13105eec9a5d44688bb3a72560da41bd",
+      "size": 19906
+    },
+    {
+      "path": "kernel/src/memory/heap.h",
+      "sha256": "ff17045842be1740d8a6dbfc02fa3b61cee16422ef3ef3aa0a8b361555c45064",
+      "size": 854
+    },
+    {
+      "path": "kernel/src/memory/image_permissions.c",
+      "sha256": "93cf9eced1a79410edeaa99ae7129ee0b1fac13ea1133e99242e58819832b6e2",
+      "size": 8227
+    },
+    {
+      "path": "kernel/src/memory/image_permissions.h",
+      "sha256": "fb5c285c7ea970cd2ca473191f20d835395188addfa39617cac11d0e7fb50ba6",
+      "size": 2052
+    },
+    {
+      "path": "kernel/src/memory/image_permissions_boot.c",
+      "sha256": "c15422348b5433f945a7e752822dec9c94f159cb04f7c9ff6e3a1471bf8fd167",
+      "size": 1757
+    },
+    {
+      "path": "kernel/src/memory/image_walk.c",
+      "sha256": "0c8f95c641637be8e919c37bedb4d54363cf91115b6c11d859cdefa93afb28c6",
+      "size": 7132
+    },
+    {
+      "path": "kernel/src/memory/image_walk.h",
+      "sha256": "dad811cf8c078a0dd391992a762ef145ad9a756f8cd6521a42254e00b56e5e59",
+      "size": 2064
+    },
+    {
+      "path": "kernel/src/memory/kernel_stack.c",
+      "sha256": "c2deb9f9efe0e14335adecec69b2b607832d3c5508a0d26ef1ae53e9e1ac9991",
+      "size": 17509
+    },
+    {
+      "path": "kernel/src/memory/kernel_stack.h",
+      "sha256": "788479727a19fe99de4d12f0f3ab8313c0f38752ffe2f69e097a85d11514c796",
+      "size": 1358
+    },
+    {
+      "path": "kernel/src/memory/kernel_tlb.c",
+      "sha256": "82a4006de54ea8d8380deca9fe14e69dff0fa7ec912ec33b31a32b52ec9434e9",
+      "size": 7595
+    },
+    {
+      "path": "kernel/src/memory/kernel_tlb.h",
+      "sha256": "f6c10822cf0f793bad006e65e8ffbe3bdb25a52dab2122102737995ae7166552",
+      "size": 2166
+    },
+    {
+      "path": "kernel/src/memory/low_fault.c",
+      "sha256": "4302651f2bf00a40b5e231b45502796983d560877d16ead2b6efc43ff468548f",
+      "size": 315
+    },
+    {
+      "path": "kernel/src/memory/low_fault.h",
+      "sha256": "ce328d11fd041f1c2e6a717effa5b361eaa789eefd739d7749dd295221839299",
+      "size": 120
+    },
+    {
+      "path": "kernel/src/memory/mapping_core.c",
+      "sha256": "278cbec0b31a85baf613fb11ac0356880da8d60a1550e91667700868744bc9ea",
+      "size": 5362
+    },
+    {
+      "path": "kernel/src/memory/mapping_core.h",
+      "sha256": "ebc6fb5990c23b23fda36e0e21497fa05abe57c872c63f318421d625cc5a8a1a",
+      "size": 1389
+    },
+    {
+      "path": "kernel/src/memory/mapping_probe.c",
+      "sha256": "c2cb8b42f4bcb12602ab7208d91259ee44217c163c70c7f93a504951dadebef9",
+      "size": 17249
+    },
+    {
+      "path": "kernel/src/memory/mapping_probe.h",
+      "sha256": "273a30da24d657aeb24d6440b2918db9e29550d10b1d208e619e399989b4d52b",
+      "size": 1165
+    },
+    {
+      "path": "kernel/src/memory/mapping_probe_match.c",
+      "sha256": "d158a9605de2091fba3361dbda627a325f1c44f726093fb47f5072c59a80cb9a",
+      "size": 421
+    },
+    {
+      "path": "kernel/src/memory/mapping_probe_read.S",
+      "sha256": "07d24cbb811bffb3db836dec292780e1d326c3d1186c93d038029bda68d7d52b",
+      "size": 344
+    },
+    {
+      "path": "kernel/src/memory/memory_observation.c",
+      "sha256": "5cfde68b46c81c3af470d2d6d7416a7570fba7b75eef1c508abe3544c25e3b7d",
+      "size": 3143
+    },
+    {
+      "path": "kernel/src/memory/memory_observation.h",
+      "sha256": "4ad76718391f4b8044a1217e5bbb99f394d08a4118ed587126600f756334e2ac",
+      "size": 990
+    },
+    {
+      "path": "kernel/src/memory/memory_observe_decode.c",
+      "sha256": "47db3088af210baa91c2a3a9b572bcc4ce6832a719fc90a6b9e869f1aa88ab9e",
+      "size": 3613
+    },
+    {
+      "path": "kernel/src/memory/memory_observe_decode.h",
+      "sha256": "72146c5c7abd0437f997ab236cd5d0a199f3fae4b80d66ca8e9e40966a75a616",
+      "size": 1105
+    },
+    {
+      "path": "kernel/src/memory/mmio_mapping.h",
+      "sha256": "a7814c13aa36557b57544c5a49d49b982278aee002f5ce870dcff0c2ff124e44",
+      "size": 1385
+    },
+    {
+      "path": "kernel/src/memory/null_probe.c",
+      "sha256": "d74a2f1815cc5b0b757557be6869cd5fc0b57998b1061458ac77553f22e8f131",
+      "size": 4078
+    },
+    {
+      "path": "kernel/src/memory/null_probe.h",
+      "sha256": "d12426af9b70703061477474c0aa2048cc642a24211de19a1ea2ad9ea3f2fae7",
+      "size": 579
+    },
+    {
+      "path": "kernel/src/memory/null_probe_match.c",
+      "sha256": "ee036d1cb26768112810e52ce71d5094f499d4ed05c3c55e7b87c13304fccf4c",
+      "size": 397
+    },
+    {
+      "path": "kernel/src/memory/null_probe_read.S",
+      "sha256": "75008d5cd35d680dff2739c41e1c0982cbfb87b8dda55a5d8c5013ad314361ef",
+      "size": 564
+    },
+    {
+      "path": "kernel/src/memory/owned_mapping.c",
+      "sha256": "64de49580374c6fb2119636b761971caca9daf2c2f9d0b1ab484cfb99df7c4a8",
+      "size": 12610
+    },
+    {
+      "path": "kernel/src/memory/owned_mapping.h",
+      "sha256": "369b4e0c236ade35a6bc6e598805409179429567d6c48437944ce8c7034c8736",
+      "size": 1708
+    },
+    {
+      "path": "kernel/src/memory/page_table_decode.c",
+      "sha256": "754efcfd04d638214bfff9dbce85c2c457766e6435a7f8d6e2b06b12c236bc3a",
+      "size": 6207
+    },
+    {
+      "path": "kernel/src/memory/page_table_decode.h",
+      "sha256": "1e58f3b6caf7ed26ec27107a9a43522394ed2e1e51be1e5b30411d9b51b43238",
+      "size": 1658
+    },
+    {
+      "path": "kernel/src/memory/paging.c",
+      "sha256": "1de58af62e93969bc6b281e6b3a3d368a67343efbd4d72df516aaaccc05b6494",
+      "size": 57007
+    },
+    {
+      "path": "kernel/src/memory/paging.h",
+      "sha256": "bc0cb4f6b2aba2c0a8690216736cf9ce1e22b17ded08d08775534c34d38e1258",
+      "size": 427
+    },
+    {
+      "path": "kernel/src/memory/paging_boot_bits.h",
+      "sha256": "e96001227cd8b899d0d52a00bc1ec71b4f459aab706e055837b8f2e623f56eab",
+      "size": 205
+    },
+    {
+      "path": "kernel/src/memory/paging_build.c",
+      "sha256": "04cb7743162d566f49beecfe889f871f44e979e9b96c8c499d544b655fd7b92e",
+      "size": 15955
+    },
+    {
+      "path": "kernel/src/memory/paging_build.h",
+      "sha256": "b0212e7c5ec89bd4c185c6b7c980c3b4177eddef828ebd88fd78f5d177c47e2c",
+      "size": 2167
+    },
+    {
+      "path": "kernel/src/memory/paging_entry.c",
+      "sha256": "9d11d20f303bd707976d5807ba6eeabe4923084b7198804f4bcb7b1ad4c04973",
+      "size": 2383
+    },
+    {
+      "path": "kernel/src/memory/paging_entry.h",
+      "sha256": "1eb047b7d3f0c6864896f29a65cc90300589016a93253a3fe566680b50ab8e86",
+      "size": 784
+    },
+    {
+      "path": "kernel/src/memory/paging_inspect.h",
+      "sha256": "98e5e0449cc449b6aa458275644707293f49d24540dd4aa1b1eb7aa0da5791c5",
+      "size": 533
+    },
+    {
+      "path": "kernel/src/memory/paging_private.h",
+      "sha256": "32eb03b34fbf5f8e89a5b8fb2e29fcdcad15522571aac1d29124ef46006aca03",
+      "size": 1212
+    },
+    {
+      "path": "kernel/src/memory/physical_contract.c",
+      "sha256": "47d1ffa3b61d07f47ba89593d11e243495f7d6ade8cc17cdd111055efa89e451",
+      "size": 5896
+    },
+    {
+      "path": "kernel/src/memory/physical_fixture.c",
+      "sha256": "d7e0a12b63b6d359a401d322657c02eb8a8f58fcc480b8ed27efe555d11b0f90",
+      "size": 6360
+    },
+    {
+      "path": "kernel/src/memory/physical_fixture.h",
+      "sha256": "eaad3f4268cfa615a1ea7a5f39647698a7d6c5004c82e1ae323486ead94cde7b",
+      "size": 93
+    },
+    {
+      "path": "kernel/src/memory/physical_internal.h",
+      "sha256": "0571d3b5817dc7018af21b1ebb9c882bbbef7db974a515eb1ffa3464a37a4585",
+      "size": 2456
+    },
+    {
+      "path": "kernel/src/memory/physical_layout.h",
+      "sha256": "9e321ed48d9c2608f79b4d330cd5cebffe3ef4997efd5975732d97e83a5fec71",
+      "size": 686
+    },
+    {
+      "path": "kernel/src/memory/physical_translation.c",
+      "sha256": "2bd7a4d920295442590a0c6dfd529bbf9132cf3dc7c673a3dc9ff67b938fed85",
+      "size": 9763
+    },
+    {
+      "path": "kernel/src/memory/physical_translation.h",
+      "sha256": "248f3dfd58bbf3624bdbe1b25182761346e64a56222af78bc3e92fb47a8dd890",
+      "size": 2858
+    },
+    {
+      "path": "kernel/src/memory/pmem.c",
+      "sha256": "f83f73ee4018d2660fe213221b3029f8d5fa84cdfba1bd398f0b2a6b49d0d900",
+      "size": 24161
+    },
+    {
+      "path": "kernel/src/memory/pmem.h",
+      "sha256": "2c31eb87827a0e01fb100c3efc102cf72e3d7a059d8223c9d31fecba8d8c538a",
+      "size": 2579
+    },
+    {
+      "path": "kernel/src/memory/protection_probe.c",
+      "sha256": "8171a260a267de77f1af6488a02389e2d8cd6914497224b91520aae44ecbbafb",
+      "size": 12518
+    },
+    {
+      "path": "kernel/src/memory/protection_probe.h",
+      "sha256": "2c48139dd16fd0c3e136d17e05740b7e5e81e6d793d7588d991f38c857dfd3cd",
+      "size": 1559
+    },
+    {
+      "path": "kernel/src/memory/protection_probe_access.S",
+      "sha256": "35b622f58448951b1da245a6cb4b90432183a146726837d28dab323ba9da362f",
+      "size": 1585
+    },
+    {
+      "path": "kernel/src/memory/protection_probe_match.c",
+      "sha256": "530eb3eb1bf0b842c919779e24553c4bc2cc05e7fc24a18daf4ef12c6a1bbdbf",
+      "size": 2578
+    },
+    {
+      "path": "kernel/src/memory/ram_map_boot.c",
+      "sha256": "663b9e3b8235934d32df0928131897ded67858628b83197c584e12a8aef8ebdf",
+      "size": 1682
+    },
+    {
+      "path": "kernel/src/memory/ram_map_boot.h",
+      "sha256": "d4e2ed3ed9824bccfb1be0159820197241e2f7e587e9091267b5ba00b4987c41",
+      "size": 157
+    },
+    {
+      "path": "kernel/src/memory/ram_map_fixture.c",
+      "sha256": "84a37d09d919c585d0caa8f065d12f6e077c3b8daa97380ecdc249787ca6c7a1",
+      "size": 8108
+    },
+    {
+      "path": "kernel/src/memory/ram_map_fixture.h",
+      "sha256": "d2769ee87343c117b85145afd678a4bb7d0f798cf2d1f847a53cf42061be2db2",
+      "size": 123
+    },
+    {
+      "path": "kernel/src/memory/ram_map_inspect.h",
+      "sha256": "29b49d3f0bd2bbcbf8237049b711f38ca7b80852660ebb5683a2f9af3c46b85a",
+      "size": 662
+    },
+    {
+      "path": "kernel/src/memory/ram_map_plan.c",
+      "sha256": "7b7b5a7738c15554a10dfa398fce7f76ab10d473b09854fb25500199181b6367",
+      "size": 11943
+    },
+    {
+      "path": "kernel/src/memory/ram_map_plan.h",
+      "sha256": "6140cc9bc7f2844ed44a14edabb01f529e75a883569f5251760a11ecf150eb0a",
+      "size": 2320
+    },
+    {
+      "path": "kernel/src/memory/stack_domain.c",
+      "sha256": "ce45d3c5b43b4bdc65692db6cc9f68b2a1e90d534818261df109ebce3263a01a",
+      "size": 13250
+    },
+    {
+      "path": "kernel/src/memory/stack_domain.h",
+      "sha256": "16370ec5999a592d4f87f0224d524acc457cd67d52e21e6807e9057d06a2476e",
+      "size": 4124
+    },
+    {
+      "path": "kernel/src/memory/stack_fault.c",
+      "sha256": "9ad91f7241be1cee0c683881352b8580b9b2ec54fb3df7a019374c40423c0e47",
+      "size": 1167
+    },
+    {
+      "path": "kernel/src/memory/stack_fault.h",
+      "sha256": "ff16d0f29988967c4d1a7ce50444d7ad699a7e8e7aee5d51eb6e53f3975be47d",
+      "size": 480
+    },
+    {
+      "path": "kernel/src/memory/stack_internal.h",
+      "sha256": "4b038ea003d32127dff4625bc39fdbb40245208f38e1dd923c4bcf3b6c8517af",
+      "size": 740
+    },
+    {
+      "path": "kernel/src/memory/stack_map.c",
+      "sha256": "241da705a73b5b0c94e8600c0ea37a9cb1d61fde495dcc418f29175699941cc1",
+      "size": 9597
+    },
+    {
+      "path": "kernel/src/memory/stack_map.h",
+      "sha256": "86542c23bc6a9f86a2ef47c8adb1bd261abeecb717b2e76fbe490004372c39ce",
+      "size": 1860
+    },
+    {
+      "path": "kernel/src/memory/stack_test.c",
+      "sha256": "b77221243d7259f2c5eb3618de73f805982f20ea3e66db3efe33b96020189b40",
+      "size": 24428
+    },
+    {
+      "path": "kernel/src/memory/tlb_deferred.c",
+      "sha256": "6fac1650f34b5cf618117dff4e83e2ef643300c6b63cde523cba754119f3f465",
+      "size": 4229
+    },
+    {
+      "path": "kernel/src/memory/tlb_deferred.h",
+      "sha256": "5a248a4c79fa982daf6f016b3a387627fc37adfc7d4a68ab832f52dc7fe0e420",
+      "size": 1458
+    },
+    {
+      "path": "kernel/src/memory/tlb_fixture.c",
+      "sha256": "1ffcdd5444b829cab9f36cf21c660a6376459f73cffee47f3409aaf23ebfe50a",
+      "size": 27612
+    },
+    {
+      "path": "kernel/src/memory/tlb_fixture.h",
+      "sha256": "bd8babb9c606f356bfee7ed9e5a47607bbf750b160f0a4b11ba4ef004f714188",
+      "size": 944
+    },
+    {
+      "path": "kernel/src/memory/tlb_interval.c",
+      "sha256": "fd279fffe9435b00e3ef8ac614a489eb40b237f9ae681c68a24496e6e565b17d",
+      "size": 2173
+    },
+    {
+      "path": "kernel/src/memory/tlb_interval.h",
+      "sha256": "fc34dfec51bca6181905142e709cbc5e096860a80b719ada45d579c45da53c2e",
+      "size": 1079
+    },
+    {
+      "path": "kernel/src/power/power.c",
+      "sha256": "7d24291fe230a10065259c558efc7356d14db923469252dc1625cd7d03945e78",
+      "size": 7421
+    },
+    {
+      "path": "kernel/src/power/power.h",
+      "sha256": "26a2766aa5fc20f4af3a2b2cb266fc79e1d663019825da337df3edda6c0496ba",
+      "size": 93
+    },
+    {
+      "path": "kernel/src/shell/command.h",
+      "sha256": "f12ec4e29cc9251eec3979779d5b80a645e34320ecba066c589450d2776d1c9b",
+      "size": 349
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_accounttest.c",
+      "sha256": "f34179fd4bbb155a81da5e3a29b61ef29f01ac38d85724ef9440699aab39146e",
+      "size": 60635
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_accounttest.h",
+      "sha256": "9536a41461b0dec05ca905027430c31b76abba6ea353aee94e2d407564fe7663",
+      "size": 3390
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_acpi.c",
+      "sha256": "06c8c93ce5e069cdd980bfbef66b495f6186ec3f3eab2bea2bb2de28ec25a095",
+      "size": 392
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_acpi.h",
+      "sha256": "7f139158e6feeb03529737745f1e26361008fad93e3b7d2e420584f18bc19532",
+      "size": 83
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_alloctest.c",
+      "sha256": "e2345f0b6a1c7371f9853d55e4d5f369dc69c341d2f4a2d4323f1073d5b4b535",
+      "size": 11998
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_alloctest.h",
+      "sha256": "d81e2fe87586ff9ab48bf1fd963bc270eab2bf80008a6841acd35e76339a98ed",
+      "size": 99
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_clear.c",
+      "sha256": "c61af87c5fb4e5f07cd779d80f364f9bcbb9da431a9017740b1eec6cffa9fa0d",
+      "size": 195
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_clear.h",
+      "sha256": "b744f477e8500d5eb93bfc9e77652b4239e1a1377567635d76461e6aa76977c9",
+      "size": 86
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_cpu.c",
+      "sha256": "3769ca69891feb30586a3610dcb531a3e416fa0a473fef88037caae45a1e9c03",
+      "size": 5373
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_cpu.h",
+      "sha256": "4c4dd0bb3e4784f605aab345c4bf2cbf50698448d34291701dfc8a833af3de12",
+      "size": 80
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_echo.c",
+      "sha256": "284ec45ea3870b4a8a2c5eb5275860f517cba37fd7fc8ead523efb100205e6fd",
+      "size": 1302
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_echo.h",
+      "sha256": "e2d16226ed72c3d39db5efb9ef6d68a89b2b80f366a66a6dc35e85218269468b",
+      "size": 152
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_help.c",
+      "sha256": "c11472b6c5c076de7822cedbe32b014ea42a6404e33654c2f3e9fe3fb878c0d9",
+      "size": 2778
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_help.h",
+      "sha256": "3f1592d8dc3d76acea1b08d76cd3f09cad1e0b40e731844d2bf10a058bf21a3f",
+      "size": 83
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_inputtest.c",
+      "sha256": "264e398d77f9fe1522ebf9722e16bf1e2e8ecf37f91304553a6370fe2ef5cb13",
+      "size": 44296
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_inputtest.h",
+      "sha256": "919b27a2ff0a0e3b50a1f226d480703a158f631b37d788a64d9f42a5e0fd1671",
+      "size": 99
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_irq.c",
+      "sha256": "ffffaf55ee7f6aeef6ebeac195b0c0ac30047e7f860171e2c96174a36fc1fd6a",
+      "size": 24135
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_irq.h",
+      "sha256": "0f77ba86752950852c6f82dceb9af418e8df67f81fcce1c7e1d5bf710f530b63",
+      "size": 80
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_kill.c",
+      "sha256": "8a8fa61a350d7bb98a39bc5beb93b42f53fb203f3232f7a36304fc30c29d9f53",
+      "size": 4052
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_kill.h",
+      "sha256": "6bdf496c67e5878f44cc6595a1c3f4cdc2e0b1b18acb2df5722ce9f70c10959d",
+      "size": 430
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_killtest.c",
+      "sha256": "6ffcf3d9721919f766988f59524a21e9a2a66ce10fa6542a80e4c00b22746f87",
+      "size": 27721
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_killtest.h",
+      "sha256": "7a956c74de5e053078167b86078b16e64443a12970ecef3ca59e46bf515a2c4c",
+      "size": 176
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_locktest.c",
+      "sha256": "9cfde172d82b287e9d641a953ec14b9c07d38855270450c4d89f3361ab96126a",
+      "size": 12245
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_locktest.h",
+      "sha256": "8da4fe200112828ffe8defbcc4744add1dbe60d2103928e4c946e0ebd9abc396",
+      "size": 96
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_lowmap.c",
+      "sha256": "2c73f239eaa81d1953839e9c6d10de7148a5b0e2f1eb8362ff3b76792e4bd0f9",
+      "size": 474
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_lowmap.h",
+      "sha256": "58bdc04d0b07e025469f6dda1c16b0f1c3e2287247029a66c0bbaaa651db46e6",
+      "size": 88
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_mappingtest.c",
+      "sha256": "f9c086c10e377cad3e3fb4516d4eb7157295348210511105fa12c6109210a11c",
+      "size": 531
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_mappingtest.h",
+      "sha256": "f29874000c1c9dc7e042168f047439b5e16c652103ccc72638651a0e289419ff",
+      "size": 103
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_mem.c",
+      "sha256": "2318831fc4697376d4e24b3223e6c6671ffa0bcf04256821cd8212e180264368",
+      "size": 4131
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_mem.h",
+      "sha256": "04ee28e5443bb4cca710f5d45f1e5d8a5a688848b5a24a14252fad0638fe0561",
+      "size": 80
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_memory_observation.c",
+      "sha256": "16f41c48d0ccd383567c8504b7c4821139aa39e6cf8b6b13ae980eceee75b0ab",
+      "size": 19814
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_memory_observation.h",
+      "sha256": "4211739c1355e8ae782f3553771eed18e8489b2c9d90405c1fd3bc0d6e641c49",
+      "size": 195
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_modaltest.c",
+      "sha256": "74a6509b2506ff8e7a4d6d3b0f0d8ae68809fa1886d33c3a1cf00f32c5e1fbe6",
+      "size": 87537
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_modaltest.h",
+      "sha256": "c969cc23a003bf7027881a1f5e7fda7cbdb3083d98a30110f3645a40907d1377",
+      "size": 704
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_panic.c",
+      "sha256": "c9e4be8b0a4a321978033ad83c78268f12d832ef6bed45e9ad7169a9f1793150",
+      "size": 1040
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_panic.h",
+      "sha256": "a5e5b494dad20e234b9e8d23753541adbdf53af9bcde87793a7b71ca3b9ff647",
+      "size": 86
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_pci.c",
+      "sha256": "ab4dcb28abfbdc6876cc60ab25e40950f8fd2bf0b4d7d53003bda3b2f4c2a8da",
+      "size": 383
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_pci.h",
+      "sha256": "0848713dd4838fa740be0db172a95f4151f152e41e3efa7196bd98e048e0b33a",
+      "size": 80
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_phystest.c",
+      "sha256": "f0561f108f654dcc4af65b646bed857901cf803a66949e34a79d69bd68c9b275",
+      "size": 247
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_phystest.h",
+      "sha256": "2c2647107776f117d07894cc458a48546b95162b5e489e3ad5c36c53a1103bfc",
+      "size": 94
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_power.c",
+      "sha256": "5258bbe8e99a113bf0642217dcea9a12ff62dc66140a5e889710e74f895b6820",
+      "size": 687
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_power.h",
+      "sha256": "39e2c9e1a0f86c8e343cfd2ba593c063a07ac69de42fb4195194fb92a8220dec",
+      "size": 129
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_profiletest.c",
+      "sha256": "6b5f51a26205c8c3dcff04079621f4d379512a2fb5da08651db293bc9a632dd4",
+      "size": 20013
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_profiletest.h",
+      "sha256": "031cb3542ff266de2b8a5f1757186ab9ec96b04d7f747ef696d6adddc56605af",
+      "size": 105
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_ps.c",
+      "sha256": "0c48a4eafb754a5e09c5e485020f8765863ebf43966a01d092caf24da9bd0944",
+      "size": 7858
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_ps.h",
+      "sha256": "d4ea35671e2cc1961972ccba463d1ee073936fef0237050ee10357b13aec33f5",
+      "size": 77
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_rammap.c",
+      "sha256": "e61721043b4b2213a2eef3f22280dff39aa72783378054dafd4d96476c83f7df",
+      "size": 318
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_rammap.h",
+      "sha256": "4f30466474af4afb78fa9bbcce90862fc494194d7f0564e7b99ffafa3ccf0906",
+      "size": 88
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_reaptest.c",
+      "sha256": "ec2f0714493c36cf63ccf49043cccb28a9a8c10557fb74591ac454b6dcc468c9",
+      "size": 72666
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_reaptest.h",
+      "sha256": "dc90f15aba25691f6f00285261f0210302747bc379f68a882c661965ab12884c",
+      "size": 259
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_schedtest.c",
+      "sha256": "47ab881859ce32846a95e46b76e891116122e40bd82b78dadf930deab3dc9673",
+      "size": 24587
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_schedtest.h",
+      "sha256": "1cd4423d9be64f1e6281e72667c8e2b2feaab960bf89ecad5c468df6fcf6249c",
+      "size": 1131
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_smpstress.c",
+      "sha256": "4418bd9e05bda82e741ff02632b1258eca6a2b25f565298ed5f74fc27134fc35",
+      "size": 9434
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_smpstress.h",
+      "sha256": "376fbc1a1892552c534523fe4773ccd75b3fcc18989ad835eb70125a3109b53b",
+      "size": 55
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_stacktest.c",
+      "sha256": "426104496dbaf82fe367b81ad7721fc6d534dcc65660388d81c56dff5b422d2c",
+      "size": 763
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_stacktest.h",
+      "sha256": "9490270313954ec352d331ebb2a62f838311412a5d4b3aef9a638ef5fcc7065c",
+      "size": 96
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "sha256": "c8b71873aae282d08dc314be776362da2c3cc0862cace0b039e1f0f440446084",
+      "size": 116967
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.h",
+      "sha256": "079a05edb8e0244957707b94c4a55c1a509e63f7815d57039a0f2815035f1e9a",
+      "size": 1174
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_taskdiag.c",
+      "sha256": "a4a27c841edd5b0b03370624825af449d2255b07be1e525fc17245ca6d5bdae2",
+      "size": 24766
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_taskdiag.h",
+      "sha256": "a669bd1137b7cf82da43165ca403762f9c5c9b87f455c2bd12d0dca6d0a66975",
+      "size": 96
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_taskman.c",
+      "sha256": "c969937a84ac39bf343eca6dc3060c021a3cdd6ff047c4d10b2655b99604960f",
+      "size": 33240
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_taskman.h",
+      "sha256": "38bf60b5622126ed0e20492268d5601dc2eb9d1684f85ff1dfe8ef667ee56d7f",
+      "size": 8110
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_taskmantest.c",
+      "sha256": "78730c7fc2e6e2887c28927fd7fe83a5e2c3633a0772fad73471554a782fc312",
+      "size": 127103
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_taskmantest.h",
+      "sha256": "efaf89651f74f65554f10ffc5dc087f13b0229b0de27c01708a428b5ebe978bb",
+      "size": 2277
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_tasktest.c",
+      "sha256": "040f145c6c2ad3a364b158ba06452fc4ea562c0f7fbc6354a10c2ec8ccc4d13d",
+      "size": 26691
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_tasktest.h",
+      "sha256": "08a334df3200026d8482c625e1958cae2f306314ecbb583186ea78c12dae578e",
+      "size": 1121
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_tlbtest.c",
+      "sha256": "fd854336b79652b2528786fbd00a65c47f970656e341d2102a8ec048b4eb8853",
+      "size": 624
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_tlbtest.h",
+      "sha256": "e463b7917b5c310088341c348f3a2cb8de823599cfb209f7afe29953e5e5400c",
+      "size": 91
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_usbdiag.c",
+      "sha256": "93168981873c0515c40a9dd30db79b284954536fae08556d43f56a7641ff29a7",
+      "size": 178
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_usbdiag.h",
+      "sha256": "f4715512562d334aa70d2d092af433877e5fb73aa55920fd9ed11b0b086ac196",
+      "size": 92
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_version.c",
+      "sha256": "1b230d7964d1fe11bb8d6bd469caffab587b1cc5540224c8f551f79fb312d890",
+      "size": 262
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_version.h",
+      "sha256": "dc21d316e3236c651b672870d8be287f066919fe8dcf3135ec163eb87e480c84",
+      "size": 92
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_wxtest.c",
+      "sha256": "a5257a8b614752c1fcf76c6a2641e6c7664bf9d43aa0b1dcaeaac2160d948fd7",
+      "size": 244
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_wxtest.h",
+      "sha256": "43c99cc688f8c92395682b0108744b88b4a440d2d65e78cdecbaa85dc48d529f",
+      "size": 87
+    },
+    {
+      "path": "kernel/src/shell/commands/registry.c",
+      "sha256": "923060eaed6ec5345dce36f254ca1be2cdbaf15f1e4082584d3b907f26cf7957",
+      "size": 17763
+    },
+    {
+      "path": "kernel/src/shell/commands/registry.h",
+      "sha256": "1143b4e03c1c66e45f155cdc487cc3e263c1fac8424148ead91c309e559a87a5",
+      "size": 332
+    },
+    {
+      "path": "kernel/src/shell/commands/taskman_view.c",
+      "sha256": "2d115daf48e864fb9a0e5b6320ccded46a959c9b5b47487ef4a8b64b67267c3a",
+      "size": 29984
+    },
+    {
+      "path": "kernel/src/shell/commands/taskman_view.h",
+      "sha256": "231d9077cf08daf25a7e1d18c11bf3e568fa9f2d3976de80c6eda10c4f9a2fe3",
+      "size": 5175
+    },
+    {
+      "path": "kernel/src/shell/diagnostic_result.c",
+      "sha256": "af7479f8a6efa6a7b0b1ce5b19e9870ba3fd77333b30986bea2ae13481680368",
+      "size": 13676
+    },
+    {
+      "path": "kernel/src/shell/diagnostic_result.h",
+      "sha256": "cd0ff007127ddab33a1a98b21533fa52fd3502a10957dcd8a5efb8636c82fc80",
+      "size": 730
+    },
+    {
+      "path": "kernel/src/shell/shell.c",
+      "sha256": "a5780ace403b157ceec1b3fcc0c37e15bde3a998ced90a6fc1a9cc35c37e4557",
+      "size": 23701
+    },
+    {
+      "path": "kernel/src/shell/shell.h",
+      "sha256": "8089f10b6efa768d1e792878f7dcf74491ab896a1df9266b343584b6422bebb1",
+      "size": 1804
+    },
+    {
+      "path": "kernel/src/smp/ap_entry.S",
+      "sha256": "d9043cf8c1cc0be4c89548b494f3523037b1e75baf59e123eedf048ac880933a",
+      "size": 631
+    },
+    {
+      "path": "kernel/src/smp/cpu_limits.h",
+      "sha256": "88690ad61643f95313fb032fd7792d82ff98742cc87c62a60307345450ebe9a4",
+      "size": 96
+    },
+    {
+      "path": "kernel/src/smp/cpu_request.c",
+      "sha256": "985176cfb99470440598422abe2a78ff7592443f6445c003daab8e5dc57d16ff",
+      "size": 13594
+    },
+    {
+      "path": "kernel/src/smp/cpu_request.h",
+      "sha256": "ffb45cce7be18e1dae522cdbc209d18a38d394af9da19627a968abbcc1489f02",
+      "size": 4251
+    },
+    {
+      "path": "kernel/src/smp/cpu_request_state.c",
+      "sha256": "d735f837742fe72d81839cac409367135f3131421a29d6094ad6c42fb3cecd29",
+      "size": 4800
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "sha256": "4abdb6691408d126bc0692dacb8c082abe95e71a9b65350604ef3fef58d8e070",
+      "size": 15164
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.h",
+      "sha256": "63e122ae93dbd5a22b98006aa2f272ecdc2e56a63ee95c84e731ad854a025c9e",
+      "size": 285
+    },
+    {
+      "path": "kernel/src/smp/smp_topology.c",
+      "sha256": "2ec2ec2e65b4946807f608e1f3dfa37c6494949c177eff4eec6e17105058a915",
+      "size": 9658
+    },
+    {
+      "path": "kernel/src/smp/smp_topology.h",
+      "sha256": "d82f125db00651ac14d2b78b9667eda06b64a8eecf1a214157a9b6ed76314b71",
+      "size": 1048
+    },
+    {
+      "path": "kernel/src/smp/trampoline.S",
+      "sha256": "0c868c6be2ce6bd6d22042f04211b7c28bf253040479c8467a3cb7c1d673e8b0",
+      "size": 8074
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "sha256": "7f0c01a593e8e46b0a48b73892083833c0a42c9e8ea5fed659cbabd337654d7a",
+      "size": 28438
+    },
+    {
+      "path": "kernel/src/timer/hpet.h",
+      "sha256": "4e7423c73fc9727ac76d0ba32e2c647fe5282840ace74e2bcb17c14fa9c67a89",
+      "size": 4414
+    },
+    {
+      "path": "kernel/src/utils/bitmap.c",
+      "sha256": "744f7fbe1503a6b6d00ffac8767cbcb9695472e9e4cfd23ac7648e96c697b1f0",
+      "size": 11162
+    },
+    {
+      "path": "kernel/src/utils/bitmap.h",
+      "sha256": "229265d28ed1b163cd69bd734588265614beb1b25052a240bab7318d05e50aa1",
+      "size": 1988
+    },
+    {
+      "path": "kernel/src/utils/bits.h",
+      "sha256": "8a0a9e19459923c84fe8d121863c808f9d383c46ee8d4960ecc17c0a6e415e74",
+      "size": 1967
+    },
+    {
+      "path": "shared/mem_map.h",
+      "sha256": "e7b202d96b0935642684fff92cecc4a74836bcca2b44ae745a97fb657e69576c",
+      "size": 1126
+    },
+    {
+      "path": "shared/protocol.h",
+      "sha256": "ec2bd073ce752bc8bafd35b3d616296915080e4f59f426ccbb55b90a7daf6de5",
+      "size": 1136
+    }
+  ],
+  "counts": {
+    "paging_map": 0,
+    "paging_get_physical_address": 0,
+    "xhci_paging_map": 0
+  },
+  "external_calls": [],
+  "allocations": [
+    {
+      "api": "kmalloc",
+      "line": 361,
+      "function": "init_madt",
+      "arguments": [
+        "sizeof(madt_cpu_t) * counts.cpus"
+      ],
+      "anchor": "kmalloc(sizeof(madt_cpu_t) * counts.cpus)",
+      "path": "kernel/src/acpi/madt.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 364,
+      "function": "init_madt",
+      "arguments": [
+        "sizeof(madt_ioapic_t) * counts.ioapics"
+      ],
+      "anchor": "kmalloc(sizeof(madt_ioapic_t) * counts.ioapics)",
+      "path": "kernel/src/acpi/madt.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 366,
+      "function": "init_madt",
+      "arguments": [
+        "sizeof(madt_iso_t) * counts.isos"
+      ],
+      "anchor": "kmalloc(sizeof(madt_iso_t) * counts.isos)",
+      "path": "kernel/src/acpi/madt.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 368,
+      "function": "init_madt",
+      "arguments": [
+        "sizeof(madt_nmi_t) * counts.nmis"
+      ],
+      "anchor": "kmalloc(sizeof(madt_nmi_t) * counts.nmis)",
+      "path": "kernel/src/acpi/madt.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 120,
+      "function": "ioapic_init_all",
+      "arguments": [
+        "sizeof(ioapic_controller_t) * count"
+      ],
+      "anchor": "kmalloc(sizeof(ioapic_controller_t) * count)",
+      "path": "kernel/src/apic/ioapic.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 161,
+      "function": "ioapic_init_all",
+      "arguments": [
+        "sizeof(interrupt_route_t) * g_ioapic_registry.route_capacity"
+      ],
+      "anchor": "kmalloc(sizeof(interrupt_route_t) * g_ioapic_registry.route_capacity)",
+      "path": "kernel/src/apic/ioapic.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 94,
+      "function": "dpc_enqueue",
+      "arguments": [
+        "sizeof(dpc_job_t)"
+      ],
+      "anchor": "kmalloc(sizeof(dpc_job_t))",
+      "path": "kernel/src/core/dpc.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 92,
+      "function": "interrupt_context_init",
+      "arguments": [
+        "sizeof(interrupt_cpu_journal_t) * cpu_count"
+      ],
+      "anchor": "kmalloc(sizeof(interrupt_cpu_journal_t) * cpu_count)",
+      "path": "kernel/src/core/interrupt_context.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 270,
+      "function": "irq_bootstrap_init",
+      "arguments": [
+        "sizeof(*cpus) * g_cpu_count"
+      ],
+      "anchor": "kmalloc(sizeof(*cpus) * g_cpu_count)",
+      "path": "kernel/src/core/irq_bootstrap.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 183,
+      "function": "init_system_core",
+      "arguments": [
+        "16"
+      ],
+      "anchor": "kmalloc(16)",
+      "path": "kernel/src/core/kernel_init.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 491,
+      "function": "modal_ui_run_sync",
+      "arguments": [
+        "sizeof(*c)"
+      ],
+      "anchor": "kmalloc(sizeof(*c))",
+      "path": "kernel/src/core/modal_ui.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 227,
+      "function": "create_idle_task",
+      "arguments": [
+        "sizeof(task_t)"
+      ],
+      "anchor": "kmalloc(sizeof(task_t))",
+      "path": "kernel/src/core/scheduler.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 770,
+      "function": "thread_create_ex_handle",
+      "arguments": [
+        "sizeof(task_t)"
+      ],
+      "anchor": "kmalloc(sizeof(task_t))",
+      "path": "kernel/src/core/scheduler.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 68,
+      "function": "timer_node_alloc",
+      "arguments": [
+        "sizeof(*node)"
+      ],
+      "anchor": "kmalloc(sizeof(*node))",
+      "path": "kernel/src/core/timers.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 2931,
+      "function": "xhci_get_config_descriptor",
+      "arguments": [
+        "alloc_len"
+      ],
+      "anchor": "kmalloc(alloc_len)",
+      "path": "kernel/src/drivers/usb/xhci/xhci.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 91,
+      "function": "gdt_create_per_cpu",
+      "arguments": [
+        "sizeof(GdtTable)"
+      ],
+      "anchor": "kmalloc(sizeof(GdtTable))",
+      "path": "kernel/src/memory/gdt.c"
+    },
+    {
+      "api": "pmm_alloc_contiguous_frames",
+      "line": 332,
+      "function": "heap_expand_locked",
+      "arguments": [
+        "(size_t)pages_needed"
+      ],
+      "anchor": "pmm_alloc_contiguous_frames((size_t)pages_needed)",
+      "path": "kernel/src/memory/heap.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 472,
+      "function": "kmalloc_aligned",
+      "arguments": [
+        "raw_size"
+      ],
+      "anchor": "kmalloc(raw_size)",
+      "path": "kernel/src/memory/heap.c"
+    },
+    {
+      "api": "pmm_alloc_contiguous_frames",
+      "line": 71,
+      "function": "allocate_owner",
+      "arguments": [
+        "capacity/4096"
+      ],
+      "anchor": "pmm_alloc_contiguous_frames(capacity/4096)",
+      "path": "kernel/src/memory/kernel_stack.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 256,
+      "function": "framebuffer_copy_benchmark",
+      "arguments": [
+        "bytes"
+      ],
+      "anchor": "kmalloc(bytes)",
+      "path": "kernel/src/memory/mapping_probe.c"
+    },
+    {
+      "api": "pmm_alloc_frame",
+      "line": 59,
+      "function": "alloc_table",
+      "arguments": [
+        ""
+      ],
+      "anchor": "pmm_alloc_frame()",
+      "path": "kernel/src/memory/paging.c"
+    },
+    {
+      "api": "pmm_alloc_frame",
+      "line": 632,
+      "function": "fixture_alloc_table",
+      "arguments": [
+        ""
+      ],
+      "anchor": "pmm_alloc_frame()",
+      "path": "kernel/src/memory/paging.c"
+    },
+    {
+      "api": "pmm_alloc_frame",
+      "line": 925,
+      "function": "owned_table_allocate",
+      "arguments": [
+        ""
+      ],
+      "anchor": "pmm_alloc_frame()",
+      "path": "kernel/src/memory/paging.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 79,
+      "function": "physical_fixture_run",
+      "arguments": [
+        "64"
+      ],
+      "anchor": "kmalloc(64)",
+      "path": "kernel/src/memory/physical_fixture.c"
+    },
+    {
+      "api": "pmm_alloc_frame",
+      "line": 82,
+      "function": "physical_fixture_run",
+      "arguments": [
+        ""
+      ],
+      "anchor": "pmm_alloc_frame()",
+      "path": "kernel/src/memory/physical_fixture.c"
+    },
+    {
+      "api": "pmm_alloc_contiguous_frames",
+      "line": 82,
+      "function": "physical_fixture_run",
+      "arguments": [
+        "3"
+      ],
+      "anchor": "pmm_alloc_contiguous_frames(3)",
+      "path": "kernel/src/memory/physical_fixture.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 109,
+      "function": "ram_map_fixture_run",
+      "arguments": [
+        "64"
+      ],
+      "anchor": "kmalloc(64)",
+      "path": "kernel/src/memory/ram_map_fixture.c"
+    },
+    {
+      "api": "pmm_alloc_frame",
+      "line": 190,
+      "function": "prepare",
+      "arguments": [
+        ""
+      ],
+      "anchor": "pmm_alloc_frame()",
+      "path": "kernel/src/memory/tlb_fixture.c"
+    },
+    {
+      "api": "pmm_alloc_frame",
+      "line": 190,
+      "function": "prepare",
+      "arguments": [
+        ""
+      ],
+      "anchor": "pmm_alloc_frame()",
+      "path": "kernel/src/memory/tlb_fixture.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 72,
+      "function": "alloctest_heap",
+      "arguments": [
+        "SIZE_MAX"
+      ],
+      "anchor": "kmalloc(SIZE_MAX)",
+      "path": "kernel/src/shell/commands/cmd_alloctest.c"
+    },
+    {
+      "api": "kmalloc_aligned",
+      "line": 73,
+      "function": "alloctest_heap",
+      "arguments": [
+        "SIZE_MAX - 8u",
+        "64u"
+      ],
+      "anchor": "kmalloc_aligned(SIZE_MAX - 8u, 64u)",
+      "path": "kernel/src/shell/commands/cmd_alloctest.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 75,
+      "function": "alloctest_heap",
+      "arguments": [
+        "128u"
+      ],
+      "anchor": "kmalloc(128u)",
+      "path": "kernel/src/shell/commands/cmd_alloctest.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 88,
+      "function": "alloctest_heap",
+      "arguments": [
+        "80u"
+      ],
+      "anchor": "kmalloc(80u)",
+      "path": "kernel/src/shell/commands/cmd_alloctest.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 89,
+      "function": "alloctest_heap",
+      "arguments": [
+        "80u"
+      ],
+      "anchor": "kmalloc(80u)",
+      "path": "kernel/src/shell/commands/cmd_alloctest.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 90,
+      "function": "alloctest_heap",
+      "arguments": [
+        "80u"
+      ],
+      "anchor": "kmalloc(80u)",
+      "path": "kernel/src/shell/commands/cmd_alloctest.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 101,
+      "function": "alloctest_heap",
+      "arguments": [
+        "96u"
+      ],
+      "anchor": "kmalloc(96u)",
+      "path": "kernel/src/shell/commands/cmd_alloctest.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 102,
+      "function": "alloctest_heap",
+      "arguments": [
+        "96u"
+      ],
+      "anchor": "kmalloc(96u)",
+      "path": "kernel/src/shell/commands/cmd_alloctest.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 103,
+      "function": "alloctest_heap",
+      "arguments": [
+        "96u"
+      ],
+      "anchor": "kmalloc(96u)",
+      "path": "kernel/src/shell/commands/cmd_alloctest.c"
+    },
+    {
+      "api": "kmalloc_aligned",
+      "line": 114,
+      "function": "alloctest_heap",
+      "arguments": [
+        "257u",
+        "256u"
+      ],
+      "anchor": "kmalloc_aligned(257u, 256u)",
+      "path": "kernel/src/shell/commands/cmd_alloctest.c"
+    },
+    {
+      "api": "pmm_alloc_frame",
+      "line": 196,
+      "function": "alloctest_pmm",
+      "arguments": [
+        ""
+      ],
+      "anchor": "pmm_alloc_frame()",
+      "path": "kernel/src/shell/commands/cmd_alloctest.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 463,
+      "function": "irq_boot",
+      "arguments": [
+        "samples_bytes"
+      ],
+      "anchor": "kmalloc(samples_bytes)",
+      "path": "kernel/src/shell/commands/cmd_irq.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 66,
+      "function": "create_case",
+      "arguments": [
+        "sizeof(*r)"
+      ],
+      "anchor": "kmalloc(sizeof(*r))",
+      "path": "kernel/src/shell/commands/cmd_killtest.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 66,
+      "function": "create_case",
+      "arguments": [
+        "sizeof(*c)"
+      ],
+      "anchor": "kmalloc(sizeof(*c))",
+      "path": "kernel/src/shell/commands/cmd_killtest.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 332,
+      "function": "profiletest_memory_benchmark",
+      "arguments": [
+        "PROFILETEST_BENCHMARK_BYTES"
+      ],
+      "anchor": "kmalloc(PROFILETEST_BENCHMARK_BYTES)",
+      "path": "kernel/src/shell/commands/cmd_profiletest.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 333,
+      "function": "profiletest_memory_benchmark",
+      "arguments": [
+        "PROFILETEST_BENCHMARK_BYTES"
+      ],
+      "anchor": "kmalloc(PROFILETEST_BENCHMARK_BYTES)",
+      "path": "kernel/src/shell/commands/cmd_profiletest.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 439,
+      "function": "concurrent_churn_test",
+      "arguments": [
+        "sizeof(*c)"
+      ],
+      "anchor": "kmalloc(sizeof(*c))",
+      "path": "kernel/src/shell/commands/cmd_reaptest.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 439,
+      "function": "concurrent_churn_test",
+      "arguments": [
+        "sizeof(task_handle_t)*n"
+      ],
+      "anchor": "kmalloc(sizeof(task_handle_t)*n)",
+      "path": "kernel/src/shell/commands/cmd_reaptest.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 439,
+      "function": "concurrent_churn_test",
+      "arguments": [
+        "sizeof(task_handle_t)*k"
+      ],
+      "anchor": "kmalloc(sizeof(task_handle_t)*k)",
+      "path": "kernel/src/shell/commands/cmd_reaptest.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 337,
+      "function": "cmd_smpstress",
+      "arguments": [
+        "sizeof(smpstress_ctx_t)"
+      ],
+      "anchor": "kmalloc(sizeof(smpstress_ctx_t))",
+      "path": "kernel/src/shell/commands/cmd_smpstress.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 144,
+      "function": "model_alloc",
+      "arguments": [
+        "(size_t)bytes"
+      ],
+      "anchor": "kmalloc((size_t)bytes)",
+      "path": "kernel/src/shell/commands/cmd_taskman.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 194,
+      "function": "visual_workspace_ensure",
+      "arguments": [
+        "sizeof(*w)"
+      ],
+      "anchor": "kmalloc(sizeof(*w))",
+      "path": "kernel/src/shell/commands/cmd_taskman.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 197,
+      "function": "visual_workspace_ensure",
+      "arguments": [
+        "CONSOLE_MAX_COLS_STORAGE*sizeof(*w->row_cells)"
+      ],
+      "anchor": "kmalloc(CONSOLE_MAX_COLS_STORAGE*sizeof(*w->row_cells))",
+      "path": "kernel/src/shell/commands/cmd_taskman.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 198,
+      "function": "visual_workspace_ensure",
+      "arguments": [
+        "2u*text_cap"
+      ],
+      "anchor": "kmalloc(2u*text_cap)",
+      "path": "kernel/src/shell/commands/cmd_taskman.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 198,
+      "function": "visual_workspace_ensure",
+      "arguments": [
+        "text_cap"
+      ],
+      "anchor": "kmalloc(text_cap)",
+      "path": "kernel/src/shell/commands/cmd_taskman.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 199,
+      "function": "visual_workspace_ensure",
+      "arguments": [
+        "text_cap"
+      ],
+      "anchor": "kmalloc(text_cap)",
+      "path": "kernel/src/shell/commands/cmd_taskman.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 365,
+      "function": "pagination_test",
+      "arguments": [
+        "257*sizeof(*a)"
+      ],
+      "anchor": "kmalloc(257*sizeof(*a))",
+      "path": "kernel/src/shell/commands/cmd_taskmantest.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 2568,
+      "function": "stats_print_with_capacity",
+      "arguments": [
+        "record_capacity"
+      ],
+      "anchor": "kmalloc(record_capacity)",
+      "path": "kernel/src/shell/commands/cmd_taskmantest.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 270,
+      "function": "smp_prepare_cpu_structures",
+      "arguments": [
+        "sizeof(Tss64)"
+      ],
+      "anchor": "kmalloc(sizeof(Tss64))",
+      "path": "kernel/src/smp/smp_topology.c"
+    },
+    {
+      "api": "kmalloc",
+      "line": 301,
+      "function": "smp_prepare_cpu_structures",
+      "arguments": [
+        "sizeof(GdtTable)"
+      ],
+      "anchor": "kmalloc(sizeof(GdtTable))",
+      "path": "kernel/src/smp/smp_topology.c"
+    }
+  ],
+  "pointer_cast_candidates": [
+    {
+      "path": "bootloader/src/gop.c",
+      "line": 225,
+      "function": "get_framebuffer",
+      "anchor": "framebuffer.BaseAddress = (void *)gop->Mode->FrameBufferBase;"
+    },
+    {
+      "path": "bootloader/src/kernel_loader.c",
+      "line": 79,
+      "function": "load_elf_kernel",
+      "anchor": "Elf64_Phdr *phdr = (Elf64_Phdr *)ph_buffer;"
+    },
+    {
+      "path": "bootloader/src/kernel_loader.c",
+      "line": 99,
+      "function": "load_elf_kernel",
+      "anchor": "phdr = (Elf64_Phdr *)((UINT8 *)phdr + header.e_phentsize);"
+    },
+    {
+      "path": "bootloader/src/kernel_loader.c",
+      "line": 123,
+      "function": "load_elf_kernel",
+      "anchor": "uefi_call_wrapper(BS->SetMem, 3, (void *)min_start, (max_end - min_start), 0);"
+    },
+    {
+      "path": "bootloader/src/kernel_loader.c",
+      "line": 125,
+      "function": "load_elf_kernel",
+      "anchor": "phdr = (Elf64_Phdr *)ph_buffer;"
+    },
+    {
+      "path": "bootloader/src/kernel_loader.c",
+      "line": 135,
+      "function": "load_elf_kernel",
+      "anchor": "status = uefi_call_wrapper(kernel_file->Read, 3, kernel_file, &to_read, (void *)phdr->p_paddr);"
+    },
+    {
+      "path": "bootloader/src/kernel_loader.c",
+      "line": 146,
+      "function": "load_elf_kernel",
+      "anchor": "phdr = (Elf64_Phdr *)((UINT8 *)phdr + header.e_phentsize);"
+    },
+    {
+      "path": "bootloader/src/kernel_loader.c",
+      "line": 151,
+      "function": "load_elf_kernel",
+      "anchor": "return (void *)header.e_entry;"
+    },
+    {
+      "path": "bootloader/src/mem.c",
+      "line": 23,
+      "function": "get_memory_map",
+      "anchor": "(EFI_MEMORY_DESCRIPTOR *)mmap_info->Base,"
+    },
+    {
+      "path": "bootloader/src/mem.c",
+      "line": 45,
+      "function": "get_memory_map",
+      "anchor": "(EFI_MEMORY_DESCRIPTOR *)mmap_info->Base,"
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "line": 93,
+      "function": "acpi_checksum8",
+      "anchor": "const uint8_t *b = (const uint8_t *)p;"
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "line": 105,
+      "function": "acpi_find_sdt",
+      "anchor": "const AcpiRsdp *rsdp = (const AcpiRsdp *)rsdp_void;"
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "line": 123,
+      "function": "acpi_find_sdt",
+      "anchor": "xsdt = (const AcpiSdtHeader *)(uintptr_t)rsdp->XsdtAddress;"
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "line": 132,
+      "function": "acpi_find_sdt",
+      "anchor": "rsdt = (const AcpiSdtHeader *)(uintptr_t)rsdp->RsdtAddress;"
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "line": 150,
+      "function": "acpi_find_sdt",
+      "anchor": "const uint64_t *table_ptrs = (const uint64_t *)((const uint8_t *)root + hdr_len);"
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "line": 153,
+      "function": "acpi_find_sdt",
+      "anchor": "const AcpiSdtHeader *h = (const AcpiSdtHeader *)(uintptr_t)table_ptrs[i];"
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "line": 166,
+      "function": "acpi_find_sdt",
+      "anchor": "const uint32_t *table_ptrs = (const uint32_t *)((const uint8_t *)root + hdr_len);"
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "line": 169,
+      "function": "acpi_find_sdt",
+      "anchor": "const AcpiSdtHeader *h = (const AcpiSdtHeader *)(uintptr_t)table_ptrs[i];"
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "line": 196,
+      "function": "serial_discover_from_spcr",
+      "anchor": "const AcpiSpcr *spcr = (const AcpiSpcr *)spcr_hdr;"
+    },
+    {
+      "path": "bootloader/src/utils.c",
+      "line": 5,
+      "function": "memcmp",
+      "anchor": "const unsigned char *s1 = (const unsigned char *)a;"
+    },
+    {
+      "path": "bootloader/src/utils.c",
+      "line": 6,
+      "function": "memcmp",
+      "anchor": "const unsigned char *s2 = (const unsigned char *)b;"
+    },
+    {
+      "path": "kernel/link.ld",
+      "line": 32,
+      "function": "translation_unit",
+      "anchor": "*(.text .text.*)"
+    },
+    {
+      "path": "kernel/link.ld",
+      "line": 46,
+      "function": "translation_unit",
+      "anchor": "*(.rodata .rodata.*)"
+    },
+    {
+      "path": "kernel/link.ld",
+      "line": 60,
+      "function": "translation_unit",
+      "anchor": "*(.data .data.*)"
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "line": 84,
+      "function": "acpi_observe_root",
+      "anchor": "*address = index == 0 ? (const void *)g_rsdp :"
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "line": 85,
+      "function": "acpi_observe_root",
+      "anchor": "index == 1 ? (const void *)g_xsdt : (const void *)g_rsdt;"
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "line": 85,
+      "function": "acpi_observe_root",
+      "anchor": "index == 1 ? (const void *)g_xsdt : (const void *)g_rsdt;"
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "line": 117,
+      "function": "init_acpi",
+      "anchor": "g_fadt = (const AcpiFadt *)acpi_find_table(\"FACP\");"
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "line": 138,
+      "function": "acpi_find_table",
+      "anchor": "const uint8_t *pointers = (const uint8_t *)g_xsdt + sizeof(AcpiSdtHeader);"
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "line": 151,
+      "function": "acpi_find_table",
+      "anchor": "return (void *)header;"
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "line": 168,
+      "function": "acpi_find_table",
+      "anchor": "const uint8_t *pointers = (const uint8_t *)g_rsdt + sizeof(AcpiSdtHeader);"
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "line": 181,
+      "function": "acpi_find_table",
+      "anchor": "return (void *)header;"
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "line": 208,
+      "function": "acpi_list_tables_debug",
+      "anchor": "const uint8_t *pointers = (const uint8_t *)g_xsdt + sizeof(AcpiSdtHeader);"
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "line": 255,
+      "function": "acpi_list_tables_debug",
+      "anchor": "const uint8_t *pointers = (const uint8_t *)g_rsdt + sizeof(AcpiSdtHeader);"
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "line": 307,
+      "function": "acpi_list_tables",
+      "anchor": "const uint8_t *pointers = (const uint8_t *)g_xsdt + sizeof(AcpiSdtHeader);"
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "line": 354,
+      "function": "acpi_list_tables",
+      "anchor": "const uint8_t *pointers = (const uint8_t *)g_rsdt + sizeof(AcpiSdtHeader);"
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "line": 391,
+      "function": "acpi_get_fadt",
+      "anchor": "g_fadt = (const AcpiFadt *)acpi_find_table(\"FACP\");"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 44,
+      "function": "madt_checksum_valid",
+      "anchor": "const uint8_t *bytes = (const uint8_t *)table;"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 108,
+      "function": "madt_scan",
+      "anchor": "const uint8_t *ptr = (const uint8_t *)table + sizeof(MadtTable);"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 109,
+      "function": "madt_scan",
+      "anchor": "const uint8_t *end = (const uint8_t *)table + table->header.length;"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 115,
+      "function": "madt_scan",
+      "anchor": "const MadtEntryHeader *entry = (const MadtEntryHeader *)ptr;"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 124,
+      "function": "madt_scan",
+      "anchor": "if (((const MadtProcessorEntry *)ptr)->flags & MADT_FLAG_ENABLED)"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 128,
+      "function": "madt_scan",
+      "anchor": "if (((const MadtProcessorX2ApicEntry *)ptr)->flags & MADT_FLAG_ENABLED)"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 132,
+      "function": "madt_scan",
+      "anchor": "if (!((const MadtIoApicEntry *)ptr)->ioapic_address)"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 138,
+      "function": "madt_scan",
+      "anchor": "const MadtIsoEntry *iso = (const MadtIsoEntry *)ptr;"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 150,
+      "function": "madt_scan",
+      "anchor": "(const MadtLocalApicNmiEntry *)ptr;"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 162,
+      "function": "madt_scan",
+      "anchor": "(const MadtLocalX2ApicNmiEntry *)ptr;"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 174,
+      "function": "madt_scan",
+      "anchor": "((const MadtLocalApicAddressOverrideEntry *)ptr)->lapic_address;"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 222,
+      "function": "madt_populate",
+      "anchor": "const uint8_t *ptr = (const uint8_t *)table + sizeof(MadtTable);"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 223,
+      "function": "madt_populate",
+      "anchor": "const uint8_t *end = (const uint8_t *)table + table->header.length;"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 230,
+      "function": "madt_populate",
+      "anchor": "const MadtEntryHeader *entry = (const MadtEntryHeader *)ptr;"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 235,
+      "function": "madt_populate",
+      "anchor": "const MadtProcessorEntry *cpu = (const MadtProcessorEntry *)ptr;"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 251,
+      "function": "madt_populate",
+      "anchor": "(const MadtProcessorX2ApicEntry *)ptr;"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 266,
+      "function": "madt_populate",
+      "anchor": "const MadtIoApicEntry *io = (const MadtIoApicEntry *)ptr;"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 274,
+      "function": "madt_populate",
+      "anchor": "if (!madt_iso_store((const MadtIsoEntry *)ptr))"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 280,
+      "function": "madt_populate",
+      "anchor": "(const MadtLocalApicNmiEntry *)ptr;"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 291,
+      "function": "madt_populate",
+      "anchor": "(const MadtLocalX2ApicNmiEntry *)ptr;"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 351,
+      "function": "init_madt",
+      "anchor": "MadtTable *table = (MadtTable *)acpi_find_table(ACPI_SIG_MADT);"
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "line": 521,
+      "function": "madt_fixture_checksum",
+      "anchor": "uint8_t *bytes = (uint8_t *)table;"
+    },
+    {
+      "path": "kernel/src/acpi/sleep.c",
+      "line": 121,
+      "function": "acpi_get_s5_sleep_types",
+      "anchor": "const uint8_t *aml = (const uint8_t *)dsdt + sizeof(AcpiSdtHeader);"
+    },
+    {
+      "path": "kernel/src/apic/ioapic.c",
+      "line": 28,
+      "function": "ioapic_read_locked",
+      "anchor": "mmio_write32((void *)(controller->registers + IOREGSEL), reg);"
+    },
+    {
+      "path": "kernel/src/apic/ioapic.c",
+      "line": 29,
+      "function": "ioapic_read_locked",
+      "anchor": "return mmio_read32((void *)(controller->registers + IOWIN));"
+    },
+    {
+      "path": "kernel/src/apic/ioapic.c",
+      "line": 35,
+      "function": "ioapic_write_locked",
+      "anchor": "mmio_write32((void *)(controller->registers + IOREGSEL), reg);"
+    },
+    {
+      "path": "kernel/src/apic/ioapic.c",
+      "line": 36,
+      "function": "ioapic_write_locked",
+      "anchor": "mmio_write32((void *)(controller->registers + IOWIN), value);"
+    },
+    {
+      "path": "kernel/src/apic/lapic.c",
+      "line": 46,
+      "function": "lapic_write",
+      "anchor": "mmio_write32((void *)(g_lapic_registers + reg), value);"
+    },
+    {
+      "path": "kernel/src/apic/lapic.c",
+      "line": 53,
+      "function": "lapic_read",
+      "anchor": "return g_lapic_base ? mmio_read32((void *)(g_lapic_registers + reg)) : 0;"
+    },
+    {
+      "path": "kernel/src/core/assert_selftest.c",
+      "line": 421,
+      "function": "assertion_test_runtime",
+      "anchor": "spinlock_t *lock = (spinlock_t *)(uintptr_t)address;"
+    },
+    {
+      "path": "kernel/src/core/dpc.c",
+      "line": 94,
+      "function": "dpc_enqueue",
+      "anchor": "dpc_job_t *job = (dpc_job_t *)kmalloc(sizeof(dpc_job_t));"
+    },
+    {
+      "path": "kernel/src/core/interrupts.c",
+      "line": 98,
+      "function": "interrupts_consume_reschedule",
+      "anchor": "kpanic_exception_ex(g_exc_names[(vec)], (uint8_t)(vec), (void *)frame, 0, 0, 0, 0); \\"
+    },
+    {
+      "path": "kernel/src/core/interrupts.c",
+      "line": 104,
+      "function": "interrupts_consume_reschedule",
+      "anchor": "kpanic_exception_ex(g_exc_names[(vec)], (uint8_t)(vec), (void *)frame, error_code, 1, 0, 0); \\"
+    },
+    {
+      "path": "kernel/src/core/interrupts.c",
+      "line": 116,
+      "function": "interrupts_consume_reschedule",
+      "anchor": "kpanic_exception(\"Divide by Zero (Division Error)\", (void *)frame, 0, 0, cr2, 0);"
+    },
+    {
+      "path": "kernel/src/core/interrupts.c",
+      "line": 143,
+      "function": "__attribute__",
+      "anchor": "kpanic_exception(\"General Protection Fault (#GP)\", (void *)frame, error_code, 1, cr2, 0);"
+    },
+    {
+      "path": "kernel/src/core/interrupts.c",
+      "line": 153,
+      "function": "__attribute__",
+      "anchor": "kpanic_exception(\"Page Fault (#PF)\", (void *)frame, error_code, 1, cr2, 1);"
+    },
+    {
+      "path": "kernel/src/core/interrupts.c",
+      "line": 163,
+      "function": "__attribute__",
+      "anchor": "kpanic_exception(\"Unknown Exception\", (void *)frame, 0, 0, cr2, 0);"
+    },
+    {
+      "path": "kernel/src/core/interrupts.c",
+      "line": 312,
+      "function": "irq_external_dispatch",
+      "anchor": "kpanic_exception_ex(g_exc_names[2], 2, (void *)frame,"
+    },
+    {
+      "path": "kernel/src/core/interrupts.c",
+      "line": 329,
+      "function": "irq_external_dispatch",
+      "anchor": "kpanic_exception_ex(g_exc_names[8],8,(void *)frame,error_code,1,cr2,1);"
+    },
+    {
+      "path": "kernel/src/core/interrupts.c",
+      "line": 357,
+      "function": "irq_external_dispatch",
+      "anchor": "kpanic_exception_ex(low_fault_description(cr2), 14, (void *)frame, error_code, 1, cr2, 1);"
+    },
+    {
+      "path": "kernel/src/core/list.h",
+      "line": 84,
+      "function": "list_del",
+      "anchor": "((type *)((char *)(ptr) - offsetof(type, member)))"
+    },
+    {
+      "path": "kernel/src/core/panic.c",
+      "line": 1102,
+      "function": "panic_emit_exception",
+      "anchor": "spin_lock((spinlock_t *)(uintptr_t)"
+    },
+    {
+      "path": "kernel/src/core/panic.c",
+      "line": 1205,
+      "function": "kpanic_exception_ex",
+      "anchor": "panic_emit_exception(title, vector, (InterruptFrame *)frame,"
+    },
+    {
+      "path": "kernel/src/core/panic.c",
+      "line": 1223,
+      "function": "panic_test_hold_locks",
+      "anchor": "spinlock_t *console_lock = (spinlock_t *)(uintptr_t)"
+    },
+    {
+      "path": "kernel/src/core/panic.c",
+      "line": 1225,
+      "function": "panic_test_hold_locks",
+      "anchor": "spinlock_t *clock_lock = (spinlock_t *)(uintptr_t)"
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "line": 227,
+      "function": "create_idle_task",
+      "anchor": "task_t *idle = (task_t *)kmalloc(sizeof(task_t));"
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "line": 770,
+      "function": "thread_create_ex_handle",
+      "anchor": "task_t *t = (task_t *)kmalloc(sizeof(task_t));"
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "line": 800,
+      "function": "thread_create_ex_handle",
+      "anchor": "uint64_t *sp = (uint64_t *)((uint8_t *)t->stack_base + STACK_SIZE);"
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "line": 1207,
+      "function": "scheduler_task_stack_guard_ok",
+      "anchor": "const uint8_t *p=(const uint8_t*)task->stack_base;"
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "line": 1233,
+      "function": "scheduler_report_stack_usage",
+      "anchor": "uint8_t *bytes = (uint8_t *)task->stack_base;"
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "line": 1471,
+      "function": "scheduler_finish_switch",
+      "anchor": "scheduler_cpu_state_t *cpu = pointer_valid ? (scheduler_cpu_state_t *)cpu_state : NULL;"
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "line": 1917,
+      "function": "scheduler_test_corrupt_stack_guard",
+      "anchor": "bool scheduler_test_corrupt_stack_guard(task_id_t id,uint32_t offset){bool ok=false;irq_flags_t f=spin_lock_irqsave(&g_scheduler_lock);task_t*t=find_task_by_id_locked(id);if(t&&!t->on_cpu&&t->stack_base&&offset<t->kernel_stack_guard_bytes){((uint8_t*)t->stack_base)[offset]^=1u;ok=true;}spin_unlock_irqrestore(&g_scheduler_lock,f);if(ok)serial_write_all(\"[TASK][STACK][NEGATIVE] STACK_GUARD_CORRUPTION_DETECTED\\n\");return ok;}"
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "line": 1944,
+      "function": "scheduler_cancellation_selftest",
+      "anchor": "bool scheduler_cancellation_selftest(void){task_create_options_t bad={.name=\"bad\",.task_class=TASK_CLASS_NORMAL,.flags=TASK_FLAG_SYSTEM|TASK_FLAG_KILLABLE|TASK_FLAG_KILL_PROTECTED};bool ok=!thread_create_ex((void (*)(void *))1,NULL,&bad);ok=ok&&!strcmp(scheduler_task_exit_reason_to_string(TASK_EXIT_NORMAL),\"NORMAL\")&&!strcmp(scheduler_task_exit_reason_to_string(TASK_EXIT_KILLED),\"KILLED\");task_snapshot_t s={.flags=TASK_FLAG_SYSTEM};ok=ok&&!strcmp(scheduler_task_kill_state_to_string(&s),\"NO\");s.flags=TASK_FLAG_SYSTEM|TASK_FLAG_KILL_PROTECTED;ok=ok&&!strcmp(scheduler_task_kill_state_to_string(&s),\"PROT\");s.flags=TASK_FLAG_SYSTEM|TASK_FLAG_KILLABLE;s.id=UINT64_MAX;ok=ok&&!strcmp(scheduler_task_kill_state_to_string(&s),\"-\");s.flags=TASK_FLAG_SYSTEM;s.state=TASK_ZOMBIE;ok=ok&&!strcmp(scheduler_task_kill_state_to_string(&s),\"ZOMB\");serial_write_all(ok?\"[TASK][SELFTEST] CANCELLATION_GUARDS_OK\\n\":\"[TASK][SELFTEST] CANCELLATION_GUARDS_FAIL\\n\");return ok;}"
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "line": 2434,
+      "function": "task_reap_mask_locked",
+      "anchor": "if(task_is_current_locked((task_t*)t,&cpu)) m|=TASK_REAP_DEFER_CURRENT;"
+    },
+    {
+      "path": "kernel/src/core/timers.c",
+      "line": 68,
+      "function": "timer_node_alloc",
+      "anchor": "timer_node_t *node = (timer_node_t *)kmalloc(sizeof(*node));"
+    },
+    {
+      "path": "kernel/src/cpu/mmio.h",
+      "line": 94,
+      "function": "mmio_read8_relaxed",
+      "anchor": "uint8_t value = *(volatile uint8_t *)address;"
+    },
+    {
+      "path": "kernel/src/cpu/mmio.h",
+      "line": 108,
+      "function": "mmio_read16_relaxed",
+      "anchor": "uint16_t value = *(volatile uint16_t *)address;"
+    },
+    {
+      "path": "kernel/src/cpu/mmio.h",
+      "line": 122,
+      "function": "mmio_read32_relaxed",
+      "anchor": "uint32_t value = *(volatile uint32_t *)address;"
+    },
+    {
+      "path": "kernel/src/cpu/mmio.h",
+      "line": 136,
+      "function": "mmio_read64_relaxed",
+      "anchor": "uint64_t value = *(volatile uint64_t *)address;"
+    },
+    {
+      "path": "kernel/src/cpu/mmio.h",
+      "line": 150,
+      "function": "mmio_write8_relaxed",
+      "anchor": "*(volatile uint8_t *)address = value;"
+    },
+    {
+      "path": "kernel/src/cpu/mmio.h",
+      "line": 163,
+      "function": "mmio_write16_relaxed",
+      "anchor": "*(volatile uint16_t *)address = value;"
+    },
+    {
+      "path": "kernel/src/cpu/mmio.h",
+      "line": 176,
+      "function": "mmio_write32_relaxed",
+      "anchor": "*(volatile uint32_t *)address = value;"
+    },
+    {
+      "path": "kernel/src/cpu/mmio.h",
+      "line": 189,
+      "function": "mmio_write64_relaxed",
+      "anchor": "*(volatile uint64_t *)address = value;"
+    },
+    {
+      "path": "kernel/src/cpu/tss.c",
+      "line": 61,
+      "function": "tss_install_guarded_ist",
+      "anchor": "uint64_t *field=(uint64_t *)((uintptr_t)&g_tss+offsetof(Tss64,ist1)+i*8);"
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "line": 116,
+      "function": "pci_get_capability",
+      "anchor": "uint8_t *ptr_to_cap = (uint8_t *)header + 0x34;"
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "line": 145,
+      "function": "pci_msi_prepare",
+      "anchor": "volatile uint16_t *msg_ctl_p = (volatile uint16_t *)(cap + 0x02);"
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "line": 150,
+      "function": "pci_msi_prepare",
+      "anchor": "volatile uint32_t *msg_addr_lo_p = (volatile uint32_t *)(cap + 0x04);"
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "line": 151,
+      "function": "pci_msi_prepare",
+      "anchor": "volatile uint32_t *msg_addr_hi_p = is_64bit ? (volatile uint32_t *)(cap + 0x08) : NULL;"
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "line": 152,
+      "function": "pci_msi_prepare",
+      "anchor": "volatile uint16_t *msg_data_p = is_64bit ? (volatile uint16_t *)(cap + 0x0C)"
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "line": 153,
+      "function": "pci_msi_prepare",
+      "anchor": ": (volatile uint16_t *)(cap + 0x08);"
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "line": 270,
+      "function": "pci_enumerate_function",
+      "anchor": "uint32_t *bars = (uint32_t *)((uint64_t)pci_header + 0x10);"
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "line": 354,
+      "function": "pci_init",
+      "anchor": "McfgHeader *mcfg = (McfgHeader *)acpi_find_table(ACPI_SIG_MCFG);"
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "line": 377,
+      "function": "pci_init",
+      "anchor": "McfgDeviceConfig *config = (McfgDeviceConfig *)((uint64_t)mcfg + sizeof(McfgHeader) + (sizeof(McfgDeviceConfig) * t));"
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "line": 466,
+      "function": "pci_list_devices",
+      "anchor": "McfgHeader *mcfg = (McfgHeader *)acpi_find_table(\"MCFG\");"
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "line": 479,
+      "function": "pci_list_devices",
+      "anchor": "McfgDeviceConfig *config = (McfgDeviceConfig *)((uint64_t)mcfg + sizeof(McfgHeader));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_hotplug.c",
+      "line": 66,
+      "function": "hp_portsc_reg",
+      "anchor": "return (volatile uint32_t *)((volatile uint8_t *)xhci_driver.port_regs +"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_hotplug.c",
+      "line": 137,
+      "function": "hp_schedule",
+      "anchor": "void *cookie = (void *)(uintptr_t)((ticket << 8) | port);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_hotplug.c",
+      "line": 283,
+      "function": "hp_poll_schedule",
+      "anchor": "hp_hub_poll_timer_cb, (void *)(uintptr_t)ticket) :"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_hotplug.c",
+      "line": 284,
+      "function": "hp_poll_schedule",
+      "anchor": "dpc_enqueue(hp_hub_poll_dpc, (void *)(uintptr_t)ticket);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_hub.c",
+      "line": 504,
+      "function": "usb_hub_enumerate",
+      "anchor": "usb_config_descriptor_t *conf = (usb_config_descriptor_t *)conf_buf;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_hub.c",
+      "line": 507,
+      "function": "usb_hub_enumerate",
+      "anchor": "uint8_t *ptr = (uint8_t *)conf_buf;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_hub.c",
+      "line": 520,
+      "function": "usb_hub_enumerate",
+      "anchor": "usb_interface_descriptor_t *iface = (usb_interface_descriptor_t *)(ptr + offset);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 141,
+      "function": "xhci_mmio32_at",
+      "anchor": "return (volatile uint32_t *)((volatile uint8_t *)base + offset);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 445,
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "memset((void *)ring_virt, 0, 4096);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 447,
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "xhci_driver.slot_kbd_rings[slot_id] = (volatile xhci_trb_t *)ring_virt;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 475,
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "memset((void *)buf_virt, 0, 64);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 477,
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "xhci_driver.slot_kbd_buffers[slot_id][q] = (uint8_t *)buf_virt;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 498,
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "uint64_t inp_phys = xhci_dma_address((const void *)input_ctx, 4096);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 501,
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "uint32_t *icc = (uint32_t *)input_ctx;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 515,
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "uint32_t *slot_ctx = (uint32_t *)((uint8_t *)input_ctx + ctx_size);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 516,
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "uint32_t *ep0_ctx = (uint32_t *)((uint8_t *)input_ctx + (ctx_size * 2));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 539,
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "uint32_t *ep_ctx = (uint32_t *)((uint8_t *)input_ctx + (ctx_size * (dci + 1)));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 557,
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "__asm__ __volatile__(\"clflush (%0)\" ::\"r\"((uint8_t *)input_ctx + off) : \"memory\");"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 661,
+      "function": "xhci_drain_events",
+      "anchor": "volatile uint32_t *iman = (volatile uint32_t *)(ir0 + 0x00);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 672,
+      "function": "xhci_write64_split",
+      "anchor": "volatile uint32_t *lo = (volatile uint32_t *)addr;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 673,
+      "function": "xhci_write64_split",
+      "anchor": "volatile uint32_t *hi = (volatile uint32_t *)(addr + 4);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 702,
+      "function": "xhci_recover_command_ring",
+      "anchor": "uint64_t expected_base = xhci_dma_address((const void *)xhci_driver.cmd_ring_base, xhci_driver.cmd_ring_size * sizeof(xhci_trb_t));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 715,
+      "function": "xhci_recover_command_ring",
+      "anchor": "uint32_t cmd = xhci_read32((volatile uint32_t *)(op_base + OP_USBCMD));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 716,
+      "function": "xhci_recover_command_ring",
+      "anchor": "xhci_write32((volatile uint32_t *)(op_base + OP_USBCMD), cmd & ~(USBCMD_RUN_STOP | USBCMD_INTE));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 720,
+      "function": "xhci_recover_command_ring",
+      "anchor": "uint32_t sts = xhci_read32((volatile uint32_t *)(op_base + OP_USBSTS));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 728,
+      "function": "xhci_recover_command_ring",
+      "anchor": "cmd = xhci_read32((volatile uint32_t *)(op_base + OP_USBCMD));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 729,
+      "function": "xhci_recover_command_ring",
+      "anchor": "xhci_write32((volatile uint32_t *)(op_base + OP_USBCMD), cmd | USBCMD_HC_RESET);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 733,
+      "function": "xhci_recover_command_ring",
+      "anchor": "cmd = xhci_read32((volatile uint32_t *)(op_base + OP_USBCMD));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 741,
+      "function": "xhci_recover_command_ring",
+      "anchor": "uint32_t sts = xhci_read32((volatile uint32_t *)(op_base + OP_USBSTS));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 755,
+      "function": "xhci_recover_command_ring",
+      "anchor": "uint64_t cmd_ring_phys = xhci_dma_address((const void *)xhci_driver.cmd_ring_base, xhci_driver.cmd_ring_size * sizeof(xhci_trb_t));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 761,
+      "function": "xhci_recover_command_ring",
+      "anchor": "uint64_t dcbaap_phys = xhci_dma_address((const void *)xhci_driver.dcbaa, (xhci_driver.max_slots + 1) * sizeof(uint64_t));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 765,
+      "function": "xhci_recover_command_ring",
+      "anchor": "uint32_t config = xhci_read32((volatile uint32_t *)(op_base + OP_CONFIG));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 770,
+      "function": "xhci_recover_command_ring",
+      "anchor": "cmd = xhci_read32((volatile uint32_t *)(op_base + OP_USBCMD));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 771,
+      "function": "xhci_recover_command_ring",
+      "anchor": "xhci_write32((volatile uint32_t *)(op_base + OP_USBCMD), cmd | USBCMD_RUN_STOP | USBCMD_INTE);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 775,
+      "function": "xhci_recover_command_ring",
+      "anchor": "uint32_t sts = xhci_read32((volatile uint32_t *)(op_base + OP_USBSTS));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 831,
+      "function": "xhci_queue_kbd_request_buf",
+      "anchor": "buf_phys = xhci_dma_address((const void *)buf, 64);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1103,
+      "function": "xhci_configure_owned_root",
+      "anchor": "uint64_t dev_phys = xhci_dma_address((const void *)dev_ctx, out_bytes);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1113,
+      "function": "xhci_configure_owned_root",
+      "anchor": "uint64_t inp_phys = xhci_dma_address((const void *)input_ctx, 4096);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1116,
+      "function": "xhci_configure_owned_root",
+      "anchor": "uint32_t *icc_add = (uint32_t *)((uint8_t *)input_ctx + 4);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1119,
+      "function": "xhci_configure_owned_root",
+      "anchor": "uint32_t *slot_dw = (uint32_t *)((uint8_t *)input_ctx + ctx_size);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1120,
+      "function": "xhci_configure_owned_root",
+      "anchor": "uint32_t *ep0_dw = (uint32_t *)((uint8_t *)input_ctx + (ctx_size * 2));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1126,
+      "function": "xhci_configure_owned_root",
+      "anchor": "uint64_t tr_phys = xhci_dma_address((const void *)tr_ring, 4096);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1129,
+      "function": "xhci_configure_owned_root",
+      "anchor": "xhci_trb_t *ring = (xhci_trb_t *)tr_ring;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1156,
+      "function": "xhci_configure_owned_root",
+      "anchor": "xhci_driver.slot_ep0_rings[slot_id] = (xhci_trb_t *)tr_ring;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1316,
+      "function": "xhci_write64",
+      "anchor": "*(volatile uint64_t *)addr = val;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1321,
+      "function": "xhci_read64",
+      "anchor": "return *(volatile uint64_t *)addr;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1510,
+      "function": "xhci_alloc_dcbaa",
+      "anchor": "uint64_t dcbaa_phys = xhci_dma_address((const void *)dcbaa_virt, size);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1515,
+      "function": "xhci_alloc_dcbaa",
+      "anchor": "xhci_driver.dcbaa = (uint64_t *)dcbaa_virt;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1530,
+      "function": "xhci_alloc_dcbaa",
+      "anchor": "uint64_t sp_array_phys = xhci_dma_address((const void *)sp_array_virt, sp_array_bytes);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1538,
+      "function": "xhci_alloc_dcbaa",
+      "anchor": "uint64_t buf_phys = xhci_dma_address((const void *)buf_virt, 4096);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1543,
+      "function": "xhci_alloc_dcbaa",
+      "anchor": "((uint64_t *)sp_array_virt)[i] = buf_phys;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1584,
+      "function": "xhci_init_command_ring",
+      "anchor": "uint64_t phys = xhci_dma_address((const void *)ptr, size);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1588,
+      "function": "xhci_init_command_ring",
+      "anchor": "xhci_driver.cmd_ring_base = (xhci_trb_t *)ptr;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1622,
+      "function": "xhci_init_event_ring",
+      "anchor": "uint64_t ring_phys = xhci_dma_address((const void *)ring_virt, ring_bytes);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1625,
+      "function": "xhci_init_event_ring",
+      "anchor": "xhci_driver.event_ring = (xhci_trb_t *)ring_virt;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1630,
+      "function": "xhci_init_event_ring",
+      "anchor": "uint64_t erst_phys = xhci_dma_address((const void *)erst_virt, sizeof(xhci_erst_entry_t));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1633,
+      "function": "xhci_init_event_ring",
+      "anchor": "xhci_driver.erst = (xhci_erst_entry_t *)erst_virt;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1861,
+      "function": "xhci_event_ring_try_resync",
+      "anchor": "volatile uint64_t *erdp_reg = (volatile uint64_t *)(ir0 + 0x18);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 1911,
+      "function": "xhci_process_events",
+      "anchor": "uint64_t ev_ring_phys_base = xhci_dma_address((const void *)xhci_driver.event_ring, xhci_driver.event_ring_size * sizeof(xhci_trb_t));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2140,
+      "function": "xhci_handle_interrupt",
+      "anchor": "volatile uint32_t *iman = (volatile uint32_t *)(ir0 + 0x00);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2201,
+      "function": "xhci_clflush_range",
+      "anchor": "const uint8_t *p = (const uint8_t *)ptr;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2264,
+      "function": "xhci_get_output_ep_ctx_dw",
+      "anchor": "return (volatile uint32_t *)(out + (uint64_t)ctx_size * (uint64_t)dci);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2330,
+      "function": "xhci_dump_kbd_endpoint_state",
+      "anchor": "xhci_clflush_range((const void *)ep, (uint64_t)xhci_get_ctx_size());"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2517,
+      "function": "xhci_init",
+      "anchor": "xhci_driver.port_regs = (xhci_port_regs_t *)((uint64_t)xhci_driver.op_regs + 0x400);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2649,
+      "function": "xhci_evaluate_context",
+      "anchor": "uint64_t inp_phys = xhci_dma_address((const void *)input_ctx, 4096);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2653,
+      "function": "xhci_evaluate_context",
+      "anchor": "uint32_t *icc_drop = (uint32_t *)((uint8_t *)input_ctx + 0);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2654,
+      "function": "xhci_evaluate_context",
+      "anchor": "uint32_t *icc_add = (uint32_t *)((uint8_t *)input_ctx + 4);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2658,
+      "function": "xhci_evaluate_context",
+      "anchor": "uint8_t *in_slot = (uint8_t *)input_ctx + ctx_size;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2659,
+      "function": "xhci_evaluate_context",
+      "anchor": "uint8_t *in_ep0 = (uint8_t *)input_ctx + (ctx_size * 2);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2673,
+      "function": "xhci_evaluate_context",
+      "anchor": "((xhci_slot_context_t *)in_slot)->SlotState = 0;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2675,
+      "function": "xhci_evaluate_context",
+      "anchor": "((xhci_endpoint_context_t *)in_ep0)->EpState = 0;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2677,
+      "function": "xhci_evaluate_context",
+      "anchor": "((xhci_endpoint_context_t *)in_ep0)->MaxPacketSize = new_mps;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2775,
+      "function": "xhci_send_command_wait",
+      "anchor": "uint64_t cmd_phys = xhci_dma_address((const void *)cmd, sizeof(*cmd)) & ~0xFULL;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2841,
+      "function": "xhci_send_command_wait",
+      "anchor": "volatile uint32_t *crcr_lo = (volatile uint32_t *)crcr_addr;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2857,
+      "function": "xhci_send_command_wait",
+      "anchor": "uint64_t ring_phys = xhci_dma_address((const void *)xhci_driver.cmd_ring_base, xhci_driver.cmd_ring_size * sizeof(xhci_trb_t));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2861,
+      "function": "xhci_send_command_wait",
+      "anchor": "volatile uint32_t *crcr_hi = (volatile uint32_t *)(crcr_addr + 4);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2943,
+      "function": "xhci_parse_config",
+      "anchor": "usb_config_descriptor_t *cfg = (usb_config_descriptor_t *)config_buffer;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2946,
+      "function": "xhci_parse_config",
+      "anchor": "uint8_t *ptr = (uint8_t *)config_buffer;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2966,
+      "function": "xhci_parse_config",
+      "anchor": "usb_interface_descriptor_t *iface = (usb_interface_descriptor_t *)(ptr + offset);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 2990,
+      "function": "xhci_parse_config",
+      "anchor": "usb_endpoint_descriptor_t *ep = (usb_endpoint_descriptor_t *)(ptr + offset);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 3197,
+      "function": "xhci_control_transfer",
+      "anchor": "uint32_t setup_param_low = *(uint32_t *)setup;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 3198,
+      "function": "xhci_control_transfer",
+      "anchor": "uint32_t setup_param_high = *(((uint32_t *)setup) + 1);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 3302,
+      "function": "xhci_configure_device_with_context",
+      "anchor": "uint64_t dev_phys = xhci_dma_address((const void *)dev_ctx, out_bytes);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 3312,
+      "function": "xhci_configure_device_with_context",
+      "anchor": "uint64_t inp_phys = xhci_dma_address((const void *)input_ctx, 4096);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 3315,
+      "function": "xhci_configure_device_with_context",
+      "anchor": "uint32_t *icc_add = (uint32_t *)((uint8_t *)input_ctx + 4);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 3318,
+      "function": "xhci_configure_device_with_context",
+      "anchor": "uint32_t *slot_dw = (uint32_t *)((uint8_t *)input_ctx + ctx_size);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 3338,
+      "function": "xhci_configure_device_with_context",
+      "anchor": "uint32_t *ep0_dw = (uint32_t *)((uint8_t *)input_ctx + (ctx_size * 2));"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 3341,
+      "function": "xhci_configure_device_with_context",
+      "anchor": "uint64_t tr_phys = xhci_dma_address((const void *)tr_ring, 4096);"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 3344,
+      "function": "xhci_configure_device_with_context",
+      "anchor": "xhci_trb_t *ring = (xhci_trb_t *)tr_ring;"
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "line": 3391,
+      "function": "xhci_configure_device_with_context",
+      "anchor": "xhci_driver.slot_ep0_rings[slot_id] = (xhci_trb_t *)tr_ring;"
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "line": 141,
+      "function": "acpi_wdat_discovered_extent",
+      "anchor": "const AcpiTableWdat *wdat = (const void *)acpi_retained_table(ACPI_SIG_WDAT, &table_physical);"
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "line": 145,
+      "function": "acpi_wdat_discovered_extent",
+      "anchor": "const AcpiWdatEntry *entries = (const void *)((const uint8_t *)wdat+wdat->header_length);"
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "line": 162,
+      "function": "wdat_prepare_views",
+      "anchor": "const AcpiWdatEntry *entries = (const void *)((const uint8_t *)wdat + wdat->header_length);"
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "line": 200,
+      "function": "wdat_read_reg",
+      "anchor": "*out_val = *(volatile uint8_t *)p;"
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "line": 203,
+      "function": "wdat_read_reg",
+      "anchor": "*out_val = *(volatile uint16_t *)p;"
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "line": 206,
+      "function": "wdat_read_reg",
+      "anchor": "*out_val = *(volatile uint32_t *)p;"
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "line": 209,
+      "function": "wdat_read_reg",
+      "anchor": "*out_val = *(volatile uint64_t *)p;"
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "line": 257,
+      "function": "wdat_write_reg",
+      "anchor": "*(volatile uint8_t *)p = (uint8_t)val;"
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "line": 260,
+      "function": "wdat_write_reg",
+      "anchor": "*(volatile uint16_t *)p = (uint16_t)val;"
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "line": 263,
+      "function": "wdat_write_reg",
+      "anchor": "*(volatile uint32_t *)p = (uint32_t)val;"
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "line": 266,
+      "function": "wdat_write_reg",
+      "anchor": "*(volatile uint64_t *)p = (uint64_t)val;"
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "line": 359,
+      "function": "wdat_run_action",
+      "anchor": "const uint8_t *base = (const uint8_t *)wdat;"
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "line": 360,
+      "function": "wdat_run_action",
+      "anchor": "const AcpiWdatEntry *entries = (const AcpiWdatEntry *)(base + wdat->header_length);"
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "line": 383,
+      "function": "acpi_wdat_disable",
+      "anchor": "AcpiTableWdat *wdat = (AcpiTableWdat *)acpi_find_table(ACPI_SIG_WDAT);"
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wddt.c",
+      "line": 24,
+      "function": "acpi_wddt_disable",
+      "anchor": "const AcpiWddtBlob *wddt = (const AcpiWddtBlob *)tbl;"
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdrt.c",
+      "line": 75,
+      "function": "acpi_wdrt_disable",
+      "anchor": "const AcpiWdrtTable *wdrt = (const AcpiWdrtTable *)tbl;"
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/intel_tco.c",
+      "line": 102,
+      "function": "derive_pmbase_from_fadt",
+      "anchor": "AcpiFadtMin *fadt = (AcpiFadtMin *)acpi_find_table(ACPI_SIG_FADT);"
+    },
+    {
+      "path": "kernel/src/graphics/console.c",
+      "line": 132,
+      "function": "draw_char_pixels_at",
+      "anchor": "char *fontPtr = (char *)g_font->glyph_buffer + (c * char_height);"
+    },
+    {
+      "path": "kernel/src/graphics/console.c",
+      "line": 188,
+      "function": "console_scroll",
+      "anchor": "char *fontPtr = (char *)g_font->glyph_buffer + (c * g_font->psf_header->charsize);"
+    },
+    {
+      "path": "kernel/src/graphics/console.c",
+      "line": 281,
+      "function": "console_render_full_internal",
+      "anchor": "char *fontPtr = (char *)g_font->glyph_buffer + (c * g_font->psf_header->charsize);"
+    },
+    {
+      "path": "kernel/src/graphics/console.c",
+      "line": 342,
+      "function": "console_clear",
+      "anchor": "((volatile uint32_t *)fb->BaseAddress)[0] == bg_color) {"
+    },
+    {
+      "path": "kernel/src/graphics/console.c",
+      "line": 736,
+      "function": "console_draw_cursor",
+      "anchor": "char *fontPtr = (char *)g_font->glyph_buffer + (underlying_char * g_font->psf_header->charsize);"
+    },
+    {
+      "path": "kernel/src/graphics/graphics.c",
+      "line": 19,
+      "function": "graphics_bind_framebuffer",
+      "anchor": "g_back_buffer = (uint32_t *)back_buffer;"
+    },
+    {
+      "path": "kernel/src/graphics/graphics.c",
+      "line": 59,
+      "function": "get_draw_buffer",
+      "anchor": "return (void *)g_back_buffer;"
+    },
+    {
+      "path": "kernel/src/graphics/graphics.c",
+      "line": 75,
+      "function": "swap_buffers",
+      "anchor": "memcpy((void *)g_fb->BaseAddress, (void *)g_back_buffer, buffer_size);"
+    },
+    {
+      "path": "kernel/src/graphics/graphics.c",
+      "line": 75,
+      "function": "swap_buffers",
+      "anchor": "memcpy((void *)g_fb->BaseAddress, (void *)g_back_buffer, buffer_size);"
+    },
+    {
+      "path": "kernel/src/graphics/graphics.c",
+      "line": 98,
+      "function": "put_pixel",
+      "anchor": "uint32_t *screen = (uint32_t *)g_fb->BaseAddress;"
+    },
+    {
+      "path": "kernel/src/graphics/graphics.c",
+      "line": 116,
+      "function": "clear_screen",
+      "anchor": "uint32_t *screen = (uint32_t *)g_fb->BaseAddress;"
+    },
+    {
+      "path": "kernel/src/graphics/graphics.c",
+      "line": 128,
+      "function": "draw_overlay_image",
+      "anchor": "uint8_t *fileData = (uint8_t *)img->PixelBuffer;"
+    },
+    {
+      "path": "kernel/src/graphics/splash.c",
+      "line": 428,
+      "function": "discard_splash_memory",
+      "anchor": "pmm_free_frame((void *)addr);"
+    },
+    {
+      "path": "kernel/src/libc/format_selftest.c",
+      "line": 101,
+      "function": "format_case_truncation",
+      "anchor": "return ksnprintf(buffer, 3, \"%p\", (void *)(uintptr_t)0x2a) == 18 &&"
+    },
+    {
+      "path": "kernel/src/libc/format_selftest.c",
+      "line": 151,
+      "function": "format_case_embedded_zero",
+      "anchor": "return ksnprintf((char *)buffer, sizeof(buffer), \"A%cB\", 0) == 3 &&"
+    },
+    {
+      "path": "kernel/src/libc/format_selftest.c",
+      "line": 173,
+      "function": "format_case_pointer",
+      "anchor": "ksnprintf(buffer, sizeof(buffer), \"%p\", (void *)NULL) == 18 &&"
+    },
+    {
+      "path": "kernel/src/libc/format_selftest.c",
+      "line": 176,
+      "function": "format_case_pointer",
+      "anchor": "(void *)(uintptr_t)0x2a) == 20 &&"
+    },
+    {
+      "path": "kernel/src/libc/format_selftest.c",
+      "line": 205,
+      "function": "format_case_va_list",
+      "anchor": "(void *)(uintptr_t)0x2a, \"done\") &&"
+    },
+    {
+      "path": "kernel/src/libc/format_selftest.c",
+      "line": 216,
+      "function": "format_case_invalid_format",
+      "anchor": "format_fill((unsigned char *)buffer, sizeof(buffer), 0xa5u);"
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "line": 11,
+      "function": "memcpy",
+      "anchor": "uint8_t *d = (uint8_t *)dest;"
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "line": 12,
+      "function": "memcpy",
+      "anchor": "const uint8_t *s = (const uint8_t *)src;"
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "line": 22,
+      "function": "memcpy",
+      "anchor": "memory_word_t word = *(const memory_word_t *)(const void *)s;"
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "line": 23,
+      "function": "memcpy",
+      "anchor": "*(memory_word_t *)(void *)d = word;"
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "line": 39,
+      "function": "memset",
+      "anchor": "uint8_t *d = (uint8_t *)dest;"
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "line": 51,
+      "function": "memset",
+      "anchor": "*(memory_word_t *)(void *)d = word;"
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "line": 66,
+      "function": "memmove",
+      "anchor": "uint8_t *d = (uint8_t *)dest;"
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "line": 67,
+      "function": "memmove",
+      "anchor": "const uint8_t *s = (const uint8_t *)src;"
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "line": 82,
+      "function": "memmove",
+      "anchor": "memory_word_t word = *(const memory_word_t *)(const void *)s;"
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "line": 83,
+      "function": "memmove",
+      "anchor": "*(memory_word_t *)(void *)d = word;"
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "line": 108,
+      "function": "memmove",
+      "anchor": "memory_word_t word = *(const memory_word_t *)(const void *)s;"
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "line": 109,
+      "function": "memmove",
+      "anchor": "*(memory_word_t *)(void *)d = word;"
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "line": 123,
+      "function": "memcmp",
+      "anchor": "const uint8_t *p1 = (const uint8_t *)s1;"
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "line": 124,
+      "function": "memcmp",
+      "anchor": "const uint8_t *p2 = (const uint8_t *)s2;"
+    },
+    {
+      "path": "kernel/src/libc/string.c",
+      "line": 358,
+      "function": "strcmp",
+      "anchor": "return *(const unsigned char *)s1 - *(const unsigned char *)s2;"
+    },
+    {
+      "path": "kernel/src/libc/string.c",
+      "line": 358,
+      "function": "strcmp",
+      "anchor": "return *(const unsigned char *)s1 - *(const unsigned char *)s2;"
+    },
+    {
+      "path": "kernel/src/libc/string.c",
+      "line": 371,
+      "function": "strncmp",
+      "anchor": "return *(const unsigned char *)s1 - *(const unsigned char *)s2;"
+    },
+    {
+      "path": "kernel/src/libc/string.c",
+      "line": 371,
+      "function": "strncmp",
+      "anchor": "return *(const unsigned char *)s1 - *(const unsigned char *)s2;"
+    },
+    {
+      "path": "kernel/src/libc/string.c",
+      "line": 383,
+      "function": "strchr",
+      "anchor": "return (char *)s;"
+    },
+    {
+      "path": "kernel/src/memory/boot_address.c",
+      "line": 28,
+      "function": "backing",
+      "anchor": "{ (void)bytes; return (const void *)(uintptr_t)physical; }"
+    },
+    {
+      "path": "kernel/src/memory/boot_address.c",
+      "line": 48,
+      "function": "boot_pointer",
+      "anchor": "*pointer = (void *)value;"
+    },
+    {
+      "path": "kernel/src/memory/boot_address.c",
+      "line": 76,
+      "function": "physical_boot_adapt",
+      "anchor": "g_map.Base = (EfiMemoryDescriptor *)g_map_bytes;"
+    },
+    {
+      "path": "kernel/src/memory/device_origin.c",
+      "line": 37,
+      "function": "mmio_origin_resolve",
+      "anchor": "const HpetTable *hpet = (const HpetTable *)header;"
+    },
+    {
+      "path": "kernel/src/memory/device_origin.c",
+      "line": 50,
+      "function": "mmio_origin_resolve",
+      "anchor": "const McfgDeviceConfig *config = (const void *)((const uint8_t *)header + offset);"
+    },
+    {
+      "path": "kernel/src/memory/dma_buffer.c",
+      "line": 47,
+      "function": "dma_buffer_allocate",
+      "anchor": "for (uint64_t i = 0; i < extent.pages; ++i) pmm_free_frame((void *)(uintptr_t)(physical + i * PAGE_SIZE));"
+    },
+    {
+      "path": "kernel/src/memory/dma_buffer.c",
+      "line": 75,
+      "function": "dma_buffer_release",
+      "anchor": "pmm_free_frame((void *)(uintptr_t)(buffer.device_address + i));"
+    },
+    {
+      "path": "kernel/src/memory/dma_buffer.c",
+      "line": 137,
+      "function": "dma_buffer_device_view",
+      "anchor": "*cpu = (uint8_t *)s->buffer.cpu + offset; ok = true; break;"
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "line": 104,
+      "function": "payload_from_block",
+      "anchor": "return (void *)((uint8_t *)b + sizeof(HeapBlock));"
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "line": 252,
+      "function": "heap_try_split_block",
+      "anchor": "uint8_t *new_addr = (uint8_t *)payload_from_block(b) + req_size;"
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "line": 253,
+      "function": "heap_try_split_block",
+      "anchor": "HeapBlock *nb = (HeapBlock *)new_addr;"
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "line": 345,
+      "function": "heap_expand_locked",
+      "anchor": "pmm_free_frame((void *)((uintptr_t)phys + page * PAGE_SIZE));"
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "line": 348,
+      "function": "heap_expand_locked",
+      "anchor": "HeapBlock *new_blk = (HeapBlock *)virtual_region;"
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "line": 476,
+      "function": "kmalloc_aligned",
+      "anchor": "uint8_t *base = (uint8_t *)raw + sizeof(AlignedAllocHeader);"
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "line": 487,
+      "function": "kmalloc_aligned",
+      "anchor": "AlignedAllocHeader *hdr = (AlignedAllocHeader *)(aligned - sizeof(AlignedAllocHeader));"
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "line": 492,
+      "function": "kmalloc_aligned",
+      "anchor": "hdr->user_ptr = (void *)aligned;"
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "line": 495,
+      "function": "kmalloc_aligned",
+      "anchor": "return (void *)aligned;"
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "line": 554,
+      "function": "heap_free_checked",
+      "anchor": "memcpy(&aligned_header, (const void *)header_address,"
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "line": 561,
+      "function": "heap_free_checked",
+      "anchor": "aligned_header.raw_ptr == (void *)payload &&"
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "line": 571,
+      "function": "heap_free_checked",
+      "anchor": "memset((void *)header_address, 0, sizeof(AlignedAllocHeader));"
+    },
+    {
+      "path": "kernel/src/memory/kernel_stack.c",
+      "line": 63,
+      "function": "free_backing",
+      "anchor": "for (uint32_t i=0;i<capacity;i+=4096) pmm_free_frame((void *)(uintptr_t)(physical+i));"
+    },
+    {
+      "path": "kernel/src/memory/kernel_stack.c",
+      "line": 201,
+      "function": "kernel_stack_acquire",
+      "anchor": "*handle=h;*base=(void *)(uintptr_t)v.base;return true;"
+    },
+    {
+      "path": "kernel/src/memory/kernel_stack.c",
+      "line": 232,
+      "function": "kernel_stack_acquire",
+      "anchor": "*handle=h;*base=(void *)(uintptr_t)v.base;return true;"
+    },
+    {
+      "path": "kernel/src/memory/mapping_probe.c",
+      "line": 48,
+      "function": "trace",
+      "anchor": "for(const unsigned char *p=(const unsigned char *)line;*p;++p) {"
+    },
+    {
+      "path": "kernel/src/memory/mapping_probe.c",
+      "line": 155,
+      "function": "unmap_cycle",
+      "anchor": "for(size_t i=0;i<buffer.backing_bytes;++i)zeroed+=((volatile uint8_t *)buffer.cpu)[i]==0;"
+    },
+    {
+      "path": "kernel/src/memory/mapping_probe.c",
+      "line": 158,
+      "function": "unmap_cycle",
+      "anchor": "*(volatile uint64_t *)buffer.cpu=marker;"
+    },
+    {
+      "path": "kernel/src/memory/mapping_probe.c",
+      "line": 263,
+      "function": "framebuffer_copy_benchmark",
+      "anchor": "for(uint64_t i=0;i<bytes/4;++i)((uint32_t *)back)[i]=0x112244u^(uint32_t)i;"
+    },
+    {
+      "path": "kernel/src/memory/mapping_probe.c",
+      "line": 273,
+      "function": "framebuffer_copy_benchmark",
+      "anchor": "uint32_t value=((volatile uint32_t *)fb->BaseAddress)[i];"
+    },
+    {
+      "path": "kernel/src/memory/memory_observation.c",
+      "line": 27,
+      "function": "memory_observation_init",
+      "anchor": "if (!memory_descriptor_decode((const uint8_t *)map->Base, map->Size,"
+    },
+    {
+      "path": "kernel/src/memory/owned_mapping.c",
+      "line": 104,
+      "function": "acquire",
+      "anchor": ".view = {{++g_generation, slot, 1}, (void *)(uintptr_t)(DEVICE_WINDOW_BASE + first * PAGE_SIZE + range.offset), physical, bytes},"
+    },
+    {
+      "path": "kernel/src/memory/owned_mapping.c",
+      "line": 199,
+      "function": "owned_mapping_subview",
+      "anchor": "if (ok) *cpu = (uint8_t *)v->view.cpu + offset;"
+    },
+    {
+      "path": "kernel/src/memory/owned_mapping.c",
+      "line": 232,
+      "function": "owned_mapping_device_view",
+      "anchor": "out->cpu = (uint8_t *)v->view.cpu + offset;"
+    },
+    {
+      "path": "kernel/src/memory/paging.c",
+      "line": 224,
+      "function": "boot_table_allocate",
+      "anchor": "pmm_free_frame((void *)(uintptr_t)physical); return false;"
+    },
+    {
+      "path": "kernel/src/memory/paging.c",
+      "line": 229,
+      "function": "boot_table_release",
+      "anchor": "{ (void)context; pmm_free_frame((void *)(uintptr_t)table.physical); }"
+    },
+    {
+      "path": "kernel/src/memory/paging.c",
+      "line": 344,
+      "function": "paging_bootstrap_retire",
+      "anchor": "if (!trampoline_root || !physical_address_range((const void *)trampoline_root,8,&parameter) ||"
+    },
+    {
+      "path": "kernel/src/memory/paging.c",
+      "line": 491,
+      "function": "init_paging",
+      "anchor": "if (paging_table_hash((const PageTable *)(uintptr_t)pointer) != g_boot_build.tables[i].verified_hash)"
+    },
+    {
+      "path": "kernel/src/memory/paging.c",
+      "line": 493,
+      "function": "init_paging",
+      "anchor": "table->cpu = (PageTable *)(uintptr_t)pointer;"
+    },
+    {
+      "path": "kernel/src/memory/paging.c",
+      "line": 496,
+      "function": "init_paging",
+      "anchor": "g_boot_build.window.tables[i].cpu = (PageTable *)(uintptr_t)(RAM_DIRECT_BASE+g_boot_build.window.tables[i].physical);"
+    },
+    {
+      "path": "kernel/src/memory/paging.c",
+      "line": 498,
+      "function": "init_paging",
+      "anchor": "g_boot_build.stacks.tables[i].cpu=(PageTable *)(uintptr_t)(RAM_DIRECT_BASE+g_boot_build.stacks.tables[i].physical);"
+    },
+    {
+      "path": "kernel/src/memory/paging.c",
+      "line": 636,
+      "function": "fixture_alloc_table",
+      "anchor": "pmm_free_frame((void *)frame);"
+    },
+    {
+      "path": "kernel/src/memory/paging.c",
+      "line": 640,
+      "function": "fixture_alloc_table",
+      "anchor": "if (!pointer) { pmm_free_frame((void *)frame); return NULL; }"
+    },
+    {
+      "path": "kernel/src/memory/paging.c",
+      "line": 934,
+      "function": "owned_table_release",
+      "anchor": "{ (void)context; pmm_free_frame((void *)(uintptr_t)table.physical); }"
+    },
+    {
+      "path": "kernel/src/memory/physical_contract.c",
+      "line": 47,
+      "function": "physical_contract_init",
+      "anchor": "memcpy(&d, (const uint8_t *)map->Base + i * map->DescriptorSize, sizeof(d));"
+    },
+    {
+      "path": "kernel/src/memory/physical_contract.c",
+      "line": 57,
+      "function": "physical_contract_init",
+      "anchor": "memcpy(&prior, (const uint8_t *)map->Base + j * map->DescriptorSize, sizeof(prior));"
+    },
+    {
+      "path": "kernel/src/memory/physical_contract.c",
+      "line": 66,
+      "function": "physical_contract_init",
+      "anchor": "memcpy(&d, (const uint8_t *)map->Base + i * map->DescriptorSize, sizeof(d));"
+    },
+    {
+      "path": "kernel/src/memory/physical_fixture.c",
+      "line": 86,
+      "function": "physical_fixture_run",
+      "anchor": "*(volatile uint64_t *)one_pointer=UINT64_C(0x6d656d6f72793131);"
+    },
+    {
+      "path": "kernel/src/memory/physical_fixture.c",
+      "line": 87,
+      "function": "physical_fixture_run",
+      "anchor": "*(volatile uint64_t *)((uint8_t *)run_pointer+3*4096-8)=UINT64_C(0x7461696c33333333);"
+    },
+    {
+      "path": "kernel/src/memory/physical_fixture.c",
+      "line": 88,
+      "function": "physical_fixture_run",
+      "anchor": "ok &= *(volatile uint64_t *)one_pointer==UINT64_C(0x6d656d6f72793131) &&"
+    },
+    {
+      "path": "kernel/src/memory/physical_fixture.c",
+      "line": 89,
+      "function": "physical_fixture_run",
+      "anchor": "*(volatile uint64_t *)((uint8_t *)run_pointer+3*4096-8)==UINT64_C(0x7461696c33333333);"
+    },
+    {
+      "path": "kernel/src/memory/physical_fixture.c",
+      "line": 94,
+      "function": "physical_fixture_run",
+      "anchor": "if (run) for(unsigned i=0;i<3;i++) pmm_free_frame((void *)((uintptr_t)run+i*4096));"
+    },
+    {
+      "path": "kernel/src/memory/physical_fixture.c",
+      "line": 101,
+      "function": "physical_fixture_run",
+      "anchor": "valid = valid && physical_address_range((void *)(cpu->stack_top-SMP_AP_STACK_BYTES),"
+    },
+    {
+      "path": "kernel/src/memory/physical_translation.c",
+      "line": 33,
+      "function": "physical_pointer_range",
+      "anchor": "*pointer = (void *)(uintptr_t)virtual_address;"
+    },
+    {
+      "path": "kernel/src/memory/physical_translation.c",
+      "line": 121,
+      "function": "physical_device_pointer",
+      "anchor": "*pointer = (void *)(uintptr_t)physical;"
+    },
+    {
+      "path": "kernel/src/memory/pmem.c",
+      "line": 144,
+      "function": "find_free_segment_for_bitmap",
+      "anchor": "best_addr = (void *)seg_start;"
+    },
+    {
+      "path": "kernel/src/memory/pmem.c",
+      "line": 214,
+      "function": "init_pmm",
+      "anchor": "g_reserved_bitmap_buffer = (uint8_t *)g_bitmap_buffer + g_bitmap_size;"
+    },
+    {
+      "path": "kernel/src/memory/pmem.c",
+      "line": 320,
+      "function": "pmm_alloc_frame",
+      "anchor": "return (void *)((uintptr_t)frame * PAGE_SIZE);"
+    },
+    {
+      "path": "kernel/src/memory/pmem.c",
+      "line": 354,
+      "function": "pmm_alloc_contiguous_frames",
+      "anchor": "return (void *)((uintptr_t)run_start * PAGE_SIZE);"
+    },
+    {
+      "path": "kernel/src/memory/pmem.c",
+      "line": 533,
+      "function": "pmm_test_reserved_frame",
+      "anchor": "return (void *)(uintptr_t)g_bitmap_physical;"
+    },
+    {
+      "path": "kernel/src/memory/pmem.c",
+      "line": 580,
+      "function": "pmm_direct_map_ready",
+      "anchor": "g_reserved_bitmap_buffer == (uint8_t *)g_bitmap_buffer + g_bitmap_size &&"
+    },
+    {
+      "path": "kernel/src/memory/pmem.c",
+      "line": 638,
+      "function": "pmm_direct_map_activate",
+      "anchor": "g_bitmap_buffer = (void *)(uintptr_t)address;"
+    },
+    {
+      "path": "kernel/src/memory/pmem.c",
+      "line": 639,
+      "function": "pmm_direct_map_activate",
+      "anchor": "g_reserved_bitmap_buffer = (uint8_t *)g_bitmap_buffer + g_bitmap_size;"
+    },
+    {
+      "path": "kernel/src/memory/protection_probe.c",
+      "line": 40,
+      "function": "emit",
+      "anchor": "for(const unsigned char *p=(const unsigned char *)line;*p;++p) {"
+    },
+    {
+      "path": "kernel/src/memory/protection_probe.c",
+      "line": 98,
+      "function": "protection_probe_execute",
+      "anchor": "result->before[i]=*(volatile uint8_t *)(uintptr_t)target->address;"
+    },
+    {
+      "path": "kernel/src/memory/protection_probe.c",
+      "line": 102,
+      "function": "protection_probe_execute",
+      "anchor": "unsigned returned=target->kind==PROTECTION_FETCH_DATA ? protection_probe_fetch((void *)(uintptr_t)target->address) :"
+    },
+    {
+      "path": "kernel/src/memory/protection_probe.c",
+      "line": 103,
+      "function": "protection_probe_execute",
+      "anchor": "protection_probe_store((void *)(uintptr_t)target->address,target->original);"
+    },
+    {
+      "path": "kernel/src/memory/protection_probe.c",
+      "line": 106,
+      "function": "protection_probe_execute",
+      "anchor": "result->after[i]=*(volatile uint8_t *)(uintptr_t)target->address;"
+    },
+    {
+      "path": "kernel/src/memory/protection_probe.c",
+      "line": 130,
+      "function": "prepare_targets",
+      "anchor": "if (*(volatile uint8_t *)(uintptr_t)address!=original[kind]) return false;"
+    },
+    {
+      "path": "kernel/src/memory/ram_map_fixture.c",
+      "line": 27,
+      "function": "emit",
+      "anchor": "for(const unsigned char *p=(const unsigned char *)line;*p;++p) {"
+    },
+    {
+      "path": "kernel/src/memory/ram_map_fixture.c",
+      "line": 49,
+      "function": "high_allocation",
+      "anchor": "*(volatile uint64_t *)pointer=UINT64_C(0x686967686672616d);"
+    },
+    {
+      "path": "kernel/src/memory/ram_map_fixture.c",
+      "line": 50,
+      "function": "high_allocation",
+      "anchor": "*(volatile uint64_t *)((uint8_t *)pointer+3*4096-8)=UINT64_C(0x7461696c61636365);"
+    },
+    {
+      "path": "kernel/src/memory/ram_map_fixture.c",
+      "line": 51,
+      "function": "high_allocation",
+      "anchor": "first=*(volatile uint64_t *)pointer;"
+    },
+    {
+      "path": "kernel/src/memory/ram_map_fixture.c",
+      "line": 52,
+      "function": "high_allocation",
+      "anchor": "last=*(volatile uint64_t *)((uint8_t *)pointer+3*4096-8);"
+    },
+    {
+      "path": "kernel/src/memory/ram_map_fixture.c",
+      "line": 56,
+      "function": "high_allocation",
+      "anchor": "if(table) pmm_free_frame((void *)(uintptr_t)table);"
+    },
+    {
+      "path": "kernel/src/memory/ram_map_fixture.c",
+      "line": 58,
+      "function": "high_allocation",
+      "anchor": "for(unsigned i=0;i<3;++i) pmm_free_frame((void *)(uintptr_t)(physical+i*4096));"
+    },
+    {
+      "path": "kernel/src/memory/ram_map_fixture.c",
+      "line": 60,
+      "function": "high_allocation",
+      "anchor": "if(reallocated) for(unsigned i=0;i<3;++i) pmm_free_frame((void *)(uintptr_t)(reallocated+i*4096));"
+    },
+    {
+      "path": "kernel/src/memory/ram_map_fixture.c",
+      "line": 112,
+      "function": "ram_map_fixture_run",
+      "anchor": "if(heap_ok) { *(volatile uint64_t *)heap=UINT64_C(0x6469726563747261);heap_ok=*(volatile uint64_t *)heap==UINT64_C(0x6469726563747261); }"
+    },
+    {
+      "path": "kernel/src/memory/ram_map_fixture.c",
+      "line": 112,
+      "function": "ram_map_fixture_run",
+      "anchor": "if(heap_ok) { *(volatile uint64_t *)heap=UINT64_C(0x6469726563747261);heap_ok=*(volatile uint64_t *)heap==UINT64_C(0x6469726563747261); }"
+    },
+    {
+      "path": "kernel/src/memory/tlb_fixture.c",
+      "line": 54,
+      "function": "emit_line",
+      "anchor": "for(const unsigned char *p=(const unsigned char *)line+1;*p;++p) {"
+    },
+    {
+      "path": "kernel/src/memory/tlb_fixture.c",
+      "line": 209,
+      "function": "cleanup",
+      "anchor": "pmm_free_frame((void*)w->frame_a);pmm_free_frame((void*)w->frame_b);"
+    },
+    {
+      "path": "kernel/src/memory/tlb_fixture.c",
+      "line": 209,
+      "function": "cleanup",
+      "anchor": "pmm_free_frame((void*)w->frame_a);pmm_free_frame((void*)w->frame_b);"
+    },
+    {
+      "path": "kernel/src/memory/tlb_fixture.c",
+      "line": 305,
+      "function": "image_leaf_record",
+      "anchor": "unsigned stage=*(const unsigned *)context;"
+    },
+    {
+      "path": "kernel/src/memory/tlb_fixture.c",
+      "line": 314,
+      "function": "image_stack_record",
+      "anchor": "unsigned stage=*(const unsigned *)context;"
+    },
+    {
+      "path": "kernel/src/memory/tlb_fixture.c",
+      "line": 358,
+      "function": "tlb_fixture_run",
+      "anchor": "ok=thread_create_named_with_class_flags(concurrent_worker,(void*)(uintptr_t)window,"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_alloctest.c",
+      "line": 81,
+      "function": "alloctest_heap",
+      "anchor": "(uint8_t *)interior + 1u, 1u, 0u, 0u);"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_alloctest.c",
+      "line": 202,
+      "function": "alloctest_pmm",
+      "anchor": "pmm_free_frame((uint8_t *)frame + 1u);"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_alloctest.c",
+      "line": 203,
+      "function": "alloctest_pmm",
+      "anchor": "pmm_free_frame((void *)(uintptr_t)pmm_get_total_memory());"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_cpu.c",
+      "line": 45,
+      "function": "cmd_cpu",
+      "anchor": "((uint32_t *)vendor)[0] = ebx;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_cpu.c",
+      "line": 46,
+      "function": "cmd_cpu",
+      "anchor": "((uint32_t *)vendor)[1] = edx;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_cpu.c",
+      "line": 47,
+      "function": "cmd_cpu",
+      "anchor": "((uint32_t *)vendor)[2] = ecx;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_cpu.c",
+      "line": 56,
+      "function": "cmd_cpu",
+      "anchor": "uint32_t *p = (uint32_t *)brand;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_inputtest.c",
+      "line": 456,
+      "function": "test_producers",
+      "anchor": "thread_create_named_handle(producer_worker, (void *)(uintptr_t)0, \"input-producer-a\", &a) &&"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_inputtest.c",
+      "line": 457,
+      "function": "test_producers",
+      "anchor": "thread_create_named_handle(producer_worker, (void *)(uintptr_t)1, \"input-producer-b\", &b);"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_irq.c",
+      "line": 463,
+      "function": "irq_boot",
+      "anchor": "irq_boot_sample_t *samples = (irq_boot_sample_t *)kmalloc(samples_bytes);"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_locktest.c",
+      "line": 95,
+      "function": "locktest_worker",
+      "anchor": "locktest_worker_t *worker = (locktest_worker_t *)arg;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_memory_observation.c",
+      "line": 331,
+      "function": "map_dump",
+      "anchor": "const HpetTable *hpet = (const HpetTable *)table;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_memory_observation.c",
+      "line": 339,
+      "function": "map_dump",
+      "anchor": "const McfgDeviceConfig *configs = (const McfgDeviceConfig *)"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_modaltest.c",
+      "line": 2069,
+      "function": "test_boundary",
+      "anchor": "char *args[2] = {\"inputtest\", (char *)sub};"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_reaptest.c",
+      "line": 65,
+      "function": "fixture_worker",
+      "anchor": "static void fixture_worker(void*a){reap_zombie_fixture_t*f=(reap_zombie_fixture_t*)a;__atomic_store_n(&f->started,1,__ATOMIC_RELEASE);sem_wait(&f->release_gate);__atomic_store_n(&f->finished,1,__ATOMIC_RELEASE);}"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_schedtest.c",
+      "line": 336,
+      "function": "yield_worker",
+      "anchor": "schedtest_ctx_t *context = (schedtest_ctx_t *)arg;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_schedtest.c",
+      "line": 365,
+      "function": "cpu_pin_worker",
+      "anchor": "schedtest_ctx_t *context = (schedtest_ctx_t *)arg;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_smpstress.c",
+      "line": 35,
+      "function": "smpstress_cleanup",
+      "anchor": "static void smpstress_cleanup(void *ctx){smpstress_ctx_t*c=(smpstress_ctx_t*)ctx;task_t*t=get_current_task();if(c&&t&&killtest_ui_telemetry_enabled()){serial_write_all(\"[SMP][KILL] id=\");serial_write_hex64_all(t->id);serial_write_all(\" worker=\");serial_write_u32_dec_all(c->worker_id);serial_write_all(\" reason=\");serial_write_all(scheduler_task_exit_reason_to_string(t->exit_reason));serial_write_all(\" cleanup=1\\n\");}if(ctx)kfree(ctx);}"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_smpstress.c",
+      "line": 188,
+      "function": "smpstress_worker",
+      "anchor": "smpstress_ctx_t *c = (smpstress_ctx_t *)arg;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_smpstress.c",
+      "line": 337,
+      "function": "cmd_smpstress",
+      "anchor": "smpstress_ctx_t *ctx = (smpstress_ctx_t *)kmalloc(sizeof(smpstress_ctx_t));"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "line": 1110,
+      "function": "sem_waiter_worker",
+      "anchor": "sync_worker_ctx_t *ctx = (sync_worker_ctx_t *)arg;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "line": 1130,
+      "function": "sem_signaler_worker",
+      "anchor": "sync_worker_ctx_t *ctx = (sync_worker_ctx_t *)arg;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "line": 1279,
+      "function": "boundary_hook",
+      "anchor": "sync_boundary_test_t *test = (sync_boundary_test_t *)ctx;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "line": 1848,
+      "function": "sleep_worker",
+      "anchor": "sync_worker_ctx_t *ctx = (sync_worker_ctx_t *)arg;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "line": 1909,
+      "function": "cancel_sem_worker",
+      "anchor": "cancel_case_t *test = (cancel_case_t *)arg;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "line": 1918,
+      "function": "cancel_sleep_worker",
+      "anchor": "cancel_case_t *test = (cancel_case_t *)arg;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "line": 2057,
+      "function": "timer_cancel_callback",
+      "anchor": "(timer_test_callback_ticket_t *)ctx;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "line": 2242,
+      "function": "timer_order_callback",
+      "anchor": "(timer_test_callback_ticket_t *)ctx;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "line": 2377,
+      "function": "timer_backlog_callback",
+      "anchor": "(timer_test_callback_ticket_t *)ctx;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_taskman.c",
+      "line": 311,
+      "function": "render",
+      "anchor": "char(*formatted)[CONSOLE_MAX_COLS_STORAGE+1u]=(void*)c->visual->text_scratch;"
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_taskmantest.c",
+      "line": 2568,
+      "function": "stats_print_with_capacity",
+      "anchor": "char *record = (char *)kmalloc(record_capacity);"
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "line": 240,
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint64_t *ptr_cr3 = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_cr3 - (uint64_t)_trampoline_start));"
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "line": 241,
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint64_t *ptr_cr4 = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_cr4 - (uint64_t)_trampoline_start));"
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "line": 242,
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint64_t *ptr_efer = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_efer - (uint64_t)_trampoline_start));"
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "line": 243,
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint64_t *ptr_cr0 = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_cr0 - (uint64_t)_trampoline_start));"
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "line": 244,
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint64_t *ptr_pat = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_pat - (uint64_t)_trampoline_start));"
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "line": 245,
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint32_t *ptr_status = (volatile uint32_t *)(trampoline + ((uint64_t)&smp_trampoline_status - (uint64_t)_trampoline_start));"
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "line": 246,
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint64_t *ptr_stack = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_stack - (uint64_t)_trampoline_start));"
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "line": 247,
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint64_t *ptr_entry = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_entry_ptr - (uint64_t)_trampoline_start));"
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "line": 248,
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint32_t *ptr_x2flag = (volatile uint32_t *)(trampoline + ((uint64_t)&smp_trampoline_x2apic_flag - (uint64_t)_trampoline_start));"
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "line": 249,
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint8_t *ptr_gdtr = (volatile uint8_t *)(trampoline + ((uint64_t)&smp_trampoline_gdtr - (uint64_t)_trampoline_start));"
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "line": 273,
+      "function": "smp_boot_aps",
+      "anchor": "*(volatile uint32_t *)(ptr_gdtr + 2) = gdt_phys_addr;"
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "line": 291,
+      "function": "smp_boot_aps",
+      "anchor": "(const void *)(uintptr_t)(cpu->stack_top - SMP_AP_STACK_BYTES), SMP_AP_STACK_BYTES);"
+    },
+    {
+      "path": "kernel/src/smp/smp_topology.c",
+      "line": 277,
+      "function": "smp_prepare_cpu_structures",
+      "anchor": "Tss64 *tss_virt = (Tss64 *)checked_cpu_pointer(tss_pointer, sizeof(Tss64));"
+    },
+    {
+      "path": "kernel/src/smp/smp_topology.c",
+      "line": 308,
+      "function": "smp_prepare_cpu_structures",
+      "anchor": "GdtTable *gdt_virt = (GdtTable *)checked_cpu_pointer(gdt_pointer, sizeof(GdtTable));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 66,
+      "function": "hpet_read_counter64_split",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_MAIN_COUNTER + 4));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 68,
+      "function": "hpet_read_counter64_split",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_MAIN_COUNTER));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 70,
+      "function": "hpet_read_counter64_split",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_MAIN_COUNTER + 4));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 148,
+      "function": "hpet_read_counter_sample",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_MAIN_COUNTER));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 166,
+      "function": "init_hpet",
+      "anchor": "HpetTable *hpet = (HpetTable *)acpi_find_table(ACPI_SIG_HPET);"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 181,
+      "function": "init_hpet",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_CAPABILITIES));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 183,
+      "function": "init_hpet",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_CAPABILITIES + 4));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 206,
+      "function": "init_hpet",
+      "anchor": "uint32_t config = mmio_read32((void *)(g_hpet_base + HPET_REG_CONFIG));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 207,
+      "function": "init_hpet",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_CONFIG),"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 214,
+      "function": "init_hpet",
+      "anchor": "(void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 217,
+      "function": "init_hpet",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)),"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 219,
+      "function": "init_hpet",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_MAIN_COUNTER), 0);"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 221,
+      "function": "init_hpet",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_MAIN_COUNTER + 4), 0);"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 222,
+      "function": "init_hpet",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_INT_STATUS), UINT32_MAX);"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 223,
+      "function": "init_hpet",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_CONFIG),"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 436,
+      "function": "hpet_timer0_prepare",
+      "anchor": "(void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0) + 4));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 455,
+      "function": "hpet_timer0_prepare",
+      "anchor": "(void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 459,
+      "function": "hpet_timer0_prepare",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)),"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 461,
+      "function": "hpet_timer0_prepare",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_INT_STATUS), 1u);"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 497,
+      "function": "hpet_timer0_clear_pending",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_INT_STATUS), 1u);"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 499,
+      "function": "hpet_timer0_clear_pending",
+      "anchor": "(mmio_read32((void *)(g_hpet_base + HPET_REG_INT_STATUS)) & 1u) != 0;"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 531,
+      "function": "hpet_timer0_arm",
+      "anchor": "(void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 533,
+      "function": "hpet_timer0_arm",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)),"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 535,
+      "function": "hpet_timer0_arm",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_INT_STATUS), 1u);"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 536,
+      "function": "hpet_timer0_arm",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_TN_COMPARATOR(0)),"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 539,
+      "function": "hpet_timer0_arm",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_TN_COMPARATOR(0) + 4),"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 542,
+      "function": "hpet_timer0_arm",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)),"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 588,
+      "function": "hpet_timer0_disable",
+      "anchor": "(void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0))) & ~(1u << 2);"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 589,
+      "function": "hpet_timer0_disable",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)),"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 591,
+      "function": "hpet_timer0_disable",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_INT_STATUS), 1u);"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 610,
+      "function": "hpet_timer0_force_quiescent",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_CONFIG));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 612,
+      "function": "hpet_timer0_force_quiescent",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_CONFIG), global_config);"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 615,
+      "function": "hpet_timer0_force_quiescent",
+      "anchor": "(void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 619,
+      "function": "hpet_timer0_force_quiescent",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)),"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 621,
+      "function": "hpet_timer0_force_quiescent",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_INT_STATUS), 1u);"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 624,
+      "function": "hpet_timer0_force_quiescent",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_CONFIG));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 626,
+      "function": "hpet_timer0_force_quiescent",
+      "anchor": "(void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 628,
+      "function": "hpet_timer0_force_quiescent",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_INT_STATUS));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 654,
+      "function": "hpet_runtime_snapshot",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_CONFIG));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 656,
+      "function": "hpet_runtime_snapshot",
+      "anchor": "(void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 658,
+      "function": "hpet_runtime_snapshot",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_INT_STATUS));"
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "line": 716,
+      "function": "hpet_timer0_snapshot",
+      "anchor": "(mmio_read32((void *)(g_hpet_base + HPET_REG_INT_STATUS)) & 1u) != 0;"
+    },
+    {
+      "path": "kernel/src/utils/bitmap.c",
+      "line": 80,
+      "function": "bitmap_init_checked",
+      "anchor": "bitmap->buffer = (uint8_t *)buffer;"
+    },
+    {
+      "path": "shared/mem_map.h",
+      "line": 46,
+      "function": "mmap_get_descriptor",
+      "anchor": "return (EfiMemoryDescriptor *)((uint8_t *)map->Base + (i * map->DescriptorSize));"
+    }
+  ],
+  "offset_uses": [
+    {
+      "path": "kernel/link.ld",
+      "line": 6,
+      "function": "translation_unit",
+      "anchor": "VIRT_TO_PHYS_OFFSET = 0xFFFFFFFF80000000;"
+    },
+    {
+      "path": "kernel/link.ld",
+      "line": 6,
+      "function": "translation_unit",
+      "anchor": "VIRT_TO_PHYS_OFFSET = 0xFFFFFFFF80000000;"
+    },
+    {
+      "path": "kernel/link.ld",
+      "line": 29,
+      "function": "translation_unit",
+      "anchor": ".text : AT(ADDR(.text) - VIRT_TO_PHYS_OFFSET) {"
+    },
+    {
+      "path": "kernel/link.ld",
+      "line": 37,
+      "function": "translation_unit",
+      "anchor": ".trampoline : AT(ADDR(.trampoline) - VIRT_TO_PHYS_OFFSET) {"
+    },
+    {
+      "path": "kernel/link.ld",
+      "line": 44,
+      "function": "translation_unit",
+      "anchor": ".rodata : AT(ADDR(.rodata) - VIRT_TO_PHYS_OFFSET) {"
+    },
+    {
+      "path": "kernel/link.ld",
+      "line": 51,
+      "function": "translation_unit",
+      "anchor": ".cpu_msr_fixup : AT(ADDR(.cpu_msr_fixup) - VIRT_TO_PHYS_OFFSET) {"
+    },
+    {
+      "path": "kernel/link.ld",
+      "line": 58,
+      "function": "translation_unit",
+      "anchor": ".data : AT(ADDR(.data) - VIRT_TO_PHYS_OFFSET) {"
+    },
+    {
+      "path": "kernel/link.ld",
+      "line": 64,
+      "function": "translation_unit",
+      "anchor": ".bss : AT(ADDR(.bss) - VIRT_TO_PHYS_OFFSET) {"
+    },
+    {
+      "path": "kernel/link.ld",
+      "line": 84,
+      "function": "translation_unit",
+      "anchor": "ASSERT(bsp_stack_top - VIRT_TO_PHYS_OFFSET <= 0x40000000,"
+    },
+    {
+      "path": "kernel/src/memory/physical_layout.h",
+      "line": 7,
+      "function": "translation_unit",
+      "anchor": "#define KERNEL_IMAGE_OFFSET UINT64_C(0xffffffff80000000)"
+    },
+    {
+      "path": "kernel/src/smp/trampoline.S",
+      "line": 255,
+      "function": "translation_unit",
+      "anchor": "mov rbx, 0xFFFFFFFF80000000"
+    }
+  ]
+}

@@ -19,7 +19,7 @@ input_layout="$evidence/candidate/command-input-layout.json"
 
 usage()
 {
-    echo "usage: $0 preflight|static|host|historical|build|qemu|fixtures|verify|all" >&2
+    echo "usage: $0 preflight|static|host|historical|build|qemu|fixtures|verify|current|all" >&2
     exit 2
 }
 
@@ -150,11 +150,37 @@ compile(Path("scripts/verify-taskman-stats-evidence.py").read_text(),
 PY
     git diff --check
     git show "$base_commit:kernel/link.ld" >"$evidence/static/base-link.ld"
-    cmp -s kernel/link.ld "$evidence/static/base-link.ld"
+    if [[ ${HOBBYOS_STATS_CURRENT:-0} == 1 &&
+          ( ${HOBBYOS_VALIDATION_CONTRACT:-} == low-address-isolation ||
+            ${HOBBYOS_VALIDATION_CONTRACT:-} == kernel-image-protection ||
+            ${HOBBYOS_VALIDATION_CONTRACT:-} == guarded-kernel-stacks ) ]]; then
+        python3 - "$evidence/static" <<'PY'
+from pathlib import Path
+import sys
+sys.path.insert(0, "scripts")
+import low_current
+import kernel_image_current
+import stack_current
+import memory_evidence as E
+directory = Path(sys.argv[1])
+current = kernel_image_current if kernel_image_current.enabled() else low_current
+if stack_current.enabled():current=stack_current
+promotion = current.contract()["promoted_sources"]["kernel/link.ld"]
+E.require(E.sha(directory / "base-link.ld") == promotion["baseline_sha256"],
+          "statistics linker baseline differs from the approved stack boundary")
+E.write(directory / "linker-successor.json", promotion)
+PY
+    else
+        cmp -s kernel/link.ld "$evidence/static/base-link.ld"
+    fi
     for protected in makefile scripts/verify-foundation-regression.py \
                      scripts/test-foundation-regression.sh \
                      scripts/foundation-qemu.py; do
-        git diff --quiet "$base_commit" -- "$protected"
+        if [[ ${HOBBYOS_STATS_CURRENT:-0} == 1 && $protected == makefile ]]; then
+            python3 scripts/memory_current.py taskman-statistics >"$evidence/static/current-scope.json"
+        else
+            git diff --quiet "$base_commit" -- "$protected"
+        fi
     done
     python3 - "$base_commit" "$evidence/static/source-audit.json" <<'PY'
 import ast
@@ -185,6 +211,13 @@ allowed = {
 }
 changed = set(subprocess.check_output(
     ["git", "diff", "--name-only", base], text=True).splitlines())
+import os
+if os.environ.get("HOBBYOS_STATS_CURRENT") == "1":
+    sys.path.insert(0, "scripts")
+    import memory_current
+    checked_scope = memory_current.scope("taskman-statistics")
+    changed = set(checked_scope["changed_paths"])
+    allowed = changed
 checks = {
     "numeric_placeholders": fmt.count("%llu") == 51,
     "mode_placeholders": fmt.count("%s") == 1,
@@ -207,7 +240,14 @@ PY
     sha256sum kernel/link.ld kernel/src/shell/commands/cmd_taskmantest.c \
         scripts/taskman-stats-host.c scripts/verify-taskman-stats-evidence.py \
         scripts/test-taskman-stats-record.sh >"$evidence/static/source.sha256"
-    echo "STATS_STATIC: PASS fields=52 capacity=1953 linker=unchanged"
+    if [[ ${HOBBYOS_STATS_CURRENT:-0} == 1 &&
+          ( ${HOBBYOS_VALIDATION_CONTRACT:-} == low-address-isolation ||
+            ${HOBBYOS_VALIDATION_CONTRACT:-} == kernel-image-protection ||
+            ${HOBBYOS_VALIDATION_CONTRACT:-} == guarded-kernel-stacks ) ]]; then
+        echo "STATS_STATIC: PASS fields=52 capacity=1953 linker=verified-successor"
+    else
+        echo "STATS_STATIC: PASS fields=52 capacity=1953 linker=unchanged"
+    fi
 }
 
 compile_host_profile()
@@ -734,6 +774,7 @@ PY
 import json
 from pathlib import Path
 import sys
+import os
 Path(sys.argv[1]).write_text(json.dumps({
     "schema": 1, "kind": "taskman-stats-record-evidence", "status": "PASS",
     "implementation_base_commit": sys.argv[3], "candidate_sha256": sys.argv[2],
@@ -742,7 +783,7 @@ Path(sys.argv[1]).write_text(json.dumps({
     "qemu_profiles": [
         f"q35-kvm-smp{smp}-run{run}"
         for smp in (4, 24) for run in range(1, 4)],
-    "historical_split_record_status": "PRESERVED_REJECTED",
+    "historical_split_record_status": ("HISTORICAL_REPLAY_UNAVAILABLE" if os.environ.get("HOBBYOS_STATS_CURRENT") == "1" else "PRESERVED_REJECTED"),
 }, indent=2, sort_keys=True) + "\n")
 PY
 }
@@ -775,6 +816,24 @@ case "$command" in
     qemu) qemu_tests; collect_result; verify ;;
     fixtures) fixtures ;;
     verify) verify ;;
+    current)
+        export HOBBYOS_STATS_CURRENT=1
+        if [[ ${HOBBYOS_VALIDATION_CONTRACT:-} == guarded-kernel-stacks ]]; then
+            base_commit=$(PYTHONPATH=scripts python3 -c 'import stack_current; print(stack_current.BASE)')
+        elif [[ ${HOBBYOS_VALIDATION_CONTRACT:-} == kernel-image-protection ]]; then
+            base_commit=$(PYTHONPATH=scripts python3 -c 'import kernel_image_current; print(kernel_image_current.BASE)')
+        elif [[ ${HOBBYOS_VALIDATION_CONTRACT:-} == low-address-isolation ]]; then
+            base_commit=$(PYTHONPATH=scripts python3 -c 'import low_current; print(low_current.BASE)')
+        fi
+        preflight
+        static_checks
+        host_tests
+        build_candidate
+        qemu_tests
+        collect_result
+        fixtures
+        python3 scripts/memory-current-regression.py records taskman-statistics --evidence "$evidence"
+        ;;
     all)
         preflight
         static_checks

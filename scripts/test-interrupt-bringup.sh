@@ -963,6 +963,10 @@ case ${1:-all} in
     final-build) final_build ;;
     report) report_gate ;;
     candidate) candidate_gate ;;
+    current)
+        python3 scripts/memory_current.py interrupts >"$artifact/current-scope.json"
+        all
+        ;;
     all) all ;;
     *)
         echo "usage: $0 preflight|static|selftest|negatives|up-tcg|smp2-tcg|smp4-kvm|smp8-kvm|smp24-kvm|pcat|soak24|final-build|report|candidate|all" >&2

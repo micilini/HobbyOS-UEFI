@@ -49,5 +49,8 @@ bool runtime_ready_is_ready(void);
 bool runtime_ready_is_test_ready(void);
 bool runtime_ready_snapshot(runtime_ready_snapshot_t *out);
 bool runtime_ready_validate(uint64_t *out_violations);
+#if defined(HOBBYOS_SERIAL_PROOF_DIAGNOSTIC) && HOBBYOS_SERIAL_PROOF_DIAGNOSTIC
+bool runtime_ready_boot_diagnostics_finished(void);
+#endif
 
 #endif

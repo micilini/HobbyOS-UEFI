@@ -13,6 +13,7 @@
 #include "../drivers/serial.h"
 #include "../drivers/timer.h"
 #include "../libc/memory.h"
+#include "../libc/string.h"
 #include "../memory/heap.h"
 #include "../smp/smp_boot.h"
 #include "../timer/hpet.h"
@@ -1155,9 +1156,18 @@ static void irq_bootstrap_wake_missing_cpus(void)
     for (cpu_slot_t slot = 0; slot < g_irq_bootstrap.cpu_count; slot++) {
         irq_bootstrap_cpu_snapshot_t cpu;
         irq_bootstrap_cpu_load_snapshot(slot, &cpu);
-        if (slot != bsp && !cpu.runtime_ready)
-            lapic_send_ipi(cpu.apic_id,
-                           INT_VECTOR_RUNTIME_RENDEZVOUS_WAKE);
+        if (slot != bsp && !cpu.runtime_ready) {
+            lapic_delivery_result_t result = lapic_send_ipi(cpu.apic_id,
+                INT_VECTOR_RUNTIME_RENDEZVOUS_WAKE);
+            if (result != LAPIC_DELIVERY_SUBMITTED) {
+                char line[128];
+                int n = ksnprintf(line, sizeof(line),
+                    "[IRQ][WAKE_FAILED] slot=%u apic=%u result=%u\n",
+                    slot, cpu.apic_id, (unsigned)result);
+                if (n > 0 && (size_t)n < sizeof(line)) serial_write_all(line);
+                irq_bootstrap_runtime_abort(IRQ_RUNTIME_ABORT_HARD_FAILURE);
+            }
+        }
     }
 }
 

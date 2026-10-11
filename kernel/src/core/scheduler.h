@@ -56,6 +56,10 @@ typedef struct
     void *cleanup_ctx;
     /* Test-only: bind a reap hold to this exact task while it is published. */
     uint8_t test_reap_hold;
+#ifdef HOBBYOS_SELFTEST
+    /* Zero preserves normal scheduling; a nonzero value is slot + 1. */
+    uint32_t test_cpu_plus_one;
+#endif
 } task_create_options_t;
 
 bool thread_create_ex_handle(void (*entry_point)(void *),void *arg,const task_create_options_t *options,task_handle_t *out);

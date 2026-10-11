@@ -544,3 +544,177 @@ autoridade física. Um PASS QEMU nunca preenche o checklist bare metal. A
 captura física é feita pelo mantenedor e qualquer FAIL bruto é preservado;
 não há retry automático, mudança de período, redução de CPUs ou relaxamento
 de limiar.
+
+
+## Current memory diagnostic validation
+
+The memory diagnostic gate uses the fixed, versioned inventory in
+`scripts/memory-current-requirements.json`. Its current acceptance is separate
+from the original one-time demonstration campaigns. A ledger row alone is not
+proof: required modes, profiles, repetitions, build inputs, command exit codes
+and raw evidence must agree, and the corresponding invariant verifier must replay.
+
+The review explicitly changed authority for three unavailable demonstrations:
+
+| Historical replay retained as unavailable | Required current authority |
+|---|---|
+| Original malformed assertion-record capture | Actual C record-builder capacity and emission tests in normal, UBSan and ASan; fresh assertion-context matrix; split, interleaved and missing-field mutations of fresh records through the same strict parser |
+| Original malformed TASKMAN statistics capture | Actual C producer and all 52 fields, single normal serial emission; three concurrent runtime boots each on KVM SMP4 and SMP24; malformed, split, truncated and missing-field mutations of fresh records |
+| Original pre-layout/reference ELFs | Current structural ELF validation, exact same-object relink, orphan rejection, native positive/negative fixtures and explicit assertion, formatting, panic, foundation, production and architecture/destructive candidate roles |
+
+These historical results retain `HISTORICAL_REPLAY_UNAVAILABLE`, their original
+paths, expected hashes and failure receipts. The `historical` and original layout
+`core` entry points retain their original fixed checks. Current results are named
+`current`; no current artifact is given a lost artifact's historical identity.
+
+Original whole-worktree scope allowlists describe their original editing
+campaign. Named current entry points instead check the fixed base revision,
+explicit allowed paths and immutable reviewed anchors in
+`scripts/memory-current-scope.json`. Assertion ABI, record fields, formatting,
+exception recovery, linker structure, input behavior and runtime oracles remain
+in force. TASKMAN's old branch, old binary hashes and exact historical frame count
+are replaced only for current runs by frozen candidate/payload identity and the
+existing stable-frame invariants. Human visual review remains separate and its
+checklist is never marked by automation. IRQ and clockevent current entry points
+run their full existing invariant suites with an explicit evidence destination.
+
+For current interrupt replay, a captured whole-source manifest still requires
+exact equality for every build input, protected anchor and unrelated file.
+Authorized documentation or harness revisions are reported with both captured
+and current hashes; they are not substituted for the tested linked inputs.
+The final ledger binds the replay harness digest, and top-level acceptance
+requires fresh fixtures under that same digest. Historical `matrix` and `all`
+manifest checks remain literal. This mapping permits documentation-only closure
+and identified oracle repairs without falsely describing a new kernel execution.
+
+The current modal-heap adapter reuses the maintained formatter consumer campaign:
+two KVM SMP4 and three KVM SMP8 boots, 1,000 modal cycles under concurrent stress,
+exact lifecycle deltas, and the outer memory-resource checkpoint after stress
+cleanup. It invokes `verify-libc-format-evidence.py` and its existing ownership
+and checkpoint validators. This is the contract documented in
+`docs/test-reports/TMV1-CL-13-FIX14-modal-ownership-vs-global-heap.md` and preserves
+the later resource-identity checks. The older focused wrapper's internal global
+heap equality is a superseded ownership oracle: concurrent timer allocations
+cannot be attributed to the modal worker. Its old classification mode remains
+unchanged and its missing original capture remains explicitly unreplayed. The
+current adapter neither recreates that capture nor claims the old `all` passed.
+The initial collector inventory described three formatter modal SMP4 runs.
+The unchanged native formatter contract specifies two. The corrected inventory
+and ledger retain both descriptions and bind that narrow correction to the
+base verifier's fixed hash; arbitrary requirement revisions are rejected.
+Native runtime evidence still passes the complete original formatter validator.
+This correction does not change the separate three-boot observation/baseline
+requirements for SMP4.
+
+The PMM integrity implementation may scan allocation/reservation bitmap words
+while retaining the same coherent lock, exact interrupt-flag restoration, full
+logical span, implication check and complete free-frame count. This changes scan
+cost only. The five-second Enter-release requirement and LAPIC cadence threshold
+remain unchanged. Passing that transport bound does not establish a microsecond
+IRQ-off latency budget. Hardware remains `DEFERRED_TO_FINAL_CLOSURE`.
+
+## Explicit CPU control-state rolling contract
+
+The accepted observation commit
+`4dcbcd2a634c9b4ca864277af613434e7f9d7075`, tree
+`d0284110ab81d2ffd09583c5ff5d6bc55281ab77`, is the pre-edit anchor for
+`scripts/cpu-control-scope.json`. The named
+`HOBBYOS_VALIDATION_CONTRACT=cpu-control-state` adapter authorizes only its
+enumerated control/bootstrap, cache-encoding, evidence and documentation paths.
+The old observation scope, historical modes and original captures remain intact.
+The PMM/bitmap implementation, interrupt handler, LAPIC, entry bridge and all
+other declared protected sources retain their approved hashes.
+
+The trampoline is intentionally extended from 376 to 796 bytes. Historical
+cross-version equality is replaced only for this named contract by the declared
+parameter offsets, reserved-stack bound, exact bootstrap instruction sites and
+current copied-blob hash. Current same-object relinks, relocation integrity,
+section/segment coverage, exception recovery, DF and SysV handoff checks remain
+mandatory. The architecture audit inventories exact GNU assembly statements;
+its additional `__volatile__` spelling coverage includes the unchanged protected
+xHCI INVLPG site. It does not grant file-wide raw-instruction exemptions.
+
+`test-cpu-control-state.sh` adds policy predicates to the independent observation
+verifier. The complete historical capture with unequal controls remains valid
+observation evidence and fails the new normalization predicate. Production
+initialization is proved by local raw register readback before ONLINE, while the
+observation command namespace remains absent. The only additional CPU-model
+profile is Q35/TCG/SMP4 with `max,-nx`; it has a separate three-boot series and
+cannot satisfy a normal matrix or timing-baseline slot.
+
+All 17 families in `memory-current-requirements.json` retain their meaningful
+runtime, production, destructive and fixture contracts. The named historical
+assertion, statistics, layout and modal limitations remain unchanged. A kernel,
+bootstrap, header or build-input change requires fresh candidate execution;
+authorized harness changes require identified fixture and final raw-evidence
+replay. No current success is inferred from the presence of a PASS ledger row.
+Before acceptance closes, re-verification may publish a new ledger only when
+every requirement and raw-result row remains identical and the identified
+harness changes. The finalizer replays the native evidence, preserves the prior
+ledger and the new replay receipt in a fresh attempt directory, and atomically
+publishes the current summary. A closed verification receives a fresh timestamped
+re-verification directory: its acceptance and fixture receipts move there
+unchanged before the active summaries are regenerated. This reuses captures
+only when build inputs are identical, and requires fresh fixtures and native
+replay under the new harness. It never supplies additional boot repetitions.
+Negative controls reject omitted families, changed candidates and changed raw
+proof during such a revision. The uniformity artifact recipe inverts the actual
+recorded Boolean so both the old nonuniform and current uniform captures can
+supply an intentionally incorrect claim; frozen historical recipes stay intact.
+Transport deadlines, timer thresholds, topology coverage and human visual
+review remain independent of the new control policy.
+
+## Acknowledged invalidation rolling contract
+
+The approved control commit `18e64098519e3787e5f5ced2328d60ef8084964c` is the
+pre-edit baseline for `HOBBYOS_VALIDATION_CONTRACT=tlb-coherency` and
+`scripts/tlb-coherency-scope.json`. Exact allowed paths have individual purposes.
+Fixed hashes retain CPU policy, cache encoding, bootstrap/entry, allocator,
+device protocol, scheduler and timer code. In changed files, fixed function
+anchors preserve unrelated behavior, including the emergency NMI sender.
+
+The authorized LAPIC delta supplies checked delivery and local publication
+ordering. Its callers retain boot, readiness and observer failures. The
+interrupt delta adds vector 225 using existing external stubs, context accounting
+and exactly one EOI; the vector-35 observer, exception recovery and timer
+epilogue remain intact. Mechanical vector references preserve numerical routing.
+The instruction audit lists each new invalidation and ordering site explicitly.
+Compile mutations reject vector collisions and changed existing assignments.
+
+The current clockevent scope permits only the three checked-send declarations
+in `lapic.h`. Replacing that exact declaration block with its original form must
+reproduce approved SHA-256
+`19f4bc74f4dceb328b6de4c7f0ca2ccae5b904f42a75ac36f63b3f1a105f753d`.
+All other header bytes and protected timer-function anchors remain fixed. A
+negative fixture changes an unrelated timer declaration and must fail this
+same check. Historical mode retains its whole-header Git-diff restriction.
+
+`test-tlb-shootdown.sh` layers coherence predicates on the retained observation
+and control validators. Old observation and control captures keep their original
+meaning. They cannot supply current kernel runtime results. All 17 inherited
+families and nine layout roles retain their exact meaningful profiles and
+destructive/production coverage. Historical replay limitations and their current
+substitutes are unchanged. Synchronous invalidation context checks do not claim
+universal held-lock tracking; every current caller has an audited lock boundary.
+The memory worker and owned test fixture release ordinary locks before waiting.
+
+The normal campaign requires three distinct consecutive boots in all seven
+profiles. Named NX-disabled and KVM xAPIC series are separate. An append-only
+failed attempt resets that profile's streak. Source changes require new frozen
+candidates; harness changes require identified hosted/fixture execution and raw
+replay. A storage reserve stops new collection before evidence can be truncated.
+Such a stop is incomplete acceptance, never an implicit waiver or PASS ledger.
+# Checked address-boundary rolling contract
+
+The approved pre-edit source `0f6629ce6ee9c9e04fdde236ddac36f5b5531d49`
+anchors `scripts/physical-translation-scope.json`. Only the enumerated physical
+pointer conversions, bounded allocation search and focused evidence transport
+supersede earlier file freezes. Graphics, task formatting, bootstrap assembly,
+CPU controls and unchanged allocator/request/interrupt functions remain pinned.
+The assertion-list current adapter admits the heap's checked backing conversion
+while retaining its old algorithms, guards and all other protected sources.
+Historical modes and literal anchors remain available under their old identity.
+The fixed 17-family inventory and nine meaningful layout roles are unchanged.
+Unavailable historical captures keep that status; no current substitute claims
+to reconstruct lost history. Transport reconstruction must reproduce exact raw
+bytes before running the same native validators.

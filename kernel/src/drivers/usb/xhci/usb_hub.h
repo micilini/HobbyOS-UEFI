@@ -4,6 +4,7 @@
 #define USB_HUB_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <stddef.h>
 
 #define USB_HUB_MAX_DEPTH 5
@@ -103,6 +104,8 @@ typedef struct
     uint8_t parent_hub_idx;
     uint8_t port_on_parent;
 
+    uint64_t root_generation, slot_generation;
+    uint8_t speed, upstream_tt_slot, upstream_tt_port;
     uint8_t is_usb3;
     uint8_t tt_think_time;
 
@@ -123,6 +126,7 @@ typedef struct usb_device_context
     uint8_t tt_hub_slot_id;
     uint8_t tt_port_num;
 
+    uint64_t root_generation, parent_generation;
     uint8_t parent_hub_slot;
     uint8_t port_on_parent;
 
@@ -171,6 +175,8 @@ int usb_hub_build_device_context(
     uint8_t device_speed,
     usb_device_context_t *out_ctx);
 
+bool usb_hub_context_current(const usb_device_context_t *ctx);
+
 int usb_hub_needs_tt(uint8_t device_speed, uint8_t parent_hub_speed);
 
 int usb_hub_probe_ports(int hub_idx);
@@ -182,6 +188,9 @@ usb_hub_info_t *usb_hub_get_list(void);
 int usb_hub_get_count(void);
 
 void usb_hub_poll_all(void);
+#ifdef HOBBYOS_SELFTEST
+bool usb_hub_snapshot(unsigned index, usb_hub_info_t *out);
+#endif
 void usb_hub_invalidate_by_slot(uint8_t slot_id);
 
 #endif

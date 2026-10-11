@@ -39,8 +39,61 @@ KERNEL_WARNING_FLAGS = -Wall -Wextra -Wundef -Wmissing-prototypes -Wvla -Wframe-
 KERNEL_EXTRA_CFLAGS ?=
 SELFTEST ?= 0
 SELFTEST_AUTORUN ?= 0
+SERIAL_PROOF_DIAGNOSTIC ?= 0
+SERIAL_PROOF_ID ?= 0
+ifeq ($(SERIAL_PROOF_DIAGNOSTIC),1)
+ifneq ($(SELFTEST)$(IRQ_LATENCY),11)
+$(error SERIAL_PROOF_DIAGNOSTIC=1 requires SELFTEST=1 IRQ_LATENCY=1)
+endif
+else ifneq ($(SERIAL_PROOF_DIAGNOSTIC),0)
+$(error SERIAL_PROOF_DIAGNOSTIC must be 0 or 1)
+endif
 FORMAT_TEST ?= 0
 DEBUG_ASSERT ?= 1
+IRQ_LATENCY ?= 0
+IRQ_ENTRY_DIAGNOSTIC ?= 0
+IRQ_LATENCY_DETAILS ?= 1
+IRQ_LOCAL_TSC_ORDER ?= 0
+ifeq ($(IRQ_LOCAL_TSC_ORDER),1)
+ifneq ($(IRQ_LATENCY)$(SELFTEST),11)
+$(error IRQ_LOCAL_TSC_ORDER=1 requires IRQ_LATENCY=1 SELFTEST=1)
+endif
+else ifneq ($(IRQ_LOCAL_TSC_ORDER),0)
+$(error IRQ_LOCAL_TSC_ORDER must be 0 or 1)
+endif
+ifeq ($(IRQ_LATENCY_DETAILS),0)
+ifneq ($(IRQ_ENTRY_DIAGNOSTIC),1)
+$(error IRQ_LATENCY_DETAILS=0 requires IRQ_ENTRY_DIAGNOSTIC=1)
+endif
+else ifneq ($(IRQ_LATENCY_DETAILS),1)
+$(error IRQ_LATENCY_DETAILS must be 0 or 1)
+endif
+ifeq ($(IRQ_ENTRY_DIAGNOSTIC),1)
+ifneq ($(IRQ_LATENCY)$(SELFTEST),11)
+$(error IRQ_ENTRY_DIAGNOSTIC=1 requires IRQ_LATENCY=1 SELFTEST=1)
+endif
+else ifneq ($(IRQ_ENTRY_DIAGNOSTIC),0)
+$(error IRQ_ENTRY_DIAGNOSTIC must be 0 or 1)
+endif
+IRQ_LATENCY_SRCS =
+ifeq ($(IRQ_LATENCY),1)
+ifneq ($(DEBUG_ASSERT),1)
+$(error IRQ_LATENCY=1 requires DEBUG_ASSERT=1)
+endif
+IRQ_LATENCY_SRCS += $(KERNEL_DIR)/src/core/irq_latency_interior.c
+ifeq ($(IRQ_ENTRY_DIAGNOSTIC),1)
+IRQ_LATENCY_SRCS += $(KERNEL_DIR)/src/core/irq_latency_heap.c
+endif
+IRQ_LATENCY_SRCS += $(KERNEL_DIR)/src/core/irq_latency_time.c $(KERNEL_DIR)/src/core/irq_latency_pairs.c
+IRQ_LATENCY_SRCS += $(KERNEL_DIR)/src/core/irq_latency_record.c
+IRQ_LATENCY_SRCS += $(KERNEL_DIR)/src/core/irq_latency_component.c
+IRQ_LATENCY_SRCS += $(KERNEL_DIR)/src/core/irq_latency_scope.c
+IRQ_LATENCY_SRCS += $(KERNEL_DIR)/src/core/irq_latency_boundary.c \
+                    $(KERNEL_DIR)/src/core/irq_latency_calibration.c \
+                    $(KERNEL_DIR)/src/core/irq_latency_arch.S
+else ifneq ($(IRQ_LATENCY),0)
+$(error IRQ_LATENCY must be 0 or 1)
+endif
 ASSERT_TEST ?= 0
 ARCH_TEST ?= 0
 ARCH_NEGATIVE_GP ?= 0
@@ -84,9 +137,24 @@ else ifneq ($(ARCH_NEGATIVE_GP),0)
 $(error ARCH_NEGATIVE_GP must be 0 or 1)
 endif
 SELFTEST_CFLAGS =
+ifeq ($(SERIAL_PROOF_DIAGNOSTIC),1)
+SELFTEST_CFLAGS += -DHOBBYOS_SERIAL_PROOF_DIAGNOSTIC=1
+SELFTEST_CFLAGS += -DHOBBYOS_SERIAL_PROOF_ID=$(SERIAL_PROOF_ID)
+endif
 SELFTEST_CFLAGS += -DHOBBYOS_DEBUG_ASSERT=$(DEBUG_ASSERT)
+SELFTEST_CFLAGS += -DHOBBYOS_IRQ_LATENCY=$(IRQ_LATENCY)
+SELFTEST_CFLAGS += -DHOBBYOS_IRQ_ENTRY_DIAGNOSTIC=$(IRQ_ENTRY_DIAGNOSTIC)
+SELFTEST_CFLAGS += -DHOBBYOS_IRQ_LATENCY_DETAILS=$(IRQ_LATENCY_DETAILS)
+SELFTEST_CFLAGS += -DHOBBYOS_IRQ_LOCAL_TSC_ORDER=$(IRQ_LOCAL_TSC_ORDER)
 ifeq ($(SELFTEST),1)
 SELFTEST_CFLAGS += -DHOBBYOS_SELFTEST=1
+endif
+FRAMEBUFFER_REFERENCE ?= 0
+ifeq ($(FRAMEBUFFER_REFERENCE),1)
+ifneq ($(SELFTEST),1)
+$(error FRAMEBUFFER_REFERENCE=1 requires SELFTEST=1)
+endif
+SELFTEST_CFLAGS += -DHOBBYOS_FRAMEBUFFER_REFERENCE=1
 endif
 ifeq ($(SELFTEST_AUTORUN),1)
 SELFTEST_CFLAGS += -DHOBBYOS_SELFTEST_AUTORUN=1
@@ -106,10 +174,67 @@ ifeq ($(ARCH_TEST),1)
 SELFTEST_CFLAGS += -DHOBBYOS_ARCH_TEST=1
 ARCH_TEST_SRCS += $(KERNEL_DIR)/src/cpu/arch_selftest.c
 endif
+DIAGNOSTIC_COMMAND_SRCS =
+ifeq ($(SELFTEST),1)
+DIAGNOSTIC_COMMAND_SRCS += $(KERNEL_DIR)/src/core/selftest.c \
+                         $(KERNEL_DIR)/src/shell/commands/cmd_panic.c \
+                         $(KERNEL_DIR)/src/shell/commands/cmd_irq.c \
+                         $(KERNEL_DIR)/src/shell/commands/cmd_usbdiag.c \
+                         $(KERNEL_DIR)/src/shell/commands/cmd_smpstress.c \
+                         $(KERNEL_DIR)/src/shell/commands/cmd_taskdiag.c \
+                         $(KERNEL_DIR)/src/shell/commands/cmd_tasktest.c \
+                         $(KERNEL_DIR)/src/shell/commands/cmd_schedtest.c \
+                         $(KERNEL_DIR)/src/shell/commands/cmd_synctest.c \
+                         $(KERNEL_DIR)/src/shell/commands/cmd_accounttest.c \
+                         $(KERNEL_DIR)/src/shell/commands/cmd_killtest.c \
+                         $(KERNEL_DIR)/src/shell/commands/cmd_reaptest.c \
+                         $(KERNEL_DIR)/src/shell/commands/cmd_inputtest.c \
+                         $(KERNEL_DIR)/src/shell/commands/cmd_modaltest.c \
+                         $(KERNEL_DIR)/src/shell/commands/cmd_taskmantest.c
+endif
 LOCK_TEST_SRCS =
 ALLOC_TEST_SRCS =
 BUILD_PROFILE_TEST_SRCS =
+MEMORY_OBSERVATION_SRCS =
+ifneq ($(filter 1,$(DEBUG_ASSERT) $(SELFTEST)),)
+MEMORY_OBSERVATION_SRCS += $(KERNEL_DIR)/src/memory/page_table_decode.c \
+                          $(KERNEL_DIR)/src/cpu/cpu_control_snapshot.c
+endif
 ifeq ($(SELFTEST),1)
+MEMORY_OBSERVATION_SRCS += $(KERNEL_DIR)/src/memory/memory_observe_decode.c \
+                          $(KERNEL_DIR)/src/memory/memory_observation.c \
+                          $(KERNEL_DIR)/src/shell/commands/cmd_memory_observation.c
+MEMORY_OBSERVATION_SRCS += $(KERNEL_DIR)/src/memory/tlb_fixture.c \
+                          $(KERNEL_DIR)/src/memory/tlb_proof.c \
+                          $(KERNEL_DIR)/src/shell/commands/cmd_tlbtest.c
+MEMORY_OBSERVATION_SRCS += $(KERNEL_DIR)/src/memory/mapping_probe.c \
+                          $(KERNEL_DIR)/src/memory/mapping_probe_match.c \
+                          $(KERNEL_DIR)/src/memory/mapping_probe_read.S \
+                          $(KERNEL_DIR)/src/shell/commands/cmd_mappingtest.c
+MEMORY_OBSERVATION_SRCS += $(KERNEL_DIR)/src/memory/physical_fixture.c \
+                          $(KERNEL_DIR)/src/shell/commands/cmd_phystest.c
+MEMORY_OBSERVATION_SRCS += $(KERNEL_DIR)/src/memory/ram_map_fixture.c \
+                          $(KERNEL_DIR)/src/shell/commands/cmd_rammap.c
+MEMORY_OBSERVATION_SRCS += $(KERNEL_DIR)/src/memory/null_probe.c \
+                          $(KERNEL_DIR)/src/memory/null_probe_match.c \
+                          $(KERNEL_DIR)/src/memory/null_probe_read.S \
+                          $(KERNEL_DIR)/src/shell/commands/cmd_lowmap.c
+MEMORY_OBSERVATION_SRCS += $(KERNEL_DIR)/src/memory/protection_probe.c \
+                          $(KERNEL_DIR)/src/memory/protection_probe_match.c \
+                          $(KERNEL_DIR)/src/memory/protection_probe_access.S \
+                          $(KERNEL_DIR)/src/shell/commands/cmd_wxtest.c
+MEMORY_OBSERVATION_SRCS += $(KERNEL_DIR)/src/memory/guard_probe.c \
+                          $(KERNEL_DIR)/src/memory/guard_probe_match.c \
+                          $(KERNEL_DIR)/src/memory/guard_probe_access.S \
+                          $(KERNEL_DIR)/src/memory/stack_test.c \
+                          $(KERNEL_DIR)/src/shell/commands/cmd_stacktest.c
+ifeq ($(IRQ_LATENCY),1)
+MEMORY_OBSERVATION_SRCS += $(KERNEL_DIR)/src/memory/irq_latency_test.c \
+                          $(KERNEL_DIR)/src/memory/stack_report.c \
+                          $(KERNEL_DIR)/src/memory/warning_report.c \
+                          $(KERNEL_DIR)/src/memory/irq_latency_stress.c \
+                          $(KERNEL_DIR)/src/shell/commands/cmd_irqlatency.c
+endif
 LOCK_TEST_SRCS += $(KERNEL_DIR)/src/shell/commands/cmd_locktest.c
 ALLOC_TEST_SRCS += $(KERNEL_DIR)/src/shell/commands/cmd_alloctest.c
 BUILD_PROFILE_TEST_SRCS += $(KERNEL_DIR)/src/shell/commands/cmd_profiletest.c
@@ -118,7 +243,7 @@ ifeq ($(ARCH_NEGATIVE_GP),1)
 SELFTEST_CFLAGS += -DHOBBYOS_ARCH_NEGATIVE_GP=1
 endif
 CFLAGS_KERNEL = $(KERNEL_COMMON_FLAGS) $(KERNEL_C_POLICY_FLAGS) -std=gnu11 -MMD -MP $(KERNEL_WARNING_FLAGS) -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -Werror=int-conversion $(KERNEL_EXTRA_CFLAGS) $(SELFTEST_CFLAGS)
-ASFLAGS_KERNEL = $(KERNEL_COMMON_FLAGS) -DHOBBYOS_DEBUG_ASSERT=$(DEBUG_ASSERT)
+ASFLAGS_KERNEL = $(KERNEL_COMMON_FLAGS) -DHOBBYOS_DEBUG_ASSERT=$(DEBUG_ASSERT) -DHOBBYOS_IRQ_LATENCY=$(IRQ_LATENCY) -DHOBBYOS_IRQ_ENTRY_DIAGNOSTIC=$(IRQ_ENTRY_DIAGNOSTIC) -DHOBBYOS_IRQ_LOCAL_TSC_ORDER=$(IRQ_LOCAL_TSC_ORDER)
 LDFLAGS_KERNEL = -T $(KERNEL_DIR)/link.ld -static -Bsymbolic -nostdlib -z max-page-size=0x1000
 
 # Cores COnfiguration for SMP
@@ -168,9 +293,10 @@ KERNEL_SRCS = $(KERNEL_DIR)/src/core/entry.S \
               $(KERNEL_DIR)/src/core/kernel_init.c \
               $(KERNEL_DIR)/src/core/panic.c \
               $(KERNEL_DIR)/src/core/clock.c \
+              $(KERNEL_DIR)/src/core/clocksource.c \
+              $(KERNEL_DIR)/src/core/pvclock.c \
               $(KERNEL_DIR)/src/core/task_metrics.c \
 			  $(KERNEL_DIR)/src/core/task_format.c \
-			  $(KERNEL_DIR)/src/core/selftest.c \
 			  $(KERNEL_DIR)/src/core/runtime_ready.c \
 			  $(KERNEL_DIR)/src/core/build_profile.c \
 			  $(KERNEL_DIR)/src/core/task_lifecycle.c \
@@ -178,15 +304,45 @@ KERNEL_SRCS = $(KERNEL_DIR)/src/core/entry.S \
               $(KERNEL_DIR)/src/utils/bitmap.c \
               $(KERNEL_DIR)/src/memory/gdt.c \
               $(KERNEL_DIR)/src/memory/pmem.c \
+              $(KERNEL_DIR)/src/memory/physical_contract.c \
+              $(KERNEL_DIR)/src/memory/physical_translation.c \
+              $(KERNEL_DIR)/src/memory/boot_address.c \
+              $(KERNEL_DIR)/src/memory/mapping_core.c \
+              $(KERNEL_DIR)/src/memory/owned_mapping.c \
+			  $(KERNEL_DIR)/src/memory/device_origin.c \
+              $(KERNEL_DIR)/src/memory/dma_buffer.c \
               $(KERNEL_DIR)/src/memory/paging.c \
+              $(KERNEL_DIR)/src/memory/ram_map_plan.c \
+              $(KERNEL_DIR)/src/memory/ram_map_boot.c \
+              $(KERNEL_DIR)/src/memory/paging_entry.c \
+              $(KERNEL_DIR)/src/memory/paging_build.c \
+              $(KERNEL_DIR)/src/memory/image_permissions.c \
+              $(KERNEL_DIR)/src/memory/image_permissions_boot.c \
+              $(KERNEL_DIR)/src/memory/image_walk.c \
+              $(KERNEL_DIR)/src/memory/stack_domain.c \
+              $(KERNEL_DIR)/src/memory/stack_map.c \
+              $(KERNEL_DIR)/src/memory/kernel_stack.c \
+              $(KERNEL_DIR)/src/memory/stack_fault.c \
+              $(KERNEL_DIR)/src/memory/bootstrap_claim.c \
+              $(KERNEL_DIR)/src/memory/bootstrap_tables.c \
+              $(KERNEL_DIR)/src/memory/bootstrap_lifetime.c \
+              $(KERNEL_DIR)/src/memory/low_fault.c \
+              $(KERNEL_DIR)/src/memory/cache_attributes.c \
+              $(KERNEL_DIR)/src/memory/tlb_interval.c \
+              $(KERNEL_DIR)/src/memory/tlb_deferred.c \
+              $(KERNEL_DIR)/src/memory/kernel_tlb.c \
+              $(KERNEL_DIR)/src/smp/cpu_request.c \
+              $(KERNEL_DIR)/src/smp/cpu_request_state.c \
               $(KERNEL_DIR)/src/memory/heap.c \
               $(KERNEL_DIR)/src/graphics/graphics.c \
               $(KERNEL_DIR)/src/acpi/acpi.c \
               $(KERNEL_DIR)/src/acpi/madt.c \
               $(KERNEL_DIR)/src/apic/legacy_pic.c \
               $(KERNEL_DIR)/src/cpu/cpu.c \
+              $(KERNEL_DIR)/src/cpu/control_policy.c \
               $(KERNEL_DIR)/src/cpu/mmio.c \
               $(KERNEL_DIR)/src/apic/lapic.c \
+              $(KERNEL_DIR)/src/apic/lapic_delivery.c \
               $(KERNEL_DIR)/src/apic/ioapic.c \
               $(KERNEL_DIR)/src/timer/hpet.c \
 			  $(KERNEL_DIR)/src/graphics/console.c \
@@ -210,31 +366,20 @@ KERNEL_SRCS = $(KERNEL_DIR)/src/core/entry.S \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_clear.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_version.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_mem.c \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_panic.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_cpu.c \
 		      $(KERNEL_DIR)/src/shell/commands/cmd_pci.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_acpi.c \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_irq.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_echo.c \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_usbdiag.c \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_smpstress.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_ps.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_kill.c \
 			  $(KERNEL_DIR)/src/shell/commands/taskman_view.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_taskman.c \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_taskdiag.c \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_tasktest.c \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_schedtest.c \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_synctest.c \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_accounttest.c \
+			  $(DIAGNOSTIC_COMMAND_SRCS) \
 			  $(LOCK_TEST_SRCS) \
 			  $(ALLOC_TEST_SRCS) \
 			  $(BUILD_PROFILE_TEST_SRCS) \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_killtest.c \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_reaptest.c \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_inputtest.c \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_modaltest.c \
-			  $(KERNEL_DIR)/src/shell/commands/cmd_taskmantest.c \
+			  $(MEMORY_OBSERVATION_SRCS) \
+			  $(IRQ_LATENCY_SRCS) \
 			  $(KERNEL_DIR)/src/core/irq_stats.c \
 			  $(KERNEL_DIR)/src/power/power.c \
 			  $(KERNEL_DIR)/src/shell/commands/cmd_power.c \
@@ -247,6 +392,8 @@ KERNEL_SRCS = $(KERNEL_DIR)/src/core/entry.S \
 			  $(KERNEL_DIR)/src/drivers/watchdog/acpi_wdat.c \
 			  $(KERNEL_DIR)/src/drivers/watchdog/acpi_wddt.c \
 			  $(KERNEL_DIR)/src/drivers/watchdog/acpi_wdrt.c \
+			  $(KERNEL_DIR)/src/drivers/usb/xhci/xhci_dma.c \
+			  $(KERNEL_DIR)/src/drivers/usb/xhci/usb_ownership.c \
 			  $(KERNEL_DIR)/src/drivers/usb/xhci/xhci.c \
 			  $(KERNEL_DIR)/src/drivers/usb/xhci/usb_hub.c \
 			  $(KERNEL_DIR)/src/drivers/usb/xhci/usb_hotplug.c \
@@ -289,6 +436,8 @@ $(KERNEL_DIR)/%.o: $(KERNEL_DIR)/%.c
 # NOVA REGRA: Regra para compilar .S (Assembly)
 $(KERNEL_DIR)/%.o: $(KERNEL_DIR)/%.S
 	$(CC) $(ASFLAGS_KERNEL) -c $< -o $@
+
+$(KERNEL_DIR)/src/smp/trampoline.o: $(KERNEL_DIR)/src/cpu/control_policy_bits.h $(KERNEL_DIR)/src/memory/paging_boot_bits.h
 
 # Linkagem Final do Kernel
 kernel.elf: $(KERNEL_OBJS)
@@ -338,18 +487,19 @@ ENTER ?= 0
 KEY ?= esc
 TIMEOUT ?= 45
 PATTERN ?=
+HOBBYOS_VALIDATION_CONTRACT ?= guarded-kernel-stacks
 
 image: hobbyos.img
 
 production-image:
 	+$(MAKE) clean
 	+$(MAKE) hobbyos.img SELFTEST=0 SELFTEST_AUTORUN=0 FORMAT_TEST=0 \
-		ASSERT_TEST=0 ARCH_TEST=0 ARCH_NEGATIVE_GP=0 DEBUG_ASSERT=0 \
-		KERNEL_EXTRA_CFLAGS=
-	@bash scripts/verify-production-test-policy.sh
+		ASSERT_TEST=0 ARCH_TEST=0 ARCH_NEGATIVE_GP=0 DEBUG_ASSERT=0 IRQ_LATENCY=0 \
+		SERIAL_PROOF_DIAGNOSTIC=0 KERNEL_EXTRA_CFLAGS=
+	@HOBBYOS_VALIDATION_CONTRACT='$(HOBBYOS_VALIDATION_CONTRACT)' bash scripts/verify-production-test-policy.sh
 
 production-test-policy:
-	@bash scripts/verify-production-test-policy.sh
+	@HOBBYOS_VALIDATION_CONTRACT='$(HOBBYOS_VALIDATION_CONTRACT)' bash scripts/verify-production-test-policy.sh
 
 kernel-check:
 	bash scripts/kernel-check.sh "$(JOBS)" "artifacts/build/kernel-check-j$(JOBS).log"

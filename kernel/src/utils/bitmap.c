@@ -10,8 +10,12 @@ static uint64_t bitmap_load_word(const Bitmap *bitmap, size_t word_index)
         return 0;
 
     size_t available = bitmap->size - byte_index;
-    if (available > sizeof(word))
-        available = sizeof(word);
+    if (available >= sizeof(word))
+    {
+        _Static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__, "bitmap word byte order");
+        __builtin_memcpy(&word, bitmap->buffer + byte_index, sizeof(word));
+        return word;
+    }
     for (size_t i = 0; i < available; i++)
         word |= (uint64_t)bitmap->buffer[byte_index + i] << (i * 8u);
     return word;
@@ -163,6 +167,77 @@ bool bitmap_clear_range(Bitmap *bitmap, size_t start, size_t count)
     return bitmap_update_range(bitmap, start, count, false);
 }
 
+static unsigned bitmap_count_ones(uint64_t bits)
+{
+    /* Bounded integer reduction; no optional ISA or runtime popcount helper. */
+    bits -= (bits >> 1) & UINT64_C(0x5555555555555555);
+    bits = (bits & UINT64_C(0x3333333333333333)) +
+           ((bits >> 2) & UINT64_C(0x3333333333333333));
+    bits = (bits + (bits >> 4)) & UINT64_C(0x0f0f0f0f0f0f0f0f);
+    bits += bits >> 8;
+    bits += bits >> 16;
+    bits += bits >> 32;
+    return (unsigned)(bits & 127u);
+}
+
+bool bitmap_validate_allocation(const Bitmap *allocated, const Bitmap *reserved,
+                                 size_t *free_bits, BitmapSearchStats *stats)
+{
+    size_t bytes;
+    bitmap_stats_reset(stats);
+    if (!allocated || !reserved || !free_bits ||
+        allocated->total_bits != reserved->total_bits ||
+        !bitmap_required_bytes(allocated->total_bits, &bytes) ||
+        allocated->size != bytes || reserved->size != bytes ||
+        (bytes && (!allocated->buffer || !reserved->buffer ||
+         (uintptr_t)allocated->buffer > UINTPTR_MAX - (bytes - 1u) ||
+         (uintptr_t)reserved->buffer > UINTPTR_MAX - (bytes - 1u))))
+        return false;
+
+    size_t count = 0;
+    bool valid = true;
+    size_t words = allocated->total_bits / 64u +
+                   (allocated->total_bits % 64u != 0);
+    for (size_t word = 0; word < words; word++)
+    {
+        uint64_t mask = bitmap_valid_mask(allocated, word);
+        uint64_t free = ~bitmap_load_word(allocated, word) & mask;
+        bitmap_stats_word(stats);
+        if (!free)
+            continue;
+        if (bitmap_load_word(reserved, word) & free)
+            valid = false;
+        count += bitmap_count_ones(free);
+    }
+    *free_bits = count;
+    return valid;
+}
+
+bool bitmap_observe_allocation(const Bitmap *allocated, const Bitmap *reserved,
+    size_t start, size_t count, size_t *free_bits, size_t *invalid_bits)
+{
+    size_t bytes;
+    if (!allocated || !reserved || !free_bits || !invalid_bits ||
+        allocated->total_bits != reserved->total_bits ||
+        !bitmap_required_bytes(allocated->total_bits, &bytes) ||
+        allocated->size != bytes || reserved->size != bytes ||
+        start > allocated->total_bits || count > allocated->total_bits - start ||
+        (bytes && (!allocated->buffer || !reserved->buffer ||
+         (uintptr_t)allocated->buffer > UINTPTR_MAX - (bytes - 1u) ||
+         (uintptr_t)reserved->buffer > UINTPTR_MAX - (bytes - 1u)))) return false;
+    size_t free = 0, invalid = 0;
+    while (count) {
+        size_t offset = start % 64u, width = 64u - offset;
+        if (width > count) width = count;
+        uint64_t mask = width == 64u ? UINT64_MAX : ((UINT64_C(1) << width) - 1u) << offset;
+        uint64_t available = ~bitmap_load_word(allocated, start / 64u) & mask;
+        free += bitmap_count_ones(available);
+        invalid += bitmap_count_ones(available & bitmap_load_word(reserved, start / 64u));
+        start += width; count -= width;
+    }
+    *free_bits = free; *invalid_bits = invalid; return true;
+}
+
 bool bitmap_find_first_zero(const Bitmap *bitmap, size_t start,
                             size_t *out_index, BitmapSearchStats *stats)
 {
@@ -261,4 +336,45 @@ bool bitmap_find_zero_run(const Bitmap *bitmap, size_t start, size_t count,
             run_length = 0;
         }
     }
+}
+
+bool bitmap_find_zero_run_below(const Bitmap *bitmap, size_t start,
+    size_t exclusive_limit, size_t count, size_t *out_index, BitmapSearchStats *stats)
+{
+    size_t required, bounded;
+    bitmap_stats_reset(stats);
+    if (!bitmap || !out_index || !count ||
+        !bitmap_required_bytes(bitmap->total_bits, &required) ||
+        bitmap->size != required || (required && (!bitmap->buffer ||
+        (uintptr_t)bitmap->buffer > UINTPTR_MAX - (required - 1))) ||
+        exclusive_limit > bitmap->total_bits || start > exclusive_limit ||
+        count > exclusive_limit - start ||
+        !bitmap_required_bytes(exclusive_limit, &bounded)) return false;
+    /* Search uses only bounded loads and valid-bit masks; the original bitmap
+     * remains the sole writable representation, including all higher frames. */
+    const Bitmap view = {bitmap->buffer, bounded, exclusive_limit};
+    return count == 1 ? bitmap_find_first_zero(&view, start, out_index, stats) :
+        bitmap_find_zero_run(&view, start, count, out_index, stats);
+}
+
+/* First-fit over aligned candidates only; the original logical bitmap and its
+ * high bits remain unchanged. Word-search statistics include every retry. */
+bool bitmap_find_aligned_run_below(const Bitmap *bitmap, size_t start,
+    size_t limit, size_t count, size_t alignment, size_t *out, BitmapSearchStats *stats)
+{
+    if (stats) stats->words_examined = 0;
+    if (!out || !alignment || (alignment & (alignment - 1)) || !count ||
+        start >= limit || count > limit - start || start > SIZE_MAX - (alignment - 1)) return false;
+    size_t cursor = (start + alignment - 1) & ~(alignment - 1);
+    while (cursor < limit && count <= limit - cursor) {
+        size_t found;
+        BitmapSearchStats work = {0};
+        bool ok = bitmap_find_zero_run_below(bitmap, cursor, limit, count, &found, &work);
+        if (stats) stats->words_examined += work.words_examined;
+        if (!ok) return false;
+        if (!(found & (alignment - 1))) { *out = found; return true; }
+        if (found > SIZE_MAX - (alignment - 1)) return false;
+        cursor = (found + alignment - 1) & ~(alignment - 1);
+    }
+    return false;
 }

@@ -4,6 +4,7 @@
 
 #include "cpu.h"
 #include "../core/idt.h"
+#include "../core/irq_latency.h"
 #include "../smp/cpu_limits.h"
 #include "../smp/smp_topology.h"
 
@@ -105,8 +106,13 @@ static bool mmio_trace_resolve_local(uint32_t *cpu_id, uint32_t *slot)
     uint32_t match_count = 0;
     uint32_t match_slot = UINT32_MAX;
 
-    if (!cpu_id || !slot || count == 0 || count > HOBBYOS_MAX_CPUS ||
-        !MMIO_LOCAL_ARCH_ID(&local_id))
+    if (!cpu_id || !slot || count == 0 || count > HOBBYOS_MAX_CPUS)
+        return false;
+    bool identified = false;
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+    identified = irq_latency_mmio_identity(&local_id);
+#endif
+    if (!identified && !MMIO_LOCAL_ARCH_ID(&local_id))
         return false;
 
     if (mmio_trace_hint_lookup(local_id, count, &match_slot))

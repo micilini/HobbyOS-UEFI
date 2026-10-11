@@ -1,0 +1,148 @@
+{
+  "schema": 1,
+  "approved_head": "d68a3b4a2c97f55dfdcc445bfe42317e09e1c55e",
+  "approved_tree": "3ce6be4fcae7c23fd41adb439e081af72ea4717c",
+  "budget_ns": 50000,
+  "comparison": "strictly_less_than",
+  "statistic": "per_boot_maximum",
+  "timing_authority": {
+    "machine": "q35",
+    "accelerator": "kvm",
+    "cpus": 8,
+    "consecutive_boots": 3,
+    "oversubscription": false,
+    "placement": "default"
+  },
+  "functional_stress_cpus": 24,
+  "calibration": {
+    "windows": 3,
+    "target_ns": 20000000,
+    "minimum_ns": 10000000,
+    "maximum_ns": 100000000,
+    "endpoint_uncertainty_ticks": 2,
+    "interval_width_ppm": 10000,
+    "drift_ppm": 10000,
+    "conversion_reserve_ppm": 10000,
+    "round_ns": "ceiling",
+    "post_failure_frequency_increase": false,
+    "irq_boundary_probes_per_cpu": 32,
+    "irq_boundary_margin_factor": 2,
+    "attempt_windows_per_cpu_aggregate": 64,
+    "workers_per_cpu": 1,
+    "probes_per_attempt": 4,
+    "completion_deadline_ms": 120000,
+    "empty_probe_irq_entries": 1,
+    "irq_boundary_policy": "add_frozen_pre_stress_allowance_keep_raw_endpoints_reject_post_stress_excess"
+  },
+  "workload": {
+    "seed": 1230131532,
+    "allocator_operations_per_worker": 1024,
+    "sizes": [
+      16,
+      64,
+      256,
+      1024,
+      4096
+    ],
+    "live_allocations_per_worker": 64,
+    "alignment": [
+      64,
+      4096
+    ],
+    "growth_request_bytes": 34603008,
+    "minimum_headroom_bytes": 134217728,
+    "pmm_frames_per_worker": 32,
+    "dma_bytes_per_worker": 65536,
+    "owned_map_unmap_cycles": 192,
+    "initiators": 2,
+    "shootdown_pages": [
+      63,
+      64,
+      65
+    ],
+    "workers_per_cpu": 2,
+    "dma_cycle_every_operations": 64,
+    "worker_join_deadline_ns": 120000000000,
+    "participation": "actual_local_payload_access_under_brief_identity_exclusion",
+    "api_elapsed": "independent_monotonic_clock_includes_IF_enabled_time",
+    "shootdown_existing_sequential_rounds": 256,
+    "shootdown_existing_concurrent_rounds_each": 64,
+    "concurrent_owned_views_per_worker": 16,
+    "integrity_and_reachability_every_operations": 128,
+    "owned_map_cycles_formula": "192 + 16 * 2 * discovered_cpus",
+    "owned_view_origin": "validated_owned_dma_buffer_only",
+    "mapping_admission_attempts": 1024,
+    "mapping_admission_deadline_ns": 1000000000,
+    "mapping_busy_wait": "timer_sleep_1ms_IF_enabled",
+    "mapping_quarantine": "retain_backing_and_fail",
+    "phases": "concurrent_allocator_workers_and_mapping_coordinator_then_inherited_two_initiator_fixture_after_verified_worker_retirement"
+  },
+  "required_paths": [
+    "heap",
+    "pmm",
+    "pmm_integrity",
+    "pmm_reachability",
+    "dma",
+    "mapping",
+    "unmap",
+    "stack",
+    "shootdown",
+    "cache_writeback",
+    "icr"
+  ],
+  "missing_invalid_unclosed_dropped": "reject",
+  "snapshot_resets_maximum": false,
+  "overhead_subtraction": false,
+  "accounting": {
+    "raw_witness_cells": 29,
+    "instrumentation_schema": 2,
+    "primitive": "ordered-tsc-irq-envelope",
+    "retired_irq_origin_allowance": "persist_before_POPFQ_and_preserve_at_exact_owner_retirement",
+    "per_path_sample_invalid_violation_counts": "all_completed_intervals",
+    "maximum_update": "every_valid_completed_interval_including_after_auxiliary_trace_fills",
+    "auxiliary_failure_trace_capacity": 2048,
+    "auxiliary_trace_exhaustion": "FAIL_complete_failure_chronology; does_not_reset_or_stop_required_counts_or_maximum",
+    "required_counter_or_publication_exhaustion": "FAIL_measurement_coverage",
+    "contention": "actual_ticket_minus_owner_at_fetch_add_with_lock_and_outer_sequence",
+    "identity_method": "stack-mask-identity-v2",
+    "entry_admission_method": "entry-admission-cookie-v1",
+    "nested_update_method": "nested-observer-precheck-v2",
+    "mmio_identity_method": "continuous-mask-mmio-identity-v1",
+    "timestamp_variants": {
+      "ordered-tsc-irq-envelope": {
+        "sequence": "MFENCE; LFENCE; RDTSC; LFENCE",
+        "build_flag": 0
+      },
+      "intel-local-tsc-irq-envelope-v1": {
+        "sequence": "LFENCE; RDTSC; LFENCE",
+        "build_flag": 1,
+        "capability": "GenuineIntel AND TSC AND SSE2",
+        "qualification": "unchanged_frozen_pre_factor_two_and_all_post_probes",
+        "timestamp_position": "unchanged"
+      }
+    }
+  },
+  "diagnostic_writeback": {
+    "method": "continuous-mask-wbinvd-v1",
+    "authority": "DIAGNOSTIC_MINIMUM_EXPOSURE_ONLY",
+    "retention": "first_and_maximum_per_cpu_with_complete_callback_and_service_counts",
+    "below_budget_acceptance": false,
+    "frequency_upper": "ceil(max(pre_upper,post_upper)*1010000/1000000)",
+    "minimum_ns": "floor(raw_cycles*1000000000/frequency_upper)",
+    "allowance_subtraction": false
+  },
+  "diagnostic_writeback_clock": {
+    "method": "continuous-mask-writeback-clock-v1",
+    "sites": [
+      "local-before",
+      "local-after",
+      "handler-after"
+    ],
+    "calls_per_cpu_site": 1,
+    "retention": "first_raw_outcome_including_invalid_no_overwrite_explicit_exhaustion",
+    "authority": "DIAGNOSTIC_MINIMUM_EXPOSURE_ONLY",
+    "below_budget_acceptance": false,
+    "frequency_upper": "ceil(max(pre_upper,post_upper)*1010000/1000000)",
+    "minimum_ns": "floor(raw_cycles*1000000000/frequency_upper)"
+  }
+}

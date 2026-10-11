@@ -341,7 +341,7 @@ void serial_write_all(const BootInfo *boot_info, const char *msg)
     for (uint32_t i = 0; i < boot_info->serial.count; i++)
     {
         uint16_t base = boot_info->serial.ports[i].io_base;
-        uart_init_115200_8n1(base);
+        /* The boot banner initializes the port; resetting here can discard queued bytes. */
         uart_write(base, msg);
     }
 }
@@ -354,7 +354,6 @@ void serial_write_hex64_all(const BootInfo *boot_info, uint64_t value)
     for (uint32_t i = 0; i < boot_info->serial.count; i++)
     {
         uint16_t base = boot_info->serial.ports[i].io_base;
-        uart_init_115200_8n1(base);
         uart_write_hex64(base, value);
     }
 }

@@ -1,6 +1,9 @@
+#include "../core/irq_latency.h"
+#include "../core/irq_latency_heap.h"
 #include "heap.h"
-#include "paging.h"
+#include "paging_private.h"
 #include "pmem.h"
+#include "physical_translation.h"
 
 #include "../core/list.h"
 #include "../core/panic.h"
@@ -13,6 +16,33 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+
+#if defined(HOBBYOS_IRQ_ENTRY_DIAGNOSTIC) && HOBBYOS_IRQ_ENTRY_DIAGNOSTIC
+#define HEAP_BEGIN(op, pages) irq_latency_heap_begin((uintptr_t)&g_heap_lock, op, pages)
+#define HEAP_MARK(site, work, bytes) irq_latency_heap_mark((uintptr_t)&g_heap_lock, site, work, bytes)
+#define HEAP_END() irq_latency_heap_end((uintptr_t)&g_heap_lock)
+#define HEAP_COUNT(name) uint64_t name=0
+#define HEAP_VALUE(name, value) uint64_t name=(value)
+#define HEAP_VISIT(name) (++name)
+#include "../core/irq_latency_tsc.h"
+#define HEAP_OPERATION_BEGIN() \
+    irq_latency_heap_operation_token_t operation_token=irq_latency_heap_operation_prepare((uintptr_t)&g_heap_lock); \
+    uint64_t operation_begin=irq_latency_read_tsc()
+#define HEAP_OPERATION_END() \
+    uint64_t operation_end=irq_latency_read_tsc(); \
+    irq_latency_heap_operation_publish(&operation_token,operation_begin,operation_end, \
+        previous_size!=b->size ? sizeof(HeapBlock) : 0)
+#else
+#define HEAP_BEGIN(op, pages) ((void)0)
+#define HEAP_MARK(site, work, bytes) ((void)0)
+#define HEAP_END() ((void)0)
+#define HEAP_COUNT(name)
+#define HEAP_VALUE(name, value)
+#define HEAP_VISIT(name) ((void)0)
+#define HEAP_OPERATION_BEGIN() ((void)0)
+#define HEAP_OPERATION_END() ((void)0)
+#endif
+
 
 #define HEAP_DEFAULT_GROW_BYTES (32ull * 1024ull * 1024ull)
 #define HEAP_ALIGN 16ull
@@ -50,6 +80,14 @@ typedef struct HeapRegion
     uintptr_t start;
     uintptr_t end;
 } HeapRegion;
+
+typedef struct HeapPreparedRegion
+{
+    void *physical;
+    void *virtual_region;
+    size_t bytes;
+    size_t pages;
+} HeapPreparedRegion;
 
 _Static_assert(sizeof(HeapBlock) == 32u,
                "heap block layout must remain consumer-compatible");
@@ -109,8 +147,12 @@ static bool heap_region_contains(uintptr_t address)
     {
         if (address >= g_heap_regions[i].start &&
             address < g_heap_regions[i].end)
+        {
+            HEAP_MARK(IRQ_HEAP_REGION, i+1u, 0);
             return true;
+        }
     }
+    HEAP_MARK(IRQ_HEAP_REGION, g_heap_region_count, 0);
     return false;
 }
 
@@ -156,17 +198,26 @@ static bool heap_register_region_locked(uintptr_t start, size_t size)
 
 static HeapBlock *heap_find_containing_block_locked(uintptr_t address)
 {
+    HEAP_COUNT(visited);
     struct list_head *it;
     list_for_each(it, &g_heap_blocks)
     {
+        HEAP_VISIT(visited);
         HeapBlock *block = list_entry(it, HeapBlock, link);
         uintptr_t payload = (uintptr_t)payload_from_block(block);
         if (block->magic != HEAP_BLOCK_MAGIC ||
             payload > UINTPTR_MAX - block->size)
+        {
+            HEAP_MARK(IRQ_HEAP_CONTAINMENT, visited, 0);
             return NULL;
+        }
         if (address >= payload && address < payload + block->size)
+        {
+            HEAP_MARK(IRQ_HEAP_CONTAINMENT, visited, 0);
             return block;
+        }
     }
+    HEAP_MARK(IRQ_HEAP_CONTAINMENT, visited, 0);
     return NULL;
 }
 
@@ -224,19 +275,32 @@ static void heap_append_tail(HeapBlock *new_blk)
 
 static HeapBlock *heap_find_first_fit(size_t req_size)
 {
+    HEAP_COUNT(visited);
     struct list_head *it;
     list_for_each(it, &g_heap_blocks)
     {
+        HEAP_VISIT(visited);
         HeapBlock *b = list_entry(it, HeapBlock, link);
         if (b->magic == HEAP_BLOCK_MAGIC && block_is_free(b) &&
             b->size >= req_size)
+        {
+            HEAP_MARK(IRQ_HEAP_FIRST_FIT, visited, 0);
             return b;
+        }
     }
+    HEAP_MARK(IRQ_HEAP_FIRST_FIT, visited, 0);
     return NULL;
 }
 
 static void heap_try_split_block(HeapBlock *b, size_t req_size)
 {
+#ifdef IRQ_LATENCY_HEAP_OPERATION_HOSTED
+#if !__STDC_HOSTED__
+#error IRQ_LATENCY_HEAP_OPERATION_HOSTED requires a hosted test
+#endif
+    extern void irq_latency_heap_metadata_hosted(void);
+    irq_latency_heap_metadata_hosted();
+#endif
 
     if (!b)
         return;
@@ -260,11 +324,13 @@ static void heap_try_split_block(HeapBlock *b, size_t req_size)
 
 static void heap_coalesce(HeapBlock *b)
 {
+    HEAP_COUNT(visited);
     if (!b || !block_is_free(b))
         return;
 
     while (1)
     {
+        HEAP_VISIT(visited);
         HeapBlock *n = next_block(b);
         if (!n || !block_is_free(n))
             break;
@@ -281,6 +347,7 @@ static void heap_coalesce(HeapBlock *b)
 
     while (1)
     {
+        HEAP_VISIT(visited);
         HeapBlock *p = prev_block(b);
         if (!p || !block_is_free(p))
             break;
@@ -297,6 +364,7 @@ static void heap_coalesce(HeapBlock *b)
 
         while (1)
         {
+            HEAP_VISIT(visited);
             HeapBlock *n = next_block(b);
             if (!n || !block_is_free(n))
                 break;
@@ -311,41 +379,59 @@ static void heap_coalesce(HeapBlock *b)
             n->state = HEAP_BLOCK_DEAD;
         }
     }
+    HEAP_MARK(IRQ_HEAP_COALESCE, visited, 0);
 }
 
-static int heap_expand_locked(uint64_t grow_bytes)
+static void heap_release_prepared(HeapPreparedRegion *region)
 {
-    if (grow_bytes == 0)
-        return 0;
+    if (!region->physical)
+        return;
+    for (size_t page = 0; page < region->pages; page++)
+        pmm_free_frame((void *)((uintptr_t)region->physical + page * PAGE_SIZE));
+    *region = (HeapPreparedRegion){0};
+}
 
+static bool heap_prepare_region(uint64_t grow_bytes, HeapPreparedRegion *region)
+{
+    *region = (HeapPreparedRegion){0};
     uint64_t bytes_needed = 0;
-    if (!align_up_u64_checked(grow_bytes, PAGE_SIZE, &bytes_needed) ||
-        bytes_needed < sizeof(HeapBlock) || bytes_needed > SIZE_MAX ||
-        g_heap_total_bytes > UINT64_MAX - bytes_needed ||
-        g_heap_region_count >= HEAP_MAX_REGIONS)
-        return 0;
+    if (!grow_bytes || !align_up_u64_checked(grow_bytes, PAGE_SIZE, &bytes_needed) ||
+        bytes_needed < sizeof(HeapBlock) || bytes_needed > SIZE_MAX)
+        return false;
     uint64_t pages_needed = bytes_needed / PAGE_SIZE;
     if (pages_needed == 0 || pages_needed > SIZE_MAX)
-        return 0;
+        return false;
 
     void *phys = pmm_alloc_contiguous_frames((size_t)pages_needed);
     if (!phys)
     {
         console_write_debug("[HEAP] expand failed: pmm_alloc_contiguous_frames returned 0\n");
-        return 0;
+        return false;
     }
 
-    HeapBlock *new_blk = (HeapBlock *)phys;
-    if (!heap_register_region_locked((uintptr_t)phys, (size_t)bytes_needed))
+    void *virtual_region = NULL;
+    *region = (HeapPreparedRegion){phys, NULL, (size_t)bytes_needed, (size_t)pages_needed};
+    if (!physical_pointer_range((uintptr_t)phys, (size_t)bytes_needed,
+                                PHYSICAL_RAM, &virtual_region))
     {
-        for (uint64_t page = 0; page < pages_needed; page++)
-            pmm_free_frame((void *)((uintptr_t)phys + page * PAGE_SIZE));
-        return 0;
+        heap_release_prepared(region);
+        return false;
     }
+    region->virtual_region = virtual_region;
+    HeapBlock *new_blk = (HeapBlock *)virtual_region;
     block_initialize(new_blk, (size_t)(bytes_needed - sizeof(HeapBlock)),
                      HEAP_BLOCK_FREE);
+    return true;
+}
 
-    heap_blocks_init_once();
+static bool heap_publish_prepared_locked(HeapPreparedRegion *region)
+{
+    if (!region->physical || !region->virtual_region ||
+        g_heap_total_bytes > UINT64_MAX - region->bytes ||
+        g_heap_region_count >= HEAP_MAX_REGIONS ||
+        !heap_register_region_locked((uintptr_t)region->virtual_region, region->bytes))
+        return false;
+    HeapBlock *new_blk = region->virtual_region;
 
     if (!list_empty(&g_heap_blocks))
     {
@@ -365,12 +451,14 @@ static int heap_expand_locked(uint64_t grow_bytes)
         heap_append_tail(new_blk);
     }
 
-    g_heap_total_bytes += bytes_needed;
-    return 1;
+    g_heap_total_bytes += region->bytes;
+    region->physical = NULL;
+    return true;
 }
 
 void init_heap(void)
 {
+    IRQ_LATENCY_SCOPE(IRQ_PATH_HEAP);
     if (g_heap_lock_ready == 0)
     {
         spinlock_init(&g_heap_lock);
@@ -378,21 +466,33 @@ void init_heap(void)
     }
 
     irq_flags_t flags = spin_lock_irqsave(&g_heap_lock);
+    HEAP_BEGIN(IRQ_HEAP_INITIALIZE, 0);
 
     if (!g_heap_initialized)
         heap_blocks_init_once();
 
-    if (g_heap_total_bytes == 0)
-    {
-
-        (void)heap_expand_locked(HEAP_DEFAULT_GROW_BYTES);
-    }
-
+    bool need_region = g_heap_total_bytes == 0;
+    HEAP_MARK(IRQ_HEAP_INIT, 1, 0);
+    HEAP_END();
     spin_unlock_irqrestore(&g_heap_lock, flags);
+    if (need_region)
+    {
+        HeapPreparedRegion region;
+        (void)heap_prepare_region(HEAP_DEFAULT_GROW_BYTES, &region);
+        flags = spin_lock_irqsave(&g_heap_lock);
+        HEAP_BEGIN(IRQ_HEAP_INITIAL_PUBLISH, region.pages);
+        if (g_heap_total_bytes == 0)
+            (void)heap_publish_prepared_locked(&region);
+        HEAP_MARK(IRQ_HEAP_PUBLISH, g_heap_region_count, 0);
+        HEAP_END();
+        spin_unlock_irqrestore(&g_heap_lock, flags);
+        heap_release_prepared(&region);
+    }
 }
 
 void *kmalloc(size_t size)
 {
+    IRQ_LATENCY_SCOPE(IRQ_PATH_HEAP);
     if (size == 0)
         return NULL;
 
@@ -405,7 +505,9 @@ void *kmalloc(size_t size)
         return NULL;
     }
 
+    HeapPreparedRegion region = {0};
     irq_flags_t flags = spin_lock_irqsave(&g_heap_lock);
+    HEAP_BEGIN(IRQ_HEAP_ALLOCATE, 0);
 
     heap_blocks_init_once();
 
@@ -416,38 +518,54 @@ void *kmalloc(size_t size)
         const size_t grow_overhead = sizeof(HeapBlock) + (64u * 1024u);
         if (size > SIZE_MAX - grow_overhead)
         {
+            HEAP_END();
             spin_unlock_irqrestore(&g_heap_lock, flags);
             heap_reject(&g_heap_hardening.allocation_overflow);
             return NULL;
         }
         uint64_t grow = (uint64_t)(size + grow_overhead);
-        if (!heap_expand_locked(grow))
-        {
-            spin_unlock_irqrestore(&g_heap_lock, flags);
-            return NULL;
-        }
-
+        HEAP_END();
+        spin_unlock_irqrestore(&g_heap_lock, flags);
+        (void)heap_prepare_region(grow, &region);
+        flags = spin_lock_irqsave(&g_heap_lock);
+        HEAP_BEGIN(IRQ_HEAP_RECHECK, grow/PAGE_SIZE+(grow%PAGE_SIZE!=0));
+        /* A concurrent free or growth wins in the original first-fit order. */
         b = heap_find_first_fit(size);
         if (!b)
         {
+            bool published = heap_publish_prepared_locked(&region);
+            HEAP_MARK(IRQ_HEAP_PUBLISH, g_heap_region_count, 0);
+            if (published) b = heap_find_first_fit(size);
+        }
+        if (!b)
+        {
+            HEAP_END();
             spin_unlock_irqrestore(&g_heap_lock, flags);
+            heap_release_prepared(&region);
             return NULL;
         }
     }
 
+    HEAP_VALUE(previous_size, b->size);
+    HEAP_OPERATION_BEGIN();
     heap_try_split_block(b, size);
 
     b->state = HEAP_BLOCK_ALLOCATED;
     g_heap_used_bytes += (uint64_t)b->size;
 
     void *ret = payload_from_block(b);
+    HEAP_OPERATION_END();
+    HEAP_MARK(IRQ_HEAP_METADATA, 1, previous_size!=b->size ? sizeof(HeapBlock) : 0);
 
+    HEAP_END();
     spin_unlock_irqrestore(&g_heap_lock, flags);
+    heap_release_prepared(&region);
     return ret;
 }
 
 void *kmalloc_aligned(size_t size, size_t alignment)
 {
+    IRQ_LATENCY_SCOPE(IRQ_PATH_HEAP);
     if (size == 0)
         return NULL;
 
@@ -493,6 +611,7 @@ void *kmalloc_aligned(size_t size, size_t alignment)
 
 static bool heap_free_checked(void *ptr)
 {
+    IRQ_LATENCY_SCOPE(IRQ_PATH_HEAP);
     if (!ptr)
         return true;
 
@@ -503,6 +622,7 @@ static bool heap_free_checked(void *ptr)
     }
 
     irq_flags_t flags = spin_lock_irqsave(&g_heap_lock);
+    HEAP_BEGIN(IRQ_HEAP_FREE, 0);
     uintptr_t address = (uintptr_t)ptr;
     uint64_t *reject_counter = NULL;
     if (!heap_region_contains(address))
@@ -573,11 +693,14 @@ static bool heap_free_checked(void *ptr)
     else
         g_heap_used_bytes = 0;
 
+    HEAP_MARK(IRQ_HEAP_POINTER, 1, header_address ? sizeof(AlignedAllocHeader) : 0);
     heap_coalesce(b);
+    HEAP_END();
     spin_unlock_irqrestore(&g_heap_lock, flags);
     return true;
 
 reject:
+    HEAP_END();
     spin_unlock_irqrestore(&g_heap_lock, flags);
     if (reject_counter)
     {
@@ -600,6 +723,7 @@ bool heap_test_free(void *ptr)
 
 bool heap_get_stats(HeapStats *out_stats)
 {
+    IRQ_LATENCY_SCOPE(IRQ_PATH_HEAP);
     if (!out_stats)
         return false;
 
@@ -607,6 +731,7 @@ bool heap_get_stats(HeapStats *out_stats)
         init_heap();
 
     irq_flags_t flags = spin_lock_irqsave(&g_heap_lock);
+    HEAP_BEGIN(IRQ_HEAP_STATS, 0);
 
     HeapStats st;
     st.total_bytes = g_heap_total_bytes;
@@ -635,7 +760,9 @@ bool heap_get_stats(HeapStats *out_stats)
     }
 
     *out_stats = st;
+    HEAP_MARK(IRQ_HEAP_STATISTICS, st.blocks_total, sizeof(st));
 
+    HEAP_END();
     spin_unlock_irqrestore(&g_heap_lock, flags);
     return true;
 }
@@ -670,10 +797,13 @@ static bool heap_span_in_region(uintptr_t start, uintptr_t end)
 
 bool heap_validate_integrity(void)
 {
+    IRQ_LATENCY_SCOPE(IRQ_PATH_HEAP);
     if (!g_heap_lock_ready)
         return false;
 
     irq_flags_t flags = spin_lock_irqsave(&g_heap_lock);
+    HEAP_BEGIN(IRQ_HEAP_INTEGRITY, 0);
+    HEAP_COUNT(visited);
     bool valid = g_heap_initialized != 0 &&
                  g_heap_blocks.next != NULL && g_heap_blocks.prev != NULL;
     uint64_t region_bytes = 0;
@@ -696,6 +826,7 @@ bool heap_validate_integrity(void)
         list_for_each(it, &g_heap_blocks)
         {
             HeapBlock *block = list_entry(it, HeapBlock, link);
+            HEAP_VISIT(visited);
             uintptr_t start = (uintptr_t)block;
             if (it->next == NULL || it->prev == NULL ||
                 it->next->prev != it || it->prev->next != it ||
@@ -729,6 +860,8 @@ bool heap_validate_integrity(void)
     valid = valid && region_bytes == g_heap_total_bytes &&
             block_bytes == g_heap_total_bytes &&
             used_bytes == g_heap_used_bytes;
+    HEAP_MARK(IRQ_HEAP_VALIDATE, visited, 0);
+    HEAP_END();
     spin_unlock_irqrestore(&g_heap_lock, flags);
     return valid;
 }

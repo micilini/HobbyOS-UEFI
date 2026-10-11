@@ -1,6 +1,6 @@
 #ifndef XHCI_H
 #define XHCI_H
-void xhci_configure_device(int port_id, int speed_id);
+
 
 #include <stdint.h>
 #include <stddef.h>
@@ -264,6 +264,8 @@ typedef struct
 typedef struct
 {
     uint8_t found;
+    uint8_t descriptor_valid;
+    uint8_t keyboard_interface;
 
     uint8_t config_value;
 
@@ -285,6 +287,8 @@ typedef struct
 {
     uint64_t pci_base_address;
     uint64_t virtual_base_address;
+    uint32_t dma_capabilities;
+    uint64_t dma_maximum;
 
     volatile xhci_cap_regs_t *cap_regs;
     xhci_op_regs_t *op_regs;
@@ -308,6 +312,10 @@ typedef struct
     uint64_t event_ring_dequeue_idx;
     uint8_t event_ring_cycle_bit;
 
+    uint64_t slot_lifecycle[64];
+    uint8_t slot_retiring[64];
+    uint8_t slot_speed[64];
+    uint8_t slot_tt_hub[64], slot_tt_port[64];
     xhci_trb_t *slot_ep0_rings[64];
     uint64_t slot_ep0_enqueue[64];
     uint8_t slot_ep0_cycle[64];
@@ -339,6 +347,8 @@ typedef struct
 } xhci_controller_t;
 
 extern xhci_controller_t xhci_driver;
+int xhci_configure_device(int port_id, int speed_id);
+int xhci_configure_owned_root(int port_id, int speed_id, uint64_t generation);
 extern volatile uint32_t xhci_debug_flags;
 
 #define XHCI_DBG_WATCH (1u << 0)
@@ -347,7 +357,7 @@ extern volatile uint32_t xhci_debug_flags;
 void xhci_set_debug_flags(uint32_t flags);
 uint32_t xhci_get_debug_flags(void);
 
-void xhci_init(uint64_t base_address);
+void xhci_init(uint64_t base_address, uint64_t pci_function);
 bool xhci_interrupt_state_ready(void);
 void xhci_handle_interrupt(void);
 void xhci_process_events(void);
@@ -369,7 +379,7 @@ int xhci_configure_device_with_context(int port_id, int speed_id, usb_device_con
 int xhci_get_descriptor_device(uint8_t slot_id, usb_device_descriptor_t *out_desc, uint16_t len);
 void *xhci_get_config_descriptor(uint8_t slot_id, uint16_t *out_len);
 
-void xhci_disable_slot(uint8_t slot_id);
+bool xhci_disable_slot(uint8_t slot_id);
 
 void xhci_hotplug_enumerate_port(uint8_t port_0based);
 

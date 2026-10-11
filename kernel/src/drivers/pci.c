@@ -1,6 +1,7 @@
 #include "pci.h"
 #include "pci_descriptors.h"
-#include "../memory/paging.h"
+#include "../memory/mmio_mapping.h"
+#include "../memory/physical_translation.h"
 #include "../graphics/console.h"
 #include "../libc/string.h"
 #include "../core/idt.h"
@@ -16,6 +17,25 @@
 #define CONSOLE_COLOR_GREEN 0xFF00FF00
 
 static pci_msi_snapshot_t g_xhci_msi;
+
+static mapping_view_t g_ecam_views[16];
+static unsigned g_ecam_count;
+
+/* Enumeration and interrupt-time MSI access share persistent ECAM views.
+ * Register reads never allocate, map, or wait while holding a driver lock. */
+static void *pci_pointer(uint64_t physical, size_t bytes)
+{
+    for (unsigned i = 0; i < g_ecam_count; ++i) {
+        const mapping_view_t *v = &g_ecam_views[i];
+        if (physical >= v->physical && physical - v->physical < v->bytes &&
+            bytes <= v->bytes - (physical - v->physical)) {
+            void *cpu;
+            if (owned_mapping_subview(v->handle, physical - v->physical, bytes, &cpu)) return cpu;
+        }
+    }
+    return NULL;
+}
+
 
 static char *pci_progress_append_text(char *out, const char *text)
 {
@@ -87,18 +107,20 @@ static void pci_legacy_write(uint8_t bus, uint8_t slot, uint8_t func,
 
 static uint64_t pci_get_capability(uint64_t device_addr, uint8_t cap_id)
 {
-    PciDeviceHeader *header = (PciDeviceHeader *)device_addr;
+    PciDeviceHeader *header = pci_pointer(device_addr, 256);
+    if (!header) return 0;
 
     if (!(header->Status & (1 << 4)))
         return 0;
 
-    uint8_t *ptr_to_cap = (uint8_t *)(device_addr + 0x34);
+    uint8_t *ptr_to_cap = (uint8_t *)header + 0x34;
     uint8_t cap_offset = *ptr_to_cap;
 
     while (cap_offset != 0)
     {
         uint64_t cap_addr = device_addr + cap_offset;
-        PciCapabilityHeader *cap_header = (PciCapabilityHeader *)cap_addr;
+        PciCapabilityHeader *cap_header = pci_pointer(cap_addr, sizeof(*cap_header));
+        if (!cap_header) return 0;
         if (cap_header->CapID == cap_id)
             return cap_addr;
         cap_offset = cap_header->NextCap;
@@ -118,7 +140,8 @@ bool pci_msi_prepare(uint64_t device_addr, uint8_t vector,
         return false;
     }
 
-    volatile uint8_t *cap = (volatile uint8_t *)msi_addr;
+    volatile uint8_t *cap = pci_pointer(msi_addr, 14);
+    if (!cap) return false;
     volatile uint16_t *msg_ctl_p = (volatile uint16_t *)(cap + 0x02);
     uint16_t msg_ctl = *msg_ctl_p;
 
@@ -157,8 +180,8 @@ bool pci_msi_enable(uint64_t device_addr)
     if (!g_xhci_msi.prepared || g_xhci_msi.device_address != device_addr ||
         !g_xhci_msi.capability_address || !xhci_interrupt_state_ready())
         return false;
-    volatile uint16_t *control = (volatile uint16_t *)(
-        g_xhci_msi.capability_address + 2u);
+    volatile uint16_t *control = pci_pointer(g_xhci_msi.capability_address + 2u, sizeof(*control));
+    if (!control) return false;
     uint16_t value = *control;
     value &= (uint16_t)~PCI_MSI_CTL_MME_MASK;
     value |= PCI_MSI_CTL_ENABLE;
@@ -172,7 +195,8 @@ bool pci_msi_disable(uint64_t device_addr)
     uint64_t capability = pci_get_capability(device_addr, 0x05);
     if (!capability)
         return false;
-    volatile uint16_t *control = (volatile uint16_t *)(capability + 2u);
+    volatile uint16_t *control = pci_pointer(capability + 2u, sizeof(*control));
+    if (!control) return false;
     *control = (uint16_t)(*control & ~PCI_MSI_CTL_ENABLE);
     bool disabled = (*control & PCI_MSI_CTL_ENABLE) == 0;
     if (g_xhci_msi.device_address == device_addr)
@@ -198,15 +222,29 @@ bool pci_msi_snapshot(pci_msi_snapshot_t *out)
     return true;
 }
 
+/* Captured only at the xHCI PCI discovery branch, before device publication.
+ * One MiB is the existing register-window contract, not a measured BAR size. */
+static struct { uint64_t function, physical; } g_xhci_resources[16];
+static uint32_t g_xhci_resource_count;
+bool pci_discovered_xhci_extent(uint64_t source, uint64_t *physical, uint64_t *bytes)
+{
+    if (!physical || !bytes) return false;
+    uint32_t count = __atomic_load_n(&g_xhci_resource_count, __ATOMIC_ACQUIRE);
+    for (unsigned i=0; i<count; ++i) if (source == g_xhci_resources[i].function) {
+        *physical = g_xhci_resources[i].physical; *bytes = 256u*4096u; return true;
+    }
+    return false;
+}
+
 static void pci_enumerate_function(uint64_t device_addr, uint64_t function,
                                    uint8_t bus, uint8_t slot)
 {
     uint64_t offset = function << 12;
     uint64_t function_addr = device_addr + offset;
 
-    paging_map(function_addr, function_addr, PAGE_PRESENT | PAGE_RW | PAGE_PCD);
 
-    PciDeviceHeader *pci_header = (PciDeviceHeader *)function_addr;
+    PciDeviceHeader *pci_header = pci_pointer(function_addr, 256);
+    if (!pci_header) return;
 
     if (pci_header->DeviceID == 0)
         return;
@@ -233,7 +271,12 @@ static void pci_enumerate_function(uint64_t device_addr, uint64_t function,
         uint64_t bar0 = bars[0];
         uint64_t bar1 = bars[1];
 
-        uint64_t base_addr = (bar1 << 32) | (bar0 & 0xFFFFFFF0);
+        if ((bar0 & 1) || ((bar0 >> 1) & 3) == 1 || ((bar0 >> 1) & 3) == 3 || g_xhci_resource_count == 16) return;
+        uint64_t base_addr = (((bar0 >> 1) & 3) == 2 ? bar1 << 32 : 0) | (bar0 & 0xFFFFFFF0);
+        unsigned resource = g_xhci_resource_count;
+        g_xhci_resources[resource].function = function_addr;
+        g_xhci_resources[resource].physical = base_addr;
+        __atomic_store_n(&g_xhci_resource_count, resource+1, __ATOMIC_RELEASE);
 
         uint32_t cmd = pci_legacy_read(bus, slot, function, 0x04);
 
@@ -266,7 +309,7 @@ static void pci_enumerate_function(uint64_t device_addr, uint64_t function,
         console_write_debug("...\n");
 
         pci_progress("PCI_SCAN_PROGRESS", "component=xhci action=begin");
-        xhci_init(base_addr);
+        xhci_init(base_addr, function_addr);
         pci_progress("PCI_SCAN_PROGRESS", "component=xhci action=complete");
     }
 }
@@ -277,8 +320,8 @@ static void pci_enumerate_device(uint64_t bus_addr, uint64_t device,
     uint64_t offset = device << 15;
     uint64_t device_addr = bus_addr + offset;
 
-    paging_map(device_addr, device_addr, PAGE_PRESENT | PAGE_RW | PAGE_PCD);
-    PciDeviceHeader *pci_header = (PciDeviceHeader *)device_addr;
+    PciDeviceHeader *pci_header = pci_pointer(device_addr, 256);
+    if (!pci_header) return;
 
     if (pci_header->DeviceID == 0)
         return;
@@ -310,7 +353,7 @@ void pci_init(void)
 
     McfgHeader *mcfg = (McfgHeader *)acpi_find_table(ACPI_SIG_MCFG);
 
-    if (!mcfg)
+    if (!mcfg || mcfg->Header.length < sizeof(*mcfg))
     {
         console_set_color(CONSOLE_COLOR_RED, CONSOLE_COLOR_BLACK);
         console_write_debug("[PCI] Error: ACPI MCFG Table not found!\n");
@@ -318,7 +361,6 @@ void pci_init(void)
         return;
     }
 
-    paging_map((uint64_t)mcfg, (uint64_t)mcfg, PAGE_PRESENT | PAGE_RW);
 
     console_set_color(CONSOLE_COLOR_DEBUG, CONSOLE_COLOR_BLACK);
     console_write_debug("PCI: MCFG Table found. Parsing entries...\n");
@@ -333,6 +375,13 @@ void pci_init(void)
     for (int t = 0; t < entries; t++)
     {
         McfgDeviceConfig *config = (McfgDeviceConfig *)((uint64_t)mcfg + sizeof(McfgHeader) + (sizeof(McfgDeviceConfig) * t));
+
+        if (config->EndBus < config->StartBus || g_ecam_count == 16) return;
+        mmio_origin_t origin;
+        if (!mmio_origin_resolve(MMIO_PCI_ECAM, physical_require_address(config, sizeof(*config)), &origin)) return;
+        if (mmio_mapping_acquire(&origin, CACHE_UNCACHED_MINUS, &g_ecam_views[g_ecam_count]) != MAPPING_OK)
+            return;
+        ++g_ecam_count;
 
         console_write_debug("PCI: Scanning Segment Group...\n");
         pci_progress("PCI_SCAN_PROGRESS", "component=segment action=begin");
@@ -352,9 +401,9 @@ static void pci_list_function(uint64_t device_addr, uint64_t function, uint8_t b
     uint64_t offset = ((uint64_t)function) << 12;
     uint64_t function_addr = device_addr + offset;
 
-    paging_map(function_addr, function_addr, PAGE_PRESENT | PAGE_RW | PAGE_PCD);
 
-    PciDeviceHeader *pci_header = (PciDeviceHeader *)function_addr;
+    PciDeviceHeader *pci_header = pci_pointer(function_addr, 256);
+    if (!pci_header) return;
 
     if (pci_header->DeviceID == 0)
         return;
@@ -385,9 +434,9 @@ static void pci_list_device(uint64_t bus_addr, uint64_t device, uint8_t bus)
     uint64_t offset = ((uint64_t)device) << 15;
     uint64_t device_addr = bus_addr + offset;
 
-    paging_map(device_addr, device_addr, PAGE_PRESENT | PAGE_RW | PAGE_PCD);
 
-    PciDeviceHeader *pci_header = (PciDeviceHeader *)device_addr;
+    PciDeviceHeader *pci_header = pci_pointer(device_addr, 256);
+    if (!pci_header) return;
 
     if (pci_header->DeviceID == 0)
         return;
@@ -415,7 +464,7 @@ static void pci_list_bus(uint64_t base_addr, uint64_t bus, uint64_t start_bus)
 void pci_list_devices(void)
 {
     McfgHeader *mcfg = (McfgHeader *)acpi_find_table("MCFG");
-    if (!mcfg)
+    if (!mcfg || mcfg->Header.length < sizeof(*mcfg))
     {
         console_set_color(CONSOLE_COLOR_RED, CONSOLE_COLOR_HOBBYOS_BLUE);
         console_write("[PCI] MCFG not found.\n");
@@ -423,7 +472,6 @@ void pci_list_devices(void)
         return;
     }
 
-    paging_map((uint64_t)mcfg, (uint64_t)mcfg, PAGE_PRESENT | PAGE_RW | PAGE_PCD);
 
     uint64_t entries_len = (uint64_t)mcfg->Header.length - sizeof(McfgHeader);
     uint64_t entries_count = entries_len / sizeof(McfgDeviceConfig);
@@ -437,7 +485,6 @@ void pci_list_devices(void)
         uint64_t start_bus = config[i].StartBus;
         uint64_t end_bus = config[i].EndBus;
 
-        paging_map(base, base, PAGE_PRESENT | PAGE_RW | PAGE_PCD);
 
         for (uint64_t bus = start_bus; bus <= end_bus; bus++)
         {

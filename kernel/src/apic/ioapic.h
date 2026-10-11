@@ -3,6 +3,7 @@
 
 #include "../acpi/madt.h"
 #include "../core/spinlock.h"
+#include "../memory/owned_mapping.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -44,6 +45,8 @@ typedef struct
 {
     uint8_t id;
     uint64_t mmio_base;
+    uint8_t *registers;
+    mapping_view_t mapping;
     uint32_t gsi_base;
     uint32_t redirection_count;
     spinlock_t lock;

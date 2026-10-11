@@ -6,8 +6,10 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import validation_resources
 import re
 import select
+import shlex
 import shutil
 import socket
 import subprocess
@@ -379,6 +381,21 @@ def arm_commands(symbols, args):
     return commands
 
 
+def terminal_audit_commands(symbols, args, directory, hmp, serial, pid):
+    """Stop after the fatal dump, before reset destroys this boot's state."""
+    site = symbols["panic_do_action"]
+    if site["type"].lower() != "t" or not 0 < site["size"] < 4096:
+        raise RuntimeError("panic action boundary is not bounded runtime text")
+    argv = [sys.executable, "-B", "scripts/stack_native_audit.py",
+            "capture-panic", "--directory", str(directory), "--hmp", str(hmp),
+            "--serial", str(serial), "--pid", str(pid), "--action", args.action]
+    return [f'hbreak *0x{site["address"]:x}', "continue",
+            'printf "PANIC_AUDIT_RIP=0x%lx\\n", $rip',
+            "shell " + shlex.join(argv),
+            "if $_shell_exitcode != 0\nquit 1\nend",
+            "delete breakpoints"]
+
+
 def state_snapshot_commands(symbols):
     commands = ["info threads", "thread apply all info registers rip eflags",
                 "thread apply all info symbol $rip"]
@@ -662,8 +679,7 @@ def main():
             parser.error("the ELF does not contain panic instrumentation")
 
     working_image = run_dir / "working.img"
-    subprocess.run(["cp", "--reflink=auto", str(image), str(working_image)],
-                   check=True)
+    validation_resources.sparse_copy(image, working_image)
     image_before = sha256(working_image)
     elf_hash = sha256(elf)
     version = subprocess.run([args.qemu, "--version"], text=True,
@@ -722,12 +738,18 @@ def main():
     qmp = None
     process = None
     stderr_handle = None
+    native_audit = None
+    native_audit_attempted = False
     cleanup = {"method": None, "started": None, "completed": None}
     try:
         stderr_handle = (run_dir / "qemu-stderr.log").open("w")
         process = subprocess.Popen(command, stdout=stderr_handle,
                                    stderr=subprocess.STDOUT)
         result["qemu_pid"] = process.pid
+        import stack_native_audit
+        if stack_native_audit.enabled():
+            native_audit = stack_native_audit.prepare(elf, working_image, process.pid)
+            stack_native_audit.reference(native_audit, run_dir)
         socket_deadline = time.monotonic() + 10.0
         if not wait_path(qmp_path, socket_deadline):
             raise RuntimeError("QMP socket did not appear")
@@ -870,7 +892,14 @@ def main():
                 raise RuntimeError("HMP production trigger failed")
         else:
             arm_path = run_dir / "gdb-arm.log"
-            gdb_run(elf, gdb_path, arm_commands(symbols, args), arm_path)
+            commands = arm_commands(symbols, args)
+            if native_audit is not None and args.action in ("restart", "shutdown"):
+                commands.extend(terminal_audit_commands(
+                    symbols, args, native_audit, hmp_path, serial_path, process.pid))
+                native_audit_attempted = True
+            gdb_run(elf, gdb_path, commands, arm_path)
+            if native_audit is not None and args.action in ("restart", "shutdown"):
+                stack_native_audit.verify(native_audit)
 
         terminal_event = None
         post_deadline = time.monotonic() + args.post_timeout
@@ -981,6 +1010,13 @@ def main():
     finally:
         cleanup["started"] = time.monotonic()
         if qmp and process and process.poll() is None:
+            if native_audit is not None and not native_audit_attempted:
+                try:
+                    stack_native_audit.capture(native_audit, hmp_path, run_dir / "serial-transcript.log", process.pid)
+                except Exception as error:
+                    result["native_service_error"] = str(error)
+                    result["status"] = "FAIL"
+                    result["host_return_code"] = 1
             try:
                 qmp.command("quit", {}, time.monotonic() + 2.0)
                 cleanup["method"] = "qmp-quit"

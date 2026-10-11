@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import validation_resources
 import re
 import shutil
 import subprocess
@@ -421,8 +422,7 @@ def run(args) -> int:
         raise RuntimeError("required symbols absent: " + ",".join(missing))
 
     working = run_dir / "working.img"
-    subprocess.run(["cp", "--reflink=auto", str(image), str(working)],
-                   check=True)
+    validation_resources.sparse_copy(image, working)
     socket_dir = Path(tempfile.mkdtemp(prefix="hobbyos-arch-"))
     os.chmod(socket_dir, 0o700)
     firmware_args, firmware = panic_qemu.firmware_arguments(run_dir)
@@ -480,11 +480,16 @@ def run(args) -> int:
     process = None
     qmp = None
     stderr_handle = None
+    native_audit = None
     try:
         stderr_handle = (run_dir / "qemu-stderr.log").open("w")
         process = subprocess.Popen(command, stdout=stderr_handle,
                                    stderr=subprocess.STDOUT)
         result["qemu_pid"] = process.pid
+        import stack_native_audit
+        if stack_native_audit.enabled():
+            native_audit = stack_native_audit.prepare(elf, working, process.pid)
+            stack_native_audit.reference(native_audit, run_dir)
         deadline = time.monotonic() + 10
         if not panic_qemu.wait_path(qmp_path, deadline):
             raise RuntimeError("QMP socket did not appear")
@@ -793,6 +798,13 @@ def run(args) -> int:
     finally:
         cleanup = {"method": None, "started": time.monotonic()}
         if qmp and process and process.poll() is None:
+            if native_audit is not None:
+                try:
+                    stack_native_audit.capture(native_audit, hmp_path, serial, process.pid)
+                except Exception as error:
+                    result["native_service_error"] = str(error)
+                    result["status"] = "FAIL"
+                    result["host_return_code"] = 1
             try:
                 qmp.command("quit", {}, time.monotonic() + 3)
                 cleanup["method"] = "qmp-quit"

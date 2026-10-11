@@ -8,6 +8,7 @@
 
 typedef uint32_t cpu_slot_t;
 #define CPU_SLOT_INVALID UINT32_MAX
+#define SMP_AP_STACK_BYTES (16u * 1024u)
 
 typedef struct
 {

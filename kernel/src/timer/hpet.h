@@ -158,5 +158,8 @@ typedef struct
     uint8_t valid;
 } hpet_clock_sample_t;
 bool hpet_read_clock_sample(hpet_clock_sample_t*out);
+#if defined(HOBBYOS_IRQ_ENTRY_DIAGNOSTIC) && HOBBYOS_IRQ_ENTRY_DIAGNOSTIC
+bool hpet_read_clock_sample_attributed(hpet_clock_sample_t *out, uint64_t *counter_end);
+#endif
 
 #endif

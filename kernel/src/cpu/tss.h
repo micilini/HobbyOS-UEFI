@@ -2,6 +2,7 @@
 #define TSS_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef struct __attribute__((packed))
 {
@@ -29,6 +30,8 @@ typedef struct __attribute__((packed))
 void tss_init(void);
 Tss64 *tss_get(void);
 
-Tss64 *tss_create_per_cpu(void);
+/* Exact boot-only static backing and one-time pointer handoff. */
+bool tss_bsp_backing(uint64_t physical[3]);
+bool tss_install_guarded_ist(const uint64_t tops[3]);
 
 #endif

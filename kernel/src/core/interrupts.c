@@ -1,9 +1,20 @@
+#include "irq_latency_interior.h"
+#include "irq_latency_tsc.h"
+#ifdef HOBBYOS_SELFTEST
+#include "../memory/mapping_probe.h"
+#endif
 #include <stdint.h>
 
 #include "idt.h"
 #include "irq_stats.h"
 #include "interrupt_context.h"
 #include "interrupts.h"
+#include "../memory/low_fault.h"
+#ifdef HOBBYOS_SELFTEST
+#include "../memory/null_probe.h"
+#include "../memory/protection_probe.h"
+#include "../memory/guard_probe.h"
+#endif
 #include "panic.h"
 #include "../graphics/console.h"
 #include "../drivers/keyboard.h"
@@ -11,12 +22,16 @@
 #include "../apic/ioapic.h"
 #include "../drivers/serial.h"
 #include "../smp/smp_topology.h"
+#include "../smp/cpu_request.h"
 #include "../drivers/timer.h"
 #include "../core/timers.h"
 #include "../core/scheduler.h"
 #include "../core/clock.h"
 #include "../timer/hpet.h"
 #include "../cpu/cpu.h"
+#ifdef HOBBYOS_SELFTEST
+#include "../cpu/cpu_control_snapshot.h"
+#endif
 #include "build_profile.h"
 #ifdef HOBBYOS_ARCH_TEST
 #include "../cpu/arch_selftest.h"
@@ -193,14 +208,27 @@ uint64_t irq_lapic_timer_handler_inner(void)
         arch_test_slot < HOBBYOS_MAX_CPUS)
         arch_test_timer_hook(arch_test_slot);
 #endif
+#if defined(HOBBYOS_IRQ_ENTRY_DIAGNOSTIC) && HOBBYOS_IRQ_ENTRY_DIAGNOSTIC
+    irq_latency_tick_token_t tick=irq_latency_tick_prepare();
+    if (tick.active) tick.begin.tsc=irq_latency_read_tsc();
+#endif
     uint64_t now_ns = clock_monotonic_ns();
+#if defined(HOBBYOS_IRQ_ENTRY_DIAGNOSTIC) && HOBBYOS_IRQ_ENTRY_DIAGNOSTIC
+    if (tick.active) tick.after_clock=irq_latency_read_tsc();
+#endif
     cpu_slot_t slot = CPU_SLOT_INVALID;
     irq_stats_record(INT_VECTOR_LAPIC_TIMER);
     lapic_timer_record_irq_at(now_ns);
     if (smp_current_cpu_slot(&slot) && slot == smp_bsp_cpu_slot())
         timer_clockevent_on_lapic_tick(slot, now_ns);
+#if defined(HOBBYOS_IRQ_ENTRY_DIAGNOSTIC) && HOBBYOS_IRQ_ENTRY_DIAGNOSTIC
+    if (tick.active) tick.after_work=irq_latency_read_tsc();
+#endif
     interrupts_request_reschedule();
     lapic_eoi();
+#if defined(HOBBYOS_IRQ_ENTRY_DIAGNOSTIC) && HOBBYOS_IRQ_ENTRY_DIAGNOSTIC
+    if (tick.active) irq_latency_tick_complete(&tick,irq_latency_read_tsc());
+#endif
     return now_ns;
 }
 
@@ -214,6 +242,9 @@ static void irq_xhci_handler_inner(void)
 static void irq_runtime_rendezvous_wake_handler_inner(void)
 {
     irq_stats_record(INT_VECTOR_RUNTIME_RENDEZVOUS_WAKE);
+#ifdef HOBBYOS_SELFTEST
+    cpu_control_snapshot_irq();
+#endif
     lapic_eoi();
 }
 
@@ -251,11 +282,17 @@ void irq_external_dispatch(uint64_t vector_value, uint64_t entry_df)
     {
         irq_xhci_handler_inner();
     }
-    else if (vector == 0xFFu)
+    else if (vector == INT_VECTOR_CPU_REQUEST)
     {
-        irq_stats_record(0xFFu);
+        irq_stats_record(vector);
+        cpu_request_irq();
+        lapic_eoi();
     }
-    else if (vector == 0xFDu)
+    else if (vector == INT_VECTOR_SPURIOUS)
+    {
+        irq_stats_record(INT_VECTOR_SPURIOUS);
+    }
+    else if (vector == INT_VECTOR_LEGACY_HALT)
     {
         irq_stats_record(vector);
         lapic_eoi();
@@ -300,7 +337,12 @@ __attribute__((interrupt)) void exc_isr5(InterruptFrame *frame) { EXC_PANIC_NOER
 __attribute__((interrupt)) void exc_isr6(InterruptFrame *frame) { EXC_PANIC_NOERR(6); }
 __attribute__((interrupt)) void exc_isr7(InterruptFrame *frame) { EXC_PANIC_NOERR(7); }
 
-__attribute__((interrupt)) void exc_isr8(InterruptFrame *frame, uint64_t error_code) { EXC_PANIC_ERR(8); }
+__attribute__((interrupt)) void exc_isr8(InterruptFrame *frame, uint64_t error_code)
+{
+    uint64_t cr2;
+    __asm__ volatile("mov %%cr2,%0" : "=r"(cr2));
+    kpanic_exception_ex(g_exc_names[8],8,(void *)frame,error_code,1,cr2,1);
+}
 
 __attribute__((interrupt)) void exc_isr9(InterruptFrame *frame) { EXC_PANIC_NOERR(9); }
 
@@ -309,6 +351,10 @@ __attribute__((interrupt)) void exc_isr11(InterruptFrame *frame, uint64_t error_
 __attribute__((interrupt)) void exc_isr12(InterruptFrame *frame, uint64_t error_code) { EXC_PANIC_ERR(12); }
 __attribute__((interrupt)) void exc_isr13(InterruptFrame *frame, uint64_t error_code)
 {
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+    if (__atomic_fetch_add(&g_irq_interior_fault_sequence, 1, __ATOMIC_RELAXED) == UINT64_MAX)
+        __atomic_store_n(&g_irq_interior_fault_overflow, 1, __ATOMIC_RELEASE);
+#endif
     if (general_protection_msr_fixup(frame, error_code))
         return;
 #ifdef HOBBYOS_ARCH_TEST
@@ -319,9 +365,19 @@ __attribute__((interrupt)) void exc_isr13(InterruptFrame *frame, uint64_t error_
 
 __attribute__((interrupt)) void exc_isr14(InterruptFrame *frame, uint64_t error_code)
 {
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+    if (__atomic_fetch_add(&g_irq_interior_fault_sequence, 1, __ATOMIC_RELAXED) == UINT64_MAX)
+        __atomic_store_n(&g_irq_interior_fault_overflow, 1, __ATOMIC_RELEASE);
+#endif
     uint64_t cr2 = 0;
     __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
-    kpanic_exception_ex(g_exc_names[14], 14, (void *)frame, error_code, 1, cr2, 1);
+#ifdef HOBBYOS_SELFTEST
+    if (mapping_probe_fixup(frame, cr2, error_code)) return;
+    if (null_probe_fixup(frame, cr2, error_code)) return;
+    if (protection_probe_fixup(frame, cr2, error_code)) return;
+    if (guard_probe_fixup(frame, cr2, error_code)) return;
+#endif
+    kpanic_exception_ex(low_fault_description(cr2), 14, (void *)frame, error_code, 1, cr2, 1);
 }
 
 __attribute__((interrupt)) void exc_isr15(InterruptFrame *frame) { EXC_PANIC_NOERR(15); }

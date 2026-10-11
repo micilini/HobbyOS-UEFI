@@ -59,6 +59,7 @@ typedef struct
 } pci_msi_snapshot_t;
 
 void pci_init(void);
+bool pci_discovered_xhci_extent(uint64_t source, uint64_t *physical, uint64_t *bytes);
 bool pci_msi_prepare(uint64_t device_addr, uint8_t vector,
                      uint32_t destination_apic_id);
 bool pci_msi_enable(uint64_t device_addr);

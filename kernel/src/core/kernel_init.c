@@ -1,4 +1,6 @@
 #include "kernel_init.h"
+#include "../cpu/control_policy.h"
+#include "../cpu/cpu.h"
 #include "../memory/gdt.h"
 #include "idt.h"
 #include "../graphics/console.h"
@@ -6,6 +8,13 @@
 #include "../graphics/splash.h"
 #include "../memory/pmem.h"
 #include "../memory/paging.h"
+#include "../memory/owned_mapping.h"
+#include "../memory/kernel_tlb.h"
+#include "../memory/kernel_stack.h"
+#include "../memory/boot_address.h"
+#ifdef HOBBYOS_SELFTEST
+#include "../memory/memory_observation.h"
+#endif
 #include "../memory/heap.h"
 #include "../acpi/acpi.h"
 #include "../acpi/madt.h"
@@ -14,6 +23,7 @@
 #include "../apic/legacy_pic.h"
 #include "../timer/hpet.h"
 #include "clock.h"
+#include "clocksource.h"
 #include "task_metrics.h"
 #include "../drivers/keyboard.h"
 #include "../drivers/timer.h"
@@ -101,6 +111,24 @@ static void kinit_progress(const char *stage)
     serial_write_all(line);
 }
 
+static uint32_t g_device_initialization_complete;
+static void initialize_runtime_devices(void *unused)
+{
+    (void)unused;
+    task_handle_t owner;
+    if (!scheduler_current_task_handle(&owner)) kpanic("Device initialization owner unavailable");
+    char line[128];
+    int length=ksnprintf(line,sizeof(line),"\n[BOOT][DEVICE_OWNER] id=%llu generation=%llu\n",
+        (unsigned long long)owner.id,(unsigned long long)owner.lifecycle_generation);
+    if (length<0 || (size_t)length>=sizeof(line)) kpanic("Device initialization owner format");
+    serial_write_all(line);
+    console_begin_batch();
+    pci_init();
+    console_end_batch();
+    runtime_ready_mark_pci_scan_complete();
+    __atomic_store_n(&g_device_initialization_complete, 1, __ATOMIC_RELEASE);
+}
+
 void init_system_core(BootInfo *boot_info)
 {
     irq_disable();
@@ -114,6 +142,8 @@ void init_system_core(BootInfo *boot_info)
 
     kinit_debug("[CORE] Init IDT...\n");
     init_idt();
+
+    cpu_policy_init_bsp();
 
 #if defined(HOBBYOS_FORMAT_TEST)
     if (!format_selftest_run())
@@ -130,11 +160,16 @@ void init_system_core(BootInfo *boot_info)
 
     kinit_debug("[CORE] Init PMM...\n");
     init_pmm(boot_info->memory_map);
+#ifdef HOBBYOS_SELFTEST
+    memory_observation_init(boot_info);
+#endif
 
     kinit_debug("[CORE] Init Paging...\n");
 
-    init_paging((uint64_t)boot_info->framebuffer->BaseAddress,
+    init_paging(physical_boot_objects()->framebuffer,
                 (uint64_t)boot_info->framebuffer->BufferSize);
+    if (!physical_boot_activate())
+        kpanic("Framebuffer physical range is not mapped");
 
     kinit_debug("[CORE] Paging OK! Switched CR3.\n");
 
@@ -177,6 +212,11 @@ void init_system_core(BootInfo *boot_info)
         kpanic("SMP topology validation failed");
     smp_prepare_cpu_structures();
 
+    uint32_t control_bsp_apic;
+    if (!cpu_local_arch_id(&control_bsp_apic) ||
+        !cpu_policy_confirm_local(control_bsp_apic, paging_kernel_root_physical(), "BSP"))
+        kpanic("BSP control policy readback failed");
+
     if (!irq_bootstrap_init() || !irq_bootstrap_controllers_quiescent())
         kpanic("Interrupt controller quiescence failed");
 
@@ -209,6 +249,7 @@ void init_system_core(BootInfo *boot_info)
     cpu_slot_t bsp_slot = smp_bsp_cpu_slot();
     if (bsp_slot == CPU_SLOT_INVALID || scheduler_cpu_init_bsp(bsp_slot) != SCHED_BOOT_OK)
         kpanic("Scheduler BSP init failed");
+    clocksource_prepare_local();
 
     keyboard_init();
     if (!irq_bootstrap_routes_prepared())
@@ -230,12 +271,19 @@ void init_system_core(BootInfo *boot_info)
     if (!scheduler_bootstrap_selftest())
         kpanic("Scheduler post-init guards failed");
 
+    owned_mapping_close_bootstrap();
+    if (!kernel_stack_close_bootstrap()) kpanic("Stack preparation is not sealed before AP startup");
+    kernel_tlb_close_bootstrap();
     smp_boot_aps();
     if (irq_bootstrap_state() != IRQ_BOOTSTRAP_CPUS_PREPARED ||
         smp_online_cpu_count() != g_cpu_count || smp_failed_cpu_count())
         kpanic("AP interrupt preparation barrier failed");
+    clocksource_select();
+    clocksource_report();
 
     kinit_debug("[CORE] Init Drivers & Scheduler...\n");
+    if (!kernel_tlb_runtime_init())
+        kpanic("Kernel invalidation service initialization failed");
     dpc_init();
 
 
@@ -294,13 +342,21 @@ void init_system_core(BootInfo *boot_info)
     if (!irq_bootstrap_wait_all_runtime_ready(10000000u))
         kpanic("CPU interrupt runtime readiness failed");
 
-    console_begin_batch();
     serial_write_all("[BOOTTRACE][BSP] 5 before-pci-init\n");
-    kinit_progress("PCI_BEGIN"); pci_init();
-    runtime_ready_mark_pci_scan_complete();
+    if (!cpu_request_mapping_enable()) kpanic("Device mapping admission precedes CPU IRQ readiness");
+    if (!kernel_stack_runtime_enable()) kpanic("Stack runtime admission precedes CPU IRQ readiness");
+    kinit_progress("PCI_BEGIN");
+    if (!thread_create_named_with_class_flags(initialize_runtime_devices, NULL,
+        TASK_CLASS_NORMAL, "device-initialization", TASK_FLAG_SYSTEM | TASK_FLAG_KILL_PROTECTED))
+        kpanic("Device initialization worker creation failed");
+    /* The bootstrap context cannot enter a blocking cross-CPU API. The worker
+     * owns device acquisition, while this IF-enabled boot wait owns no lock. */
+    uint64_t device_deadline = clock_monotonic_ns() + UINT64_C(120000000000);
+    while (!__atomic_load_n(&g_device_initialization_complete, __ATOMIC_ACQUIRE)) {
+        if (clock_monotonic_ns() >= device_deadline) kpanic("Device initialization worker deadline");
+        __asm__ volatile("hlt" ::: "memory");
+    }
     kinit_progress("PCI_SCAN_COMPLETE");
-
-    console_end_batch();
 
     kinit_progress("CORE_COMPLETE");
     kinit_debug("[CORE] System Core Initialization Complete.\n");

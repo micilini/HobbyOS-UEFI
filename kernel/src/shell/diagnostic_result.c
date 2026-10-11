@@ -4,6 +4,10 @@
 #include "../graphics/console.h"
 #include "../drivers/serial.h"
 #include "../libc/string.h"
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+#include "../memory/stack_report.h"
+#include "../memory/warning_report.h"
+#endif
 
 #ifdef HOBBYOS_SELFTEST
 #include "../core/scheduler.h"
@@ -119,6 +123,10 @@ static bool diagnostic_result_build(char line[DIAGNOSTIC_RESULT_MAX],
 int diagnostic_result_complete(const char *canonical_command,
                                int return_code)
 {
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+    if (!stack_report_flush() && !return_code) return_code=1;
+    if (!warning_report_flush() && !return_code) return_code=1;
+#endif
     char line[DIAGNOSTIC_RESULT_MAX];
     diagnostic_result_state_t state = return_code == 0
         ? DIAGNOSTIC_RESULT_PASS : DIAGNOSTIC_RESULT_FAIL;
