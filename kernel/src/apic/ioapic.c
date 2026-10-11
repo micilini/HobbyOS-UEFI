@@ -4,7 +4,8 @@
 #include "../drivers/serial.h"
 #include "../libc/memory.h"
 #include "../memory/heap.h"
-#include "../memory/paging.h"
+#include "../memory/mmio_mapping.h"
+#include "../memory/physical_translation.h"
 
 typedef struct
 {
@@ -24,15 +25,15 @@ static ioapic_registry_t g_ioapic_registry;
 static uint32_t ioapic_read_locked(const ioapic_controller_t *controller,
                                    uint32_t reg)
 {
-    mmio_write32((void *)(controller->mmio_base + IOREGSEL), reg);
-    return mmio_read32((void *)(controller->mmio_base + IOWIN));
+    mmio_write32((void *)(controller->registers + IOREGSEL), reg);
+    return mmio_read32((void *)(controller->registers + IOWIN));
 }
 
 static void ioapic_write_locked(const ioapic_controller_t *controller,
                                 uint32_t reg, uint32_t value)
 {
-    mmio_write32((void *)(controller->mmio_base + IOREGSEL), reg);
-    mmio_write32((void *)(controller->mmio_base + IOWIN), value);
+    mmio_write32((void *)(controller->registers + IOREGSEL), reg);
+    mmio_write32((void *)(controller->registers + IOWIN), value);
 }
 
 static bool ioapic_controller_for_gsi(uint32_t gsi, uint32_t *out_index,
@@ -135,10 +136,11 @@ bool ioapic_init_all(void)
         controller->gsi_base = source.gsi_base;
         spinlock_init(&controller->lock);
 
-        uint64_t base_page = controller->mmio_base & ~0xFFFULL;
-        paging_map(base_page, base_page,
-                   PAGE_PRESENT | PAGE_RW | PAGE_PCD | PAGE_PWT);
-        __asm__ volatile("invlpg (%0)" : : "r"(base_page) : "memory");
+        mmio_origin_t origin;
+        if (!mmio_origin_resolve(MMIO_IOAPIC, i + 1, &origin)) return false;
+        if (mmio_mapping_acquire(&origin, CACHE_UNCACHEABLE, &controller->mapping) != MAPPING_OK)
+            return false;
+        controller->registers = controller->mapping.cpu;
         controller->mapped = 1;
 
         irq_flags_t flags = spin_lock_irqsave(&controller->lock);

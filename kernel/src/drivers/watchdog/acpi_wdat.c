@@ -2,7 +2,8 @@
 
 #include "../../acpi/acpi.h"
 #include "../../graphics/console.h"
-#include "../../memory/paging.h"
+#include "../../memory/mmio_mapping.h"
+#include "../../memory/physical_translation.h"
 
 #define ACPI_SIG_WDAT "WDAT"
 
@@ -121,11 +122,60 @@ static uint8_t wdat_access_size(const AcpiGenericAddress *gas)
     return 4;
 }
 
-static void wdat_ensure_mapped(uint64_t phys)
+static mapping_view_t g_wdat_views[64];
+static unsigned g_wdat_view_count;
+static bool wdat_pointer(uint64_t physical, size_t bytes, void **out)
 {
+    for (unsigned i = 0; i < g_wdat_view_count; ++i) {
+        const mapping_view_t *v = &g_wdat_views[i];
+        if (physical >= v->physical && physical - v->physical < v->bytes &&
+            bytes <= v->bytes - (physical - v->physical))
+            return owned_mapping_subview(v->handle, physical - v->physical, bytes, out);
+    }
+    return false;
+}
 
-    uint64_t page = phys & ~0xFFFULL;
-    paging_map(page, page, PAGE_PRESENT | PAGE_RW | PAGE_PCD);
+bool acpi_wdat_discovered_extent(uint64_t source, uint64_t *physical, uint64_t *bytes)
+{
+    uint64_t table_physical;
+    const AcpiTableWdat *wdat = (const void *)acpi_retained_table(ACPI_SIG_WDAT, &table_physical);
+    if (!wdat || !physical || !bytes || wdat->header.length < sizeof(*wdat) ||
+        wdat->header_length < sizeof(*wdat) || wdat->header_length > wdat->header.length ||
+        wdat->entries > (wdat->header.length-wdat->header_length)/sizeof(AcpiWdatEntry)) return false;
+    const AcpiWdatEntry *entries = (const void *)((const uint8_t *)wdat+wdat->header_length);
+    for (unsigned i=0; i<wdat->entries; ++i) {
+        const AcpiGenericAddress *gas = &entries[i].register_region;
+        uint64_t identity = table_physical + wdat->header_length + i*sizeof(AcpiWdatEntry) + offsetof(AcpiWdatEntry, register_region);
+        if (source != identity) continue;
+        uint8_t access = wdat_access_size(gas);
+        if (gas->address_space_id != ACPI_ADR_SPACE_SYSTEM_MEMORY || access < 1 || access > 4 ||
+            gas->register_bit_offset >= 64 || gas->register_bit_width > 64-gas->register_bit_offset) return false;
+        *physical = gas->address; *bytes = 1u << (access-1); return true;
+    }
+    return false;
+}
+
+static bool wdat_prepare_views(const AcpiTableWdat *wdat)
+{
+    if (wdat->header_length < sizeof(*wdat) || wdat->header_length > wdat->header.length ||
+        wdat->entries > (wdat->header.length - wdat->header_length) / sizeof(AcpiWdatEntry)) return false;
+    const AcpiWdatEntry *entries = (const void *)((const uint8_t *)wdat + wdat->header_length);
+    for (unsigned i = 0; i < wdat->entries; ++i) {
+        const AcpiGenericAddress *gas = &entries[i].register_region;
+        if (gas->address_space_id != ACPI_ADR_SPACE_SYSTEM_MEMORY) continue;
+        uint8_t access = wdat_access_size(gas);
+        if (access < 1 || access > 4) return false;
+        void *cpu;
+        size_t bytes = 1u << (access - 1);
+        if (wdat_pointer(gas->address, bytes, &cpu)) continue;
+        if (g_wdat_view_count == 64) return false;
+        mmio_origin_t origin;
+        if (!mmio_origin_resolve(MMIO_WATCHDOG, physical_require_address(gas, sizeof(*gas)), &origin)) return false;
+        if (mmio_mapping_acquire(&origin, CACHE_UNCACHED_MINUS, &g_wdat_views[g_wdat_view_count]) != MAPPING_OK)
+            return false;
+        ++g_wdat_view_count;
+    }
+    return true;
 }
 
 static int wdat_read_reg(const AcpiGenericAddress *gas, uint64_t *out_val)
@@ -137,9 +187,12 @@ static int wdat_read_reg(const AcpiGenericAddress *gas, uint64_t *out_val)
 
     if (gas->address_space_id == ACPI_ADR_SPACE_SYSTEM_MEMORY)
     {
-        wdat_ensure_mapped(gas->address);
 
-        volatile void *p = (volatile void *)(uintptr_t)gas->address;
+        void *cpu_pointer;
+        if (as < 1 || as > 4 ||
+            !wdat_pointer(gas->address, 1u << (as - 1), &cpu_pointer))
+            return -2;
+        volatile void *p = cpu_pointer;
 
         switch (as)
         {
@@ -191,9 +244,12 @@ static int wdat_write_reg(const AcpiGenericAddress *gas, uint64_t val)
 
     if (gas->address_space_id == ACPI_ADR_SPACE_SYSTEM_MEMORY)
     {
-        wdat_ensure_mapped(gas->address);
 
-        volatile void *p = (volatile void *)(uintptr_t)gas->address;
+        void *cpu_pointer;
+        if (as < 1 || as > 4 ||
+            !wdat_pointer(gas->address, 1u << (as - 1), &cpu_pointer))
+            return -2;
+        volatile void *p = cpu_pointer;
 
         switch (as)
         {
@@ -295,7 +351,9 @@ static int wdat_exec_entry(const AcpiWdatEntry *e, uint32_t param, uint64_t *opt
 
 static int wdat_run_action(const AcpiTableWdat *wdat, uint8_t action, uint32_t param)
 {
-    if (!wdat)
+    if (!wdat || wdat->header.length < sizeof(*wdat) ||
+        wdat->header_length < sizeof(*wdat) || wdat->header_length > wdat->header.length ||
+        wdat->entries > (wdat->header.length - wdat->header_length) / sizeof(AcpiWdatEntry))
         return -1;
 
     const uint8_t *base = (const uint8_t *)wdat;
@@ -330,6 +388,7 @@ int acpi_wdat_disable(void)
 
     console_write_debug("[WATCHDOG][WDAT] Table found. Trying SET_STOPPED_STATE...\n");
 
+    if (!wdat_prepare_views(wdat)) return -1;
     int r = wdat_run_action(wdat, ACPI_WDAT_SET_STOPPED_STATE, 0);
     if (r == 0)
     {

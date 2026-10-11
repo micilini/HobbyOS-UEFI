@@ -22,3 +22,7 @@ hobbyos.img
 *.d
 artifacts/build/
 .qemu/
+# Local source backups, candidates, and review evidence.
+/backups/
+__pycache__/
+*.pyc

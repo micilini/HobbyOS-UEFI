@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define INT_VECTOR_RUNTIME_RENDEZVOUS_WAKE 35u
+#include "interrupt_vectors.h"
 
 typedef struct
 {

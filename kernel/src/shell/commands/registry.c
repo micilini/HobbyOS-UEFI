@@ -4,18 +4,21 @@
 #include "cmd_clear.h"
 #include "cmd_version.h"
 #include "cmd_mem.h"
-#include "cmd_panic.h"
 #include "cmd_power.h"
 #include "cmd_cpu.h"
 #include "cmd_pci.h"
 #include "cmd_acpi.h"
-#include "cmd_irq.h"
 #include "cmd_echo.h"
-#include "cmd_usbdiag.h"
-#include "cmd_smpstress.h"
 #include "cmd_ps.h"
 #include "cmd_kill.h"
 #include "cmd_taskman.h"
+#ifdef HOBBYOS_SELFTEST
+#include "cmd_panic.h"
+#include "cmd_irq.h"
+#include "cmd_usbdiag.h"
+#include "cmd_smpstress.h"
+#include "cmd_taskdiag.h"
+#include "cmd_tasktest.h"
 #include "cmd_schedtest.h"
 #include "cmd_synctest.h"
 #include "cmd_accounttest.h"
@@ -24,14 +27,22 @@
 #include "cmd_inputtest.h"
 #include "cmd_modaltest.h"
 #include "cmd_taskmantest.h"
-#include "cmd_taskdiag.h"
-#include "cmd_tasktest.h"
-#ifdef HOBBYOS_SELFTEST
 #include "cmd_locktest.h"
 #include "cmd_alloctest.h"
 #include "cmd_profiletest.h"
+#include "cmd_memory_observation.h"
+#include "cmd_tlbtest.h"
+#include "cmd_phystest.h"
+#include "cmd_rammap.h"
+#include "cmd_mappingtest.h"
+#include "cmd_lowmap.h"
+#include "cmd_wxtest.h"
+#include "cmd_stacktest.h"
+#if HOBBYOS_IRQ_LATENCY
+#include "cmd_irqlatency.h"
 #endif
 #include "../diagnostic_result.h"
+#endif
 
 #include "../../libc/string.h"
 
@@ -40,7 +51,6 @@ static const char *g_clear_aliases[] = {"clean", "cls", NULL};
 static const char *g_version_aliases[] = {"ver", NULL};
 
 static const char *g_mem_aliases[] = {"memory", NULL};
-static const char *g_panic_aliases[] = {"pnc", NULL};
 
 static const char *g_shutdown_aliases[] = {"halt", NULL};
 static const char *g_restart_aliases[] = {"reboot", "reset", NULL};
@@ -48,24 +58,24 @@ static const char *g_restart_aliases[] = {"reboot", "reset", NULL};
 static const char *g_aliases_cpu[] = {"cpu", 0};
 static const char *g_aliases_pci[] = {"pci", 0};
 static const char *g_aliases_acpi[] = {"acpi", 0};
-static const char *g_aliases_irq[] = {"irq", "int", 0};
 static const char *g_aliases_echo[] = {"eco", 0};
-static const char *g_aliases_usbdiag[] = {"usb", "xhci", 0};
 
-static const char *g_aliases_smpstress[] = {"stress", "smp", 0};
 
 static const char *g_aliases_ps[] = {"tasks", "tasklist", 0};
 
 static const char *g_aliases_kill[] = {"terminate", "taskkill", 0};
 
 static const char *g_aliases_taskman[] = {"tm", "top", 0};
-static const char *g_aliases_taskdiag[] = {"td", "tdiag", 0};
 #ifdef HOBBYOS_SELFTEST
+static const char *g_panic_aliases[] = {"pnc", NULL};
+static const char *g_aliases_irq[] = {"irq", "int", 0};
+static const char *g_aliases_usbdiag[] = {"usb", "xhci", 0};
+static const char *g_aliases_smpstress[] = {"stress", "smp", 0};
+static const char *g_aliases_taskdiag[] = {"td", "tdiag", 0};
 static const char *g_aliases_tasktest[] = {"tt", 0};
 static const char *g_aliases_locktest[] = {"lt", 0};
 static const char *g_aliases_alloctest[] = {"at", 0};
 static const char *g_aliases_profiletest[] = {"pt", 0};
-#endif
 static const char *g_aliases_schedtest[] = {"st", 0};
 static const char *g_aliases_synctest[] = {"sync-test", 0};
 static const char *g_aliases_accounttest[] = {"accttest","metrictest",0};
@@ -149,6 +159,8 @@ static int dispatch_schedtest(int argc, char **argv)
     return rc;
 }
 
+#endif
+
 static const ShellCommand g_commands[] = {
     {.name = "help",
      .aliases = g_help_aliases,
@@ -170,11 +182,13 @@ static const ShellCommand g_commands[] = {
      .desc = "memory statistics (PMM/Heap)",
      .usage = "mem",
      .handler = cmd_mem},
+#ifdef HOBBYOS_SELFTEST
     {.name = "panic",
      .aliases = g_panic_aliases,
      .desc = "try screen kernel panic",
      .usage = "panic [message]",
      .handler = cmd_panic},
+#endif
     {.name = "shutdown",
      .aliases = g_shutdown_aliases,
      .desc = "Turn off the machine (ACPI if possible; fallback halt)",
@@ -200,26 +214,32 @@ static const ShellCommand g_commands[] = {
      .desc = "List detected tables ACPI",
      .usage = "acpi",
      .handler = cmd_acpi},
+#ifdef HOBBYOS_SELFTEST
     {.name = "irq",
      .aliases = g_aliases_irq,
      .desc = "Simple stats of IRQs",
      .usage = "irq [reset]",
      .handler = cmd_irq},
+#endif
     {.name = "echo",
      .aliases = g_aliases_echo,
      .desc = "prints text to the console",
      .usage = "echo [-n] \"text\"",
      .handler = cmd_echo},
+#ifdef HOBBYOS_SELFTEST
     {.name = "usbdiag",
      .aliases = g_aliases_usbdiag,
      .desc = "USB/xHCI latency diagnostics",
      .usage = "usbdiag",
      .handler = cmd_usbdiag},
+#endif
+#ifdef HOBBYOS_SELFTEST
     {.name = "smpstress",
      .aliases = g_aliases_smpstress,
      .desc = "SMP load test + optional div0 (#DE) panic trigger (logs on serial)",
      .usage = "smpstress [workers] [panic_pct] [period_ms]",
      .handler = cmd_smpstress},
+#endif
     {.name = "ps",
      .aliases = g_aliases_ps,
      .desc = "List a paginated snapshot of HobbyOS kernel tasks",
@@ -238,13 +258,13 @@ static const ShellCommand g_commands[] = {
      .usage = "taskman [refresh_ms]",
      .details = "Live paginated view of kernel tasks.\nRefresh range: 50..2000 ms.\nESC is the only exit key.\nArrows select; PageUp/PageDown/Home/End navigate.\nUSER=Root and AFF=Any are V1 presentation constants.",
      .handler = cmd_taskman},
+#ifdef HOBBYOS_SELFTEST
     {.name = "taskdiag",
      .aliases = g_aliases_taskdiag,
      .desc = "Read-only kernel task diagnostics",
      .usage = "taskdiag [summary|task <pid>|scheduler|reaper|modal|input|accounting|all|check|selftest|trace <pid>|trace off|trace-status]",
      .details = "Shows copy-only task and subsystem diagnostics.\nDiagnostics are read-only and tracing is opt-in.\nUse taskdiag trace <pid> to compare PS and TASKMAN rows.\nUse taskdiag trace off when comparison is complete.",
      .handler = cmd_taskdiag},
-#ifdef HOBBYOS_SELFTEST
     {.name = "tasktest",
      .aliases = g_aliases_tasktest,
      .desc = "Run bounded TASKMAN V1 kernel selftests",
@@ -271,7 +291,30 @@ static const ShellCommand g_commands[] = {
      .desc = "Validate ABI, direction flag and memory primitives",
      .usage = "profiletest abi|memory",
      .handler = cmd_profiletest},
+    {.name = "ptinspect", .desc = "Inspect the active page tables without changing mappings",
+     .usage = "ptinspect <virtual-address>|samples", .handler = cmd_ptinspect},
+    {.name = "tlbtest", .desc = "Exercise acknowledged invalidation on owned test mappings",
+     .usage = "tlbtest [run|context-failure|delayed-response]", .handler = cmd_tlbtest},
+    {.name = "mappingtest", .desc = "Check owned views, DMA and exact unmap recovery",
+     .usage = "mappingtest [run|framebuffer-copy]", .handler = cmd_mappingtest},
+    {.name = "lowmap", .desc = "Check the retired low domain and exact NULL recovery",
+     .usage = "lowmap [run|crash]", .handler = cmd_lowmap},
+    {.name = "wxtest", .desc = "Verify image aliases and protection faults on every CPU",
+     .usage = "wxtest", .handler = cmd_wxtest},
+    {.name = "stacktest", .desc = "Verify owned stack guards and retirement",
+     .usage = "stacktest [inventory|churn|overflow]", .handler = cmd_stacktest},
+#if HOBBYOS_IRQ_LATENCY
+    {.name = "irqlatency", .desc = "Measure memory interrupt masking with a calibrated clock",
+     .usage = "irqlatency begin|finish", .handler = cmd_irqlatency},
 #endif
+    {.name = "phystest", .desc = "Verify checked address domains and bounded frame search",
+     .usage = "phystest", .handler = cmd_phystest},
+    {.name = "rammap", .desc = "Inspect verified RAM coverage and pointers",
+     .usage = "rammap [high]", .handler = cmd_rammap},
+    {.name = "cpustate", .desc = "Observe controls on every online CPU",
+     .usage = "cpustate", .handler = cmd_cpustate},
+    {.name = "memmap", .desc = "Observe the UEFI memory map and local MTRRs",
+     .usage = "memmap", .handler = cmd_memmap},
     {.name = "schedtest",
      .aliases = g_aliases_schedtest,
      .desc = "Scheduler handoff diagnostics and finite yield stress",
@@ -290,6 +333,7 @@ static const ShellCommand g_commands[] = {
      .desc="Monotonic clock, LAPIC calibration and runtime accounting diagnostics",
      .usage="accounttest check|core|clock|clock-smp [workers reads]|reaper-quiescence [workers]|lapic [ms]|sampler|format|long|lifecycle|ui-telemetry on|off|idle|busy|sleep|share|allcpu|migrate|stats",
      .handler=dispatch_accounttest},
+#endif
 };
 
 static bool shell_command_matches(const ShellCommand *cmd, const char *token)

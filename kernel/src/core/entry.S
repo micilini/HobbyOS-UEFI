@@ -74,6 +74,9 @@ _start:
     mov cr3, rax
     mov rdi, r15
 
+    /* The entry root and the final image both cover this entire stack. */
+    movabs rsp, offset bsp_stack_top
+
     /* Enter C with the SysV state produced by a call: RSP % 16 == 8. */
     sub rsp, 8
     mov rsi, rsp
@@ -119,5 +122,12 @@ boot_pd3:
 .align 16
 .skip 16384
 boot_stack_top:
+
+.section .bsp_stack,"aw",@nobits
+.align 4096
+.global bsp_stack_bottom, bsp_stack_top
+bsp_stack_bottom:
+    .skip 16384
+bsp_stack_top:
 
 .section .note.GNU-stack,"",@progbits

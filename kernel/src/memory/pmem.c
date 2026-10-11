@@ -1,4 +1,8 @@
+#include "../core/irq_latency.h"
 #include "pmem.h"
+#include "ram_map_plan.h"
+#include "boot_address.h"
+#include "bootstrap_claim.h"
 #include "../utils/bitmap.h"
 #include "../libc/memory.h"
 #include "../libc/string.h"
@@ -6,13 +10,15 @@
 #include "../core/spinlock.h"
 #include "../drivers/serial.h"
 #include "../utils/bits.h"
+#include "physical_translation.h"
+#include "../smp/cpu_limits.h"
 
 extern uint64_t _kernel_start;
 extern uint64_t _kernel_end;
 
-#define VIRT_TO_PHYS_OFFSET 0xFFFFFFFF80000000ULL
-
 static uint64_t g_min_alloc_frame = 0;
+static uint64_t g_alloc_limit_frames;
+static uint64_t g_bitmap_physical;
 
 static Bitmap g_bitmap;
 static Bitmap g_reserved_bitmap;
@@ -25,6 +31,115 @@ static void *g_reserved_bitmap_buffer = NULL;
 static PmmHardeningStats g_pmm_hardening;
 
 static spinlock_t g_pmm_lock;
+static bootstrap_claim_t g_bootstrap_claim;
+
+#define PMM_OBSERVATION_SLOTS (2u * HOBBYOS_MAX_CPUS + 1u)
+#define PMM_OBSERVATION_FRAMES 4096u
+typedef struct {
+    Bitmap allocated, reserved;
+    size_t cursor, free, invalid, below, low;
+    uint64_t minimum, limit;
+    bool active, valid, reachability;
+} pmm_observation_t;
+static pmm_observation_t g_pmm_observations[PMM_OBSERVATION_SLOTS];
+static unsigned g_pmm_observation_count;
+
+static bool observation_dimensions(const pmm_observation_t *o)
+{
+    return g_total_frames == o->allocated.total_bits && g_bitmap_size == o->allocated.size &&
+        g_bitmap.buffer == o->allocated.buffer && g_bitmap.size == o->allocated.size &&
+        g_bitmap.total_bits == o->allocated.total_bits &&
+        g_reserved_bitmap.buffer == o->reserved.buffer && g_reserved_bitmap.size == o->reserved.size &&
+        g_reserved_bitmap.total_bits == o->reserved.total_bits &&
+        g_min_alloc_frame == o->minimum && g_alloc_limit_frames == o->limit;
+}
+
+static bool observation_adjust(size_t *value, size_t before, size_t after, size_t total)
+{
+    if (*value > total || *value < before || after > total - (*value - before)) return false;
+    *value = *value - before + after; return true;
+}
+
+/* Every bitmap writer calls this under g_pmm_lock before its atomic logical update.
+ * An observed prefix therefore remains an exact count of its current contents. */
+static void observation_change(size_t start, size_t count, bool allocated)
+{
+    if (!g_pmm_observation_count) return;
+    for (unsigned i = 0; i < PMM_OBSERVATION_SLOTS; ++i) {
+        pmm_observation_t *o = &g_pmm_observations[i];
+        if (!o->active || !o->valid) continue;
+        if (!observation_dimensions(o)) { o->valid = false; continue; }
+        if (start >= o->cursor) continue;
+        size_t width = o->cursor - start;
+        if (width > count) width = count;
+        size_t free, bad;
+        if (!bitmap_observe_allocation(&g_bitmap,&g_reserved_bitmap,start,width,&free,&bad) ||
+            !observation_adjust(&o->free,free,allocated ? 0 : width,g_total_frames) ||
+            !observation_adjust(&o->invalid,bad,0,g_total_frames)) { o->valid = false; continue; }
+        if (!o->reachability) continue;
+        uint64_t minimum = o->minimum ? o->minimum : 256;
+        uint64_t limits[2] = {o->limit, minimum < o->limit ? minimum : o->limit};
+        size_t *counts[2] = {&o->below,&o->low};
+        for (unsigned n = 0; n < 2; ++n) {
+            if (start >= limits[n]) continue;
+            size_t part = width;
+            if (part > limits[n] - start) part = limits[n] - start;
+            size_t old = free;
+            if (part != width && !bitmap_observe_allocation(&g_bitmap,&g_reserved_bitmap,start,part,&old,&bad))
+                o->valid = false;
+            if (!observation_adjust(counts[n],old,allocated ? 0 : part,g_total_frames)) o->valid = false;
+        }
+    }
+}
+
+/* Each chunk and every writer share the same lock. At the final lock acquisition,
+ * the maintained complete prefix and free counter describe that exact state. */
+static bool observation_run(bool reachability, PmmReachability *out, irq_flags_t flags)
+{
+    unsigned slot = 0;
+    while (slot < PMM_OBSERVATION_SLOTS && g_pmm_observations[slot].active) ++slot;
+    if (slot == PMM_OBSERVATION_SLOTS) return false;
+    pmm_observation_t *o = &g_pmm_observations[slot];
+    *o = (pmm_observation_t){.allocated=g_bitmap,.reserved=g_reserved_bitmap,
+        .minimum=g_min_alloc_frame,.limit=g_alloc_limit_frames,.active=true,.valid=true,.reachability=reachability};
+    ++g_pmm_observation_count;
+    for (;;) {
+        if (!observation_dimensions(o)) o->valid = false;
+        size_t remaining = o->allocated.total_bits - o->cursor;
+        size_t width = remaining < PMM_OBSERVATION_FRAMES ? remaining : PMM_OBSERVATION_FRAMES;
+        size_t free, bad;
+        if (o->valid && bitmap_observe_allocation(&g_bitmap,&g_reserved_bitmap,o->cursor,width,&free,&bad)) {
+            o->free += free; o->invalid += bad;
+            if (reachability) {
+                uint64_t minimum = o->minimum ? o->minimum : 256;
+                uint64_t limits[2] = {o->limit, minimum < o->limit ? minimum : o->limit};
+                size_t *counts[2] = {&o->below,&o->low};
+                for (unsigned n=0;n<2;++n) if (o->cursor < limits[n]) {
+                    size_t part = width;
+                    if (part > limits[n] - o->cursor) part = limits[n] - o->cursor;
+                    size_t value = free;
+                    if (part != width && !bitmap_observe_allocation(&g_bitmap,&g_reserved_bitmap,o->cursor,part,&value,&bad))
+                        o->valid = false;
+                    *counts[n] += value;
+                }
+            }
+            o->cursor += width;
+        } else o->valid = false;
+        if (!o->valid || o->cursor == o->allocated.total_bits) break;
+        spin_unlock_irqrestore(&g_pmm_lock,flags);
+        flags = spin_lock_irqsave(&g_pmm_lock);
+    }
+    bool valid = o->valid && !o->invalid && o->free == g_free_frames;
+    if (reachability) {
+        uint64_t minimum = o->minimum ? o->minimum : 256;
+        valid = valid && o->limit <= g_total_frames && o->limit <= UINT64_MAX / PAGE_SIZE &&
+            physical_allocation_ceiling() == o->limit * PAGE_SIZE && o->low <= o->below && o->below <= o->free;
+        if (valid) *out = (PmmReachability){g_total_frames,g_free_frames,o->below-o->low,
+            o->free-o->below,o->limit*PAGE_SIZE,minimum*PAGE_SIZE,g_bitmap_physical,g_bitmap_storage_size};
+    }
+    o->active = false; --g_pmm_observation_count;
+    return valid;
+}
 
 #ifndef PMM_BITMAP_MAX_PHYS
 #define PMM_BITMAP_MAX_PHYS 0x40000000ULL
@@ -110,6 +225,8 @@ static void *find_free_segment_for_bitmap(MemoryMap *map, size_t size_needed)
     void *best_addr = NULL;
     uint64_t best_size = 0;
     uint64_t max_phys = PMM_BITMAP_MAX_PHYS;
+    if (physical_allocation_ceiling() < max_phys)
+        max_phys = physical_allocation_ceiling();
 
     for (uint64_t i = 0; i < entries; i++)
     {
@@ -148,6 +265,8 @@ static void pmm_reserve_range(uint64_t start_frame, uint64_t count)
     if (count > g_total_frames - start_frame)
         count = g_total_frames - start_frame;
 
+    observation_change((size_t)start_frame,(size_t)count,true);
+
     for (uint64_t frame = start_frame; frame < start_frame + count; frame++)
     {
         if (!bitmap_get(&g_bitmap, (size_t)frame))
@@ -165,6 +284,10 @@ void init_pmm(MemoryMap *map)
 
     uint64_t highest_ram_end = get_highest_ram_end(map);
     g_total_frames = highest_ram_end / PAGE_SIZE;
+    uint64_t ceiling = physical_allocation_ceiling();
+    if (!ceiling || (ceiling & (PAGE_SIZE - 1)) || ceiling > highest_ram_end)
+        kpanic("PMM reachability contract is unavailable");
+    g_alloc_limit_frames = ceiling / PAGE_SIZE;
     if (g_total_frames > SIZE_MAX ||
         !bitmap_required_bytes((size_t)g_total_frames, &g_bitmap_size) ||
         g_bitmap_size > SIZE_MAX / 2u ||
@@ -184,9 +307,16 @@ void init_pmm(MemoryMap *map)
                              (unsigned long long)g_total_frames);
     pmem_write_formatted(diagnostic, required, sizeof(diagnostic));
 
-    g_bitmap_buffer = find_free_segment_for_bitmap(map,
-                                                    g_bitmap_storage_size);
-    if (g_bitmap_buffer == NULL)
+    g_bitmap_physical = (uintptr_t)find_free_segment_for_bitmap(map, g_bitmap_storage_size);
+    const boot_physical_objects_t *boot_objects = physical_boot_objects();
+    uint64_t framebuffer_end;
+    if (!boot_objects || !physical_range_valid(boot_objects->framebuffer,
+        boot_objects->framebuffer_bytes, &framebuffer_end) ||
+        (g_bitmap_physical < framebuffer_end && boot_objects->framebuffer <
+         g_bitmap_physical + g_bitmap_storage_size))
+        kpanic("PMM bitmap placement conflicts with the boot framebuffer");
+    if (!g_bitmap_physical || !physical_pointer_range(g_bitmap_physical,
+            g_bitmap_storage_size, PHYSICAL_RAM, &g_bitmap_buffer))
     {
         serial_write_all("[PMM] CRITICAL: Failed to allocate bitmap buffer!\n");
         while (1)
@@ -228,7 +358,7 @@ void init_pmm(MemoryMap *map)
         }
     }
 
-    uint64_t bitmap_start_frame = (uint64_t)g_bitmap_buffer / PAGE_SIZE;
+    uint64_t bitmap_start_frame = g_bitmap_physical / PAGE_SIZE;
     uint64_t bitmap_pages = g_bitmap_storage_size / PAGE_SIZE;
     pmm_reserve_range(bitmap_start_frame, bitmap_pages);
 
@@ -244,8 +374,11 @@ void init_pmm(MemoryMap *map)
                          (unsigned long long)g_min_alloc_frame);
     pmem_write_formatted(diagnostic, required, sizeof(diagnostic));
 
-    uint64_t kstart_phys = ((uint64_t)&_kernel_start) - VIRT_TO_PHYS_OFFSET;
-    uint64_t kend_phys = ((uint64_t)&_kernel_end) - VIRT_TO_PHYS_OFFSET;
+    uint64_t kstart_phys;
+    size_t image_bytes;
+    if (!physical_image_extent(&kstart_phys, &image_bytes))
+        kpanic("PMM image physical extent is unavailable");
+    uint64_t kend_phys = kstart_phys + image_bytes;
 
     kstart_phys &= ~(PAGE_SIZE - 1);
     if (!align_up_u64_checked(kend_phys, PAGE_SIZE, &kend_phys))
@@ -275,6 +408,7 @@ void init_pmm(MemoryMap *map)
 
 void *pmm_alloc_frame(void)
 {
+    IRQ_LATENCY_SCOPE(IRQ_PATH_PMM);
     irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
 
     uint64_t start = g_min_alloc_frame;
@@ -283,12 +417,16 @@ void *pmm_alloc_frame(void)
 
     size_t frame = 0;
     BitmapSearchStats search = {0};
-    bool found = start < g_total_frames &&
-                 bitmap_find_first_zero(&g_bitmap, (size_t)start, &frame,
-                                        &search);
+    bool found = g_alloc_limit_frames <= g_total_frames &&
+                 g_alloc_limit_frames <= UINT64_MAX / PAGE_SIZE &&
+                 physical_allocation_ceiling() == g_alloc_limit_frames * PAGE_SIZE &&
+                 start < g_alloc_limit_frames &&
+                 bitmap_find_zero_run_below(&g_bitmap, (size_t)start,
+                     (size_t)g_alloc_limit_frames, 1, &frame, &search);
     pmm_record_search(&search);
     if (found)
     {
+        observation_change(frame,1,true);
         bitmap_set(&g_bitmap, frame, true);
         g_free_frames--;
 
@@ -303,6 +441,7 @@ void *pmm_alloc_frame(void)
 
 void *pmm_alloc_contiguous_frames(size_t count)
 {
+    IRQ_LATENCY_SCOPE(IRQ_PATH_PMM);
     if (count == 0)
         return NULL;
 
@@ -314,12 +453,16 @@ void *pmm_alloc_contiguous_frames(size_t count)
 
     size_t run_start = 0;
     BitmapSearchStats search = {0};
-    bool found = start < g_total_frames && count <= g_total_frames - start &&
-                 bitmap_find_zero_run(&g_bitmap, (size_t)start, count,
-                                      &run_start, &search);
+    bool found = g_alloc_limit_frames <= g_total_frames &&
+                 g_alloc_limit_frames <= UINT64_MAX / PAGE_SIZE &&
+                 physical_allocation_ceiling() == g_alloc_limit_frames * PAGE_SIZE &&
+                 start < g_alloc_limit_frames && count <= g_alloc_limit_frames - start &&
+                 bitmap_find_zero_run_below(&g_bitmap, (size_t)start,
+                     (size_t)g_alloc_limit_frames, count, &run_start, &search);
     pmm_record_search(&search);
     if (found)
     {
+        observation_change(run_start,count,true);
         (void)bitmap_set_range(&g_bitmap, run_start, count);
         g_free_frames -= count;
 
@@ -334,6 +477,7 @@ void *pmm_alloc_contiguous_frames(size_t count)
 
 void pmm_free_frame(void *paddr)
 {
+    IRQ_LATENCY_SCOPE(IRQ_PATH_PMM);
     uint64_t *reject_counter = NULL;
     irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
 
@@ -353,6 +497,7 @@ void pmm_free_frame(void *paddr)
             reject_counter = &g_pmm_hardening.reject_already_free;
         else
         {
+            observation_change((size_t)frame,1,false);
             bitmap_set(&g_bitmap, (size_t)frame, false);
             g_free_frames++;
         }
@@ -365,6 +510,7 @@ void pmm_free_frame(void *paddr)
 
 bool pmm_is_frame_free(uint64_t physical_address)
 {
+    IRQ_LATENCY_SCOPE(IRQ_PATH_PMM);
     irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
 
     uint64_t frame = physical_address / PAGE_SIZE;
@@ -383,6 +529,7 @@ bool pmm_is_frame_free(uint64_t physical_address)
 
 void pmm_mark_frame_used(uint64_t physical_address)
 {
+    IRQ_LATENCY_SCOPE(IRQ_PATH_PMM);
     irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
 
     uint64_t frame = physical_address / PAGE_SIZE;
@@ -392,6 +539,7 @@ void pmm_mark_frame_used(uint64_t physical_address)
 
         if (!bitmap_get(&g_bitmap, (size_t)frame))
         {
+            observation_change((size_t)frame,1,true);
             bitmap_set(&g_bitmap, (size_t)frame, true);
             g_free_frames--;
 
@@ -418,6 +566,7 @@ void pmm_mark_frame_used(uint64_t physical_address)
 
 uint64_t pmm_get_free_memory(void)
 {
+    IRQ_LATENCY_SCOPE(IRQ_PATH_PMM);
     irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
     uint64_t mem = g_free_frames * PAGE_SIZE;
     spin_unlock_irqrestore(&g_pmm_lock, flags);
@@ -451,24 +600,64 @@ bool pmm_get_hardening_stats(PmmHardeningStats *out_stats)
     return true;
 }
 
+bool pmm_get_reachability(PmmReachability *out)
+{
+    IRQ_LATENCY_SCOPE_MASK((UINT64_C(1) << IRQ_PATH_PMM) | (UINT64_C(1) << IRQ_PATH_PMM_REACHABILITY));
+    if (!out) return false;
+    irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
+    if ((flags & UINT64_C(512)) && g_total_frames > PMM_OBSERVATION_FRAMES &&
+        g_pmm_observation_count < PMM_OBSERVATION_SLOTS) {
+        bool valid = observation_run(true,out,flags);
+        spin_unlock_irqrestore(&g_pmm_lock,flags);
+        return valid;
+    }
+    size_t below = 0, low = 0;
+    bool valid = g_alloc_limit_frames <= g_total_frames &&
+        g_alloc_limit_frames <= g_total_frames &&
+                 g_alloc_limit_frames <= UINT64_MAX / PAGE_SIZE &&
+                 physical_allocation_ceiling() == g_alloc_limit_frames * PAGE_SIZE &&
+        g_bitmap.total_bits == g_total_frames && g_reserved_bitmap.total_bits == g_total_frames &&
+        g_bitmap.size == g_bitmap_size && g_reserved_bitmap.size == g_bitmap_size;
+    uint64_t minimum = g_min_alloc_frame ? g_min_alloc_frame : 256;
+    if (valid) {
+        size_t limits[2] = {(size_t)g_alloc_limit_frames,
+            (size_t)(minimum < g_alloc_limit_frames ? minimum : g_alloc_limit_frames)};
+        size_t *counts[2] = {&below, &low};
+        for (unsigned i = 0; i < 2; i++) {
+            Bitmap a = g_bitmap, r = g_reserved_bitmap;
+            a.total_bits = r.total_bits = limits[i];
+            a.size = r.size = limits[i] / 8 + (limits[i] % 8 != 0);
+            valid = valid && bitmap_validate_allocation(&a, &r, counts[i], NULL);
+        }
+    }
+    valid = valid && low <= below && below <= g_free_frames;
+    if (valid) *out = (PmmReachability){g_total_frames, g_free_frames, below-low,
+        g_free_frames-below, g_alloc_limit_frames*PAGE_SIZE, minimum*PAGE_SIZE,
+        g_bitmap_physical, g_bitmap_storage_size};
+    spin_unlock_irqrestore(&g_pmm_lock, flags);
+    return valid;
+}
+
 bool pmm_validate_integrity(void)
 {
+    IRQ_LATENCY_SCOPE_MASK((UINT64_C(1) << IRQ_PATH_PMM) | (UINT64_C(1) << IRQ_PATH_PMM_INTEGRITY));
     irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
-    uint64_t free_frames = 0;
-    bool valid = g_bitmap.total_bits == (size_t)g_total_frames &&
+    if ((flags & UINT64_C(512)) && g_total_frames > PMM_OBSERVATION_FRAMES &&
+        g_pmm_observation_count < PMM_OBSERVATION_SLOTS) {
+        bool valid = observation_run(false,NULL,flags);
+        spin_unlock_irqrestore(&g_pmm_lock,flags);
+        return valid;
+    }
+    size_t free_frames = 0;
+    bool valid = g_total_frames <= SIZE_MAX &&
+                 g_bitmap.total_bits == (size_t)g_total_frames &&
                  g_reserved_bitmap.total_bits == (size_t)g_total_frames &&
                  g_bitmap.size == g_reserved_bitmap.size &&
                  g_bitmap.size == g_bitmap_size;
 
-    for (uint64_t frame = 0; valid && frame < g_total_frames; frame++)
-    {
-        bool allocated = bitmap_get(&g_bitmap, (size_t)frame);
-        bool reserved = bitmap_get(&g_reserved_bitmap, (size_t)frame);
-        if (reserved && !allocated)
-            valid = false;
-        if (!allocated)
-            free_frames++;
-    }
+    if (valid)
+        valid = bitmap_validate_allocation(&g_bitmap, &g_reserved_bitmap,
+                                            &free_frames, NULL);
     valid = valid && free_frames == g_free_frames;
     spin_unlock_irqrestore(&g_pmm_lock, flags);
     return valid;
@@ -477,6 +666,135 @@ bool pmm_validate_integrity(void)
 #ifdef HOBBYOS_SELFTEST
 void *pmm_test_reserved_frame(void)
 {
-    return g_bitmap_buffer;
+    return (void *)(uintptr_t)g_bitmap_physical;
+}
+#endif
+
+static bool allocate_range(size_t count, size_t alignment_frames,
+                            uint64_t minimum, uint64_t limit, uint64_t *physical)
+{
+    IRQ_LATENCY_SCOPE(IRQ_PATH_PMM);
+    if (!physical || !count || !alignment_frames ||
+        (alignment_frames & (alignment_frames - 1)) ||
+        ((minimum | limit) & (PAGE_SIZE - 1)) || minimum >= limit) return false;
+    irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
+    uint64_t start = g_min_alloc_frame ? g_min_alloc_frame : 256;
+    if (minimum / PAGE_SIZE > start) start = minimum / PAGE_SIZE;
+    uint64_t bound = limit / PAGE_SIZE;
+    if (bound > g_alloc_limit_frames) bound = g_alloc_limit_frames;
+    size_t frame = 0;
+    BitmapSearchStats search = {0};
+    bool found = g_alloc_limit_frames <= g_total_frames &&
+        g_alloc_limit_frames <= UINT64_MAX / PAGE_SIZE &&
+        physical_allocation_ceiling() == g_alloc_limit_frames * PAGE_SIZE &&
+        count <= g_free_frames && bound <= SIZE_MAX &&
+        bitmap_find_aligned_run_below(&g_bitmap, start, bound, count,
+                                      alignment_frames, &frame, &search);
+    pmm_record_search(&search);
+    if (found) {
+        observation_change(frame,count,true);
+        found = bitmap_set_range(&g_bitmap, frame, count);
+        if (found) { g_free_frames -= count; *physical = (uint64_t)frame * PAGE_SIZE; }
+    }
+    spin_unlock_irqrestore(&g_pmm_lock, flags);
+    return found;
+}
+
+bool pmm_alloc_constrained_frames(size_t count, size_t alignment_frames,
+                                  uint64_t limit, uint64_t *physical)
+{ return allocate_range(count, alignment_frames, 0, limit, physical); }
+
+#ifdef HOBBYOS_SELFTEST
+bool pmm_test_alloc_range(size_t count, size_t alignment_frames,
+                          uint64_t minimum, uint64_t limit, uint64_t *physical)
+{ return allocate_range(count, alignment_frames, minimum, limit, physical); }
+#endif
+
+bool pmm_direct_map_ready(const ram_map_plan_t *plan)
+{
+    return plan && plan->ready && !g_physical_contract.direct_map &&
+        plan->ceiling / PAGE_SIZE <= g_total_frames && !(plan->ceiling & (PAGE_SIZE-1)) &&
+        g_bitmap.buffer == g_bitmap_buffer && g_reserved_bitmap.buffer == g_reserved_bitmap_buffer &&
+        g_reserved_bitmap_buffer == (uint8_t *)g_bitmap_buffer + g_bitmap_size &&
+        ram_map_contains(plan, g_bitmap_physical, g_bitmap_storage_size);
+}
+
+bool pmm_reserve_boot_framebuffer(void)
+{
+    IRQ_LATENCY_SCOPE(IRQ_PATH_PMM);
+    const boot_physical_objects_t *boot = physical_boot_objects();
+    uint64_t end;
+    if (!boot || g_physical_contract.direct_map ||
+        !physical_range_valid(boot->framebuffer, boot->framebuffer_bytes, &end) ||
+        end > PHYSICAL_ADDRESS_LIMIT - 4095) return false;
+    uint64_t first = boot->framebuffer & ~UINT64_C(4095);
+    end = (end + 4095) & ~UINT64_C(4095);
+    if (first < g_bitmap_physical + g_bitmap_storage_size && g_bitmap_physical < end) return false;
+    irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
+    pmm_reserve_range(first/PAGE_SIZE, (end-first)/PAGE_SIZE);
+    spin_unlock_irqrestore(&g_pmm_lock, flags);
+    return true;
+}
+
+bool pmm_claim_bootstrap(bootstrap_claim_t *out)
+{
+    IRQ_LATENCY_SCOPE(IRQ_PATH_PMM);
+    if (!out) return false;
+    const boot_physical_objects_t *boot=physical_boot_objects();
+    irq_flags_t flags=spin_lock_irqsave(&g_pmm_lock);
+    bool claimed=false;
+    if (g_bootstrap_claim.owner) {
+        bootstrap_claim_t candidate;
+        size_t frame=g_bootstrap_claim.physical/PAGE_SIZE;
+        if (frame<g_total_frames && bitmap_get(&g_bitmap,frame) && bitmap_get(&g_reserved_bitmap,frame) &&
+            bootstrap_claim_candidate(&g_physical_contract,boot,g_bitmap_physical,g_bitmap_storage_size,
+                g_bootstrap_claim.physical,&candidate) && bootstrap_claim_adopt(&g_bootstrap_claim,&candidate)) {
+            *out=g_bootstrap_claim; claimed=true;
+        }
+    } else for (uint64_t physical=4096; physical<0xa0000; physical+=4096) {
+        bootstrap_claim_t candidate;
+        size_t frame=physical/PAGE_SIZE;
+        if (frame>=g_total_frames || !bitmap_get(&g_bitmap,frame) || !bitmap_get(&g_reserved_bitmap,frame) ||
+            !bootstrap_claim_candidate(&g_physical_contract,boot,g_bitmap_physical,g_bitmap_storage_size,physical,&candidate)) continue;
+        if (!bootstrap_claim_adopt(&g_bootstrap_claim,&candidate)) break;
+        *out=g_bootstrap_claim; claimed=true; break;
+    }
+    /* Adoption does not change either reservation bitmap or the free count. */
+    spin_unlock_irqrestore(&g_pmm_lock,flags);
+    return claimed;
+}
+
+bool pmm_direct_map_activate(const ram_map_plan_t *plan)
+{
+    IRQ_LATENCY_SCOPE(IRQ_PATH_PMM);
+    if (!pmm_direct_map_ready(plan)) return false;
+    uint64_t address;
+    if (!ram_map_pointer(plan, g_bitmap_physical, g_bitmap_storage_size, &address)) return false;
+    irq_flags_t flags = spin_lock_irqsave(&g_pmm_lock);
+    /* No allocation, validation walk, callback or interrupt can observe an
+     * intermediate pointer/ceiling pair during this boot-only publication. */
+    if (!physical_translation_activate_direct(plan)) {
+        spin_unlock_irqrestore(&g_pmm_lock, flags); return false;
+    }
+    g_bitmap_buffer = (void *)(uintptr_t)address;
+    g_reserved_bitmap_buffer = (uint8_t *)g_bitmap_buffer + g_bitmap_size;
+    g_bitmap.buffer = g_bitmap_buffer;
+    g_reserved_bitmap.buffer = g_reserved_bitmap_buffer;
+    g_alloc_limit_frames = plan->ceiling / PAGE_SIZE;
+    spin_unlock_irqrestore(&g_pmm_lock, flags);
+    return true;
+}
+
+#ifdef HOBBYOS_SELFTEST
+bool pmm_pointer_snapshot(PmmPointerSnapshot *out)
+{
+    IRQ_LATENCY_SCOPE(IRQ_PATH_PMM);
+    if (!out || !g_physical_contract.direct_map) return false;
+    irq_flags_t flags=spin_lock_irqsave(&g_pmm_lock);
+    *out=(PmmPointerSnapshot){g_bitmap_physical,g_bitmap_storage_size,
+        (uintptr_t)g_bitmap_buffer,(uintptr_t)g_reserved_bitmap_buffer,
+        (uintptr_t)g_bitmap.buffer,(uintptr_t)g_reserved_bitmap.buffer};
+    spin_unlock_irqrestore(&g_pmm_lock,flags);
+    return true;
 }
 #endif

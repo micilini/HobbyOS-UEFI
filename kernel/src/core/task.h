@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "list.h"
+#include "../memory/stack_domain.h"
 
 typedef uint64_t task_id_t;
 #define TASK_ID_INVALID ((task_id_t)0)
@@ -85,6 +86,7 @@ typedef struct
     task_state_t state;
     uint64_t cr3;
     void *stack_base;
+    stack_handle_t stack_owner;
 
 
     uint32_t kernel_stack_bytes;
@@ -139,6 +141,9 @@ typedef struct
 
     struct list_head list;
     struct list_head registry_list;
+#ifdef HOBBYOS_SELFTEST
+    uint32_t test_cpu_plus_one;
+#endif
 } task_t;
 
 typedef struct

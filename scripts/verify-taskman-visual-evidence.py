@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import argparse
+import re
 import filecmp
 import hashlib
 import json
@@ -81,13 +83,13 @@ def recorded_hashes() -> dict[str, str]:
     return values
 
 
-def verify_active_evidence() -> list[str]:
+def verify_active_evidence(artifact: Path = ARTIFACT, exact_frames: bool = True) -> list[str]:
     checks: list[str] = []
-    naming = (ARTIFACT / "naming.log").read_text(encoding="utf-8")
+    naming = (artifact / "naming.log").read_text(encoding="utf-8")
     require("[TASKMAN][ACTIVE_NAMING] PASS" in naming, "naming gate missing")
     checks.append("active naming")
 
-    smoke = (ARTIFACT / "smoke.log").read_text(
+    smoke = (artifact / "smoke.log").read_text(
         encoding="utf-8", errors="replace"
     )
     for marker in (
@@ -95,9 +97,14 @@ def verify_active_evidence() -> list[str]:
         "[TASKMAN][WIDE_SMOKE] PASS full_frames=3",
         "[TASKMAN][COMPACT_SMOKE] PASS full_frames=3",
     ):
-        require(marker in smoke, f"smoke marker missing: {marker}")
+        if exact_frames or "full_frames=" not in marker:
+            require(marker in smoke, f"smoke marker missing: {marker}")
+        else:
+            prefix = marker.split(" full_frames=")[0]
+            require(re.search(re.escape(prefix) + r" full_frames=[1-9][0-9]*$", smoke, re.M),
+                    f"current smoke marker missing: {prefix}")
 
-    serial = (ARTIFACT / "smoke-serial.log").read_text(
+    serial = (artifact / "smoke-serial.log").read_text(
         encoding="utf-8", errors="replace"
     )
     for marker in (
@@ -131,12 +138,12 @@ def verify_kernel(hashes: dict[str, str]) -> str:
     return value
 
 
-def verify_container(hashes: dict[str, str]) -> dict[str, object]:
-    if not IMAGE.is_file():
+def verify_container(hashes: dict[str, str], image: Path = IMAGE) -> dict[str, object]:
+    if not image.is_file():
         raise ImageContainerError("missing hobbyos.img")
-    if IMAGE.stat().st_size != IMAGE_SIZE:
+    if image.stat().st_size != IMAGE_SIZE:
         raise ImageContainerError("unexpected image size")
-    with IMAGE.open("rb") as stream:
+    with image.open("rb") as stream:
         boot = stream.read(512)
     if len(boot) != 512 or boot[510:512] != b"\x55\xaa":
         raise ImageContainerError("invalid boot signature")
@@ -148,7 +155,7 @@ def verify_container(hashes: dict[str, str]) -> dict[str, object]:
     total_sectors = total_short or total_long
     if bytes_per_sector != 512 or total_sectors != 131_072:
         raise ImageContainerError("unexpected FAT geometry")
-    raw_hash = digest(IMAGE)
+    raw_hash = digest(image)
     if hashes.get("hobbyos.img") != raw_hash:
         raise ImageContainerError("recorded raw image hash mismatch")
     serial = struct.unpack_from("<I", boot, 67)[0]
@@ -162,17 +169,17 @@ def verify_container(hashes: dict[str, str]) -> dict[str, object]:
     }
 
 
-def verify_payloads() -> list[dict[str, object]]:
+def verify_payloads(payloads=PAYLOADS, image=IMAGE) -> list[dict[str, object]]:
     results: list[dict[str, object]] = []
     with tempfile.TemporaryDirectory(prefix="taskman-image-payload-") as directory:
         output_dir = Path(directory)
-        for name, image_path, source, expected in PAYLOADS:
+        for name, image_path, source, expected in payloads:
             if not source.is_file() or digest(source) != expected:
                 raise ImagePayloadError(f"source payload mismatch: {source}")
             extracted = output_dir / name
             try:
                 subprocess.run(
-                    ["mcopy", "-i", str(IMAGE), image_path, str(extracted)],
+                    ["mcopy", "-i", str(image), image_path, str(extracted)],
                     cwd=ROOT, check=True, stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE, text=True,
                 )
@@ -242,7 +249,37 @@ def write_outputs(checks: list[str], kernel_hash: str,
     print(f"volume_serial={container['volume_serial']}")
 
 
+def verify_current(evidence, candidate):
+    import memory_evidence as E
+    c = json.loads((candidate / 'candidate.json').read_text())
+    receipt = json.loads((candidate / 'build-receipt.json').read_text())
+    candidate_id = E.verify_candidate(c, receipt)
+    for name, row in c['artifacts'].items():
+        require(digest(candidate / name) == row['sha256'], 'current binary candidate mismatch')
+    checks = verify_active_evidence(evidence, False)
+    hashes = {name: row['sha256'] for name, row in c['artifacts'].items()}
+    container = verify_container(hashes, candidate / 'hobbyos.img')
+    current_payloads = [(name, guest, candidate / name if name in c['artifacts'] else source,
+                         receipt['payload']['files'][name]['sha256']) for name, guest, source, _ in PAYLOADS]
+    payloads = verify_payloads(current_payloads, candidate / 'hobbyos.img')
+    human = (ROOT / 'docs/test-reports/TASKMAN_VISUAL_HUMAN_CHECKLIST.md').read_text()
+    require('STATUS: AWAITING_HUMAN_REVIEW' in human and '[x]' not in human.lower(), 'human review checklist changed')
+    return {'status': 'PASS', 'contract': 'current-taskman-visual', 'candidate_id': candidate_id,
+            'checks': checks, 'container': container, 'payloads': payloads, 'human_review': 'PENDING'}
+
+
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == 'current':
+        import memory_evidence as E
+        parser = argparse.ArgumentParser()
+        parser.add_argument('mode'); parser.add_argument('--evidence', type=Path, required=True)
+        parser.add_argument('--candidate', type=Path, required=True); parser.add_argument('--replay', action='store_true')
+        args = parser.parse_args()
+        result = verify_current(args.evidence.resolve(), args.candidate.resolve())
+        path = args.evidence / 'current-result.json'
+        if args.replay: require(json.loads(path.read_text()) == result, 'current visual replay differs')
+        else: E.write(path, result)
+        print(json.dumps(result, sort_keys=True)); return 0
     if len(sys.argv) != 2 or sys.argv[1] != "all":
         print("usage: verify-taskman-visual-evidence.py all", file=sys.stderr)
         return 2

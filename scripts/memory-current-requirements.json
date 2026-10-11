@@ -1,0 +1,275 @@
+{
+  "schema": 2,
+  "contract": "memory-current-regression-v1",
+  "base_commit": "c5e6cf021eee9df489216402c5503b9c38da7df5",
+  "requirements": [
+    {
+      "key": "canonical-builds",
+      "family": "make",
+      "mode": "deps-check,kernel-check,image,production-image,stack-check",
+      "profiles": [
+        "debug",
+        "selftest",
+        "production"
+      ],
+      "evidence": "build-receipts-and-payloads"
+    },
+    {
+      "key": "build-profile",
+      "family": "scripts/test-build-profile.sh",
+      "mode": "all",
+      "profiles": [
+        "q35-kvm-smp4",
+        "production-debug-off"
+      ],
+      "evidence": "native-build-runtime-production-fixtures"
+    },
+    {
+      "key": "architecture",
+      "family": "scripts/test-arch-contract.sh",
+      "mode": "all",
+      "profiles": [
+        "q35-tcg-smp1",
+        "q35-tcg-smp4",
+        "q35-kvm-smp4",
+        "q35-kvm-smp24",
+        "unrelated-gp",
+        "production"
+      ],
+      "evidence": "native-host-build-runtime-destructive-production-fixtures"
+    },
+    {
+      "key": "assertion-context",
+      "family": "scripts/test-assert-list.sh",
+      "mode": "all",
+      "profiles": [
+        "q35-tcg-smp4:warn",
+        "q35-tcg-smp4:false",
+        "q35-tcg-smp4:valid-list",
+        "q35-tcg-smp4:double-insert",
+        "q35-tcg-smp4:insert-reciprocity",
+        "q35-tcg-smp4:remove-reciprocity",
+        "q35-tcg-smp4:bug",
+        "q35-tcg-smp4:locked-bug",
+        "q35-tcg-smp4:reentry",
+        "q35-tcg-smp4:second-reentry",
+        "q35-kvm-smp4:warn",
+        "q35-kvm-smp4:false",
+        "q35-kvm-smp4:valid-list",
+        "q35-kvm-smp4:double-insert",
+        "q35-kvm-smp4:insert-reciprocity",
+        "q35-kvm-smp4:remove-reciprocity",
+        "q35-kvm-smp4:bug",
+        "q35-kvm-smp4:locked-bug",
+        "q35-kvm-smp4:reentry",
+        "q35-kvm-smp4:second-reentry",
+        "q35-tcg-smp1:bug",
+        "q35-kvm-smp24:warn",
+        "q35-kvm-smp24:valid-list",
+        "q35-kvm-smp24:locked-bug-scheduler",
+        "q35-kvm-smp24:reentry",
+        "production-debug-on",
+        "production-debug-off"
+      ],
+      "evidence": "native-host-build-runtime-destructive-production-fixtures"
+    },
+    {
+      "key": "assertion-record",
+      "family": "scripts/test-assert-record.sh",
+      "mode": "current",
+      "profiles": [
+        "normal",
+        "ubsan",
+        "asan",
+        "fresh-assertion-context-matrix"
+      ],
+      "evidence": "actual-C-producer-and-fresh-strict-parser-mutations"
+    },
+    {
+      "key": "taskman-statistics",
+      "family": "scripts/test-taskman-stats-record.sh",
+      "mode": "current",
+      "profiles": [
+        "normal",
+        "ubsan",
+        "asan",
+        "q35-kvm-smp4:3",
+        "q35-kvm-smp24:3"
+      ],
+      "evidence": "actual-C-producer-concurrent-runtime-and-fresh-mutations"
+    },
+    {
+      "key": "section-layout",
+      "family": "scripts/test-section-layout.sh",
+      "mode": "current",
+      "profiles": [
+        "debug-on",
+        "debug-off",
+        "assertions-debug",
+        "formatting-test",
+        "panic-instrumented",
+        "foundation-framed",
+        "production-debug-off",
+        "architecture-instrumented",
+        "architecture-negative"
+      ],
+      "evidence": "current-ELF-structure-same-object-relink-orphan-and-fixtures"
+    },
+    {
+      "key": "formatting",
+      "family": "scripts/test-libc-format.sh",
+      "mode": "all",
+      "profiles": [
+        "q35-tcg-smp1",
+        "q35-kvm-smp4",
+        "modal-q35-kvm-smp4:2",
+        "modal-q35-kvm-smp8:3",
+        "visual-q35-kvm-smp4"
+      ],
+      "evidence": "native-host-build-runtime-consumers-fixtures"
+    },
+    {
+      "key": "panic",
+      "family": "scripts/test-panic-lock-contention.sh",
+      "mode": "all",
+      "profiles": [
+        "contention",
+        "reentry",
+        "stalled-clock",
+        "actions",
+        "negatives",
+        "production"
+      ],
+      "evidence": "native-destructive-runtime-and-production"
+    },
+    {
+      "key": "foundation",
+      "family": "scripts/test-foundation-regression.sh",
+      "mode": "existing-all,production,diagnostic-negative",
+      "profiles": [
+        "q35-tcg-smp1",
+        "q35-tcg-smp2",
+        "q35-kvm-smp4",
+        "q35-kvm-smp8",
+        "q35-kvm-smp24",
+        "pc-tcg-smp4",
+        "production-q35-tcg-smp1",
+        "production-q35-kvm-smp4",
+        "production-q35-kvm-smp8",
+        "production-q35-kvm-smp24",
+        "xhci-keyboard",
+        "diagnostic-negative"
+      ],
+      "evidence": "native-framed-runtime-stress-and-production"
+    },
+    {
+      "key": "interrupts",
+      "family": "scripts/test-interrupt-bringup.sh",
+      "mode": "current",
+      "profiles": [
+        "up-tcg",
+        "smp2-tcg",
+        "smp4-kvm",
+        "smp8-kvm",
+        "smp24-kvm",
+        "pcat",
+        "soak24"
+      ],
+      "evidence": "unchanged-all-invariants-current-scope"
+    },
+    {
+      "key": "clockevent",
+      "family": "scripts/test-timer-clockevent.sh",
+      "mode": "current",
+      "profiles": [
+        "q35-tcg-smp1",
+        "q35-tcg-smp2",
+        "q35-kvm-smp4",
+        "q35-kvm-smp8",
+        "q35-kvm-smp24",
+        "pc-tcg-smp4",
+        "focused-q35-kvm-smp4",
+        "focused-q35-kvm-smp24",
+        "rendezvous-q35-kvm-smp24:3",
+        "rendezvous-runtime-smp24",
+        "rate-controls-nonoversubscribed",
+        "soak24-300000ms"
+      ],
+      "evidence": "unchanged-all-invariants-current-scope"
+    },
+    {
+      "key": "lock-progress",
+      "family": "scripts/test-lock-progress.sh",
+      "mode": "all",
+      "profiles": [
+        "q35-kvm-smp8",
+        "q35-kvm-smp24",
+        "production"
+      ],
+      "evidence": "native-host-runtime-stress-production-fixtures"
+    },
+    {
+      "key": "allocator",
+      "family": "scripts/test-alloc-hardening.sh",
+      "mode": "all",
+      "profiles": [
+        "q35-kvm-smp4",
+        "production"
+      ],
+      "evidence": "native-host-runtime-hardening-production-fixtures"
+    },
+    {
+      "key": "modal-heap",
+      "family": "scripts/test-cl13-modal-heap-focused.sh",
+      "mode": "current",
+      "profiles": [
+        "host",
+        "q35-kvm-smp4:2",
+        "q35-kvm-smp8:3"
+      ],
+      "evidence": "shared-native-concurrent-modal-ownership-and-outer-resource-checkpoint"
+    },
+    {
+      "key": "taskman-visual",
+      "family": "scripts/test-taskman-visual.sh",
+      "mode": "current",
+      "profiles": [
+        "q35-kvm-smp4-wide",
+        "q35-kvm-smp4-compact",
+        "five-payloads"
+      ],
+      "evidence": "current-naming-focused-runtime-image-payload"
+    },
+    {
+      "key": "production-policy",
+      "family": "scripts/verify-production-test-policy.sh",
+      "mode": "no-arguments",
+      "profiles": [
+        "production-debug-off"
+      ],
+      "evidence": "actual-binary-and-payload-absence"
+    }
+  ],
+  "historical_unavailable": [
+    {
+      "family": "assertion-record",
+      "mode": "historical",
+      "status": "HISTORICAL_REPLAY_UNAVAILABLE",
+      "current_requirement": "assertion-record"
+    },
+    {
+      "family": "taskman-statistics",
+      "mode": "historical",
+      "status": "HISTORICAL_REPLAY_UNAVAILABLE",
+      "current_requirement": "taskman-statistics"
+    },
+    {
+      "family": "section-layout",
+      "mode": "core historical references",
+      "status": "HISTORICAL_REPLAY_UNAVAILABLE",
+      "current_requirement": "section-layout"
+    }
+  ],
+  "inventory_revision": "maintained-modal-checkpoint-contract",
+  "revision_reason": "The native formatting consumer verifier already defines the maintained two SMP4 and three SMP8 ownership/resource-checkpoint runs. Reuse those exact validators and captures; retain the legacy historical classification mode separately."
+}

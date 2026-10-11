@@ -10,6 +10,9 @@
 #include "src/drivers/pci.h"
 #include "src/core/timers.h"
 #include "src/drivers/serial.h"
+#include "src/memory/boot_address.h"
+#include "src/memory/image_walk.h"
+#include "src/libc/string.h"
 
 #include "src/core/interrupts.h"
 #include "src/core/scheduler.h"
@@ -83,6 +86,28 @@ void kernel_main_high(BootInfo *boot_info, uint64_t entry_rsp_mod16,
 
     serial_init_from_bootinfo(NULL);
     serial_write_all("\n[KERNEL] ENTRY OK\n");
+
+    BootInfo *adapted;
+    if (!physical_boot_adapt((uintptr_t)boot_info, &adapted)) {
+        serial_write_all("[PHYSICAL][BOOT] ERROR reason=invalid_handoff\n");
+        for (;;) __asm__ volatile("cli; hlt" ::: "memory");
+    }
+    boot_info = adapted;
+    physical_translation_stats_t physical;
+    physical_translation_stats(&physical);
+    char physical_line[384];
+    int physical_length = ksnprintf(physical_line, sizeof(physical_line),
+        "[PHYSICAL][BOOT] READY schema=1 early_sealed=%u nested_objects=1 "
+        "descriptors=%llu identity_limit=%llu ceiling=%llu handoff=0x%llx map=0x%llx map_bytes=%llu\n",
+        physical.bootstrap_sealed, (unsigned long long)physical.descriptor_count,
+        (unsigned long long)physical.identity_limit,
+        (unsigned long long)physical.allocation_ceiling,
+        (unsigned long long)physical_boot_objects()->handoff,
+        (unsigned long long)physical_boot_objects()->map,
+        (unsigned long long)physical_boot_objects()->map_bytes);
+    if (physical_length > 0 && (size_t)physical_length < sizeof(physical_line))
+        serial_write_all(physical_line);
+    else kpanic("Physical boot record exceeded capacity");
 
     serial_write_all("[KERNEL] sizeof(BootInfo)=0x");
     serial_write_hex64_all((uint64_t)sizeof(BootInfo));
@@ -190,6 +215,7 @@ void kernel_main_high(BootInfo *boot_info, uint64_t entry_rsp_mod16,
     } else
         debug_serial("\n[BOOT][SHELL_READY] FAIL\n");
 
+    if (!paging_image_boot_check("DEVICES")) kpanic("Device-ready image protection scan failed");
     bool runtime_ok = shell_runtime.initialized &&
         shell_runtime.thread_started &&
         runtime_ready_wait_and_publish(10000, 1000);

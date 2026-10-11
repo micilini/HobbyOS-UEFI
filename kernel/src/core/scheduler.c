@@ -1,4 +1,5 @@
 #include "scheduler.h"
+#include "../memory/kernel_stack.h"
 #include "task.h"
 #include "spinlock.h"
 #include "../memory/heap.h"
@@ -440,11 +441,26 @@ static task_t *runqueue_take_next_locked(void)
 {
     struct list_head *queues[2] = {&g_interactive_queue, &g_normal_queue};
     task_queue_membership_t memberships[2] = {TASK_QUEUE_RUNQ_INTERACTIVE, TASK_QUEUE_RUNQ_NORMAL};
+#ifdef HOBBYOS_SELFTEST
+    cpu_slot_t test_slot = CPU_SLOT_INVALID;
+#endif
     for (uint32_t q = 0; q < 2; q++)
     {
         while (!list_empty(queues[q]))
         {
             task_t *t = list_entry(queues[q]->next, task_t, list);
+#ifdef HOBBYOS_SELFTEST
+            struct list_head *node = queues[q]->next;
+            while (t->test_cpu_plus_one && !t->test_ready_hold) {
+                if (test_slot == CPU_SLOT_INVALID && !smp_current_cpu_slot(&test_slot))
+                    return NULL;
+                if (t->test_cpu_plus_one == test_slot + 1) break;
+                node = node->next;
+                if (node == queues[q]) break;
+                t = list_entry(node, task_t, list);
+            }
+            if (node == queues[q]) break;
+#endif
             if (t->test_ready_hold) break;
             bool membership_ok = t->queue_membership == memberships[q];
             if (!queue_detach_locked(t))
@@ -765,13 +781,21 @@ bool thread_create_ex_handle(void (*entry_point)(void *),void *arg,const task_cr
         ((creation_flags & TASK_FLAG_KILL_PROTECTED) && (creation_flags & TASK_FLAG_KILLABLE)) ||
         (!options->cleanup_fn && options->cleanup_ctx))
         return false;
+#ifdef HOBBYOS_SELFTEST
+    if (options->test_cpu_plus_one &&
+        (!irq_is_enabled() || !scheduler_is_started() ||
+         options->task_class != TASK_CLASS_NORMAL || creation_flags != TASK_FLAG_SYSTEM ||
+         options->test_cpu_plus_one > g_cpu_count ||
+         !scheduler_cpu_is_ready(options->test_cpu_plus_one - 1) ||
+         !scheduler_cpu_irq_preemption_enabled(options->test_cpu_plus_one - 1)))
+        return false;
+#endif
 
     task_t *t = (task_t *)kmalloc(sizeof(task_t));
     if (!t)
         return false;
     memset(t, 0, sizeof(task_t));
-    t->stack_base = kmalloc_aligned(STACK_SIZE, 16);
-    if (!t->stack_base)
+    if (!kernel_stack_acquire(&t->stack_owner,&t->stack_base))
     {
         kfree(t);
         return false;
@@ -786,6 +810,9 @@ bool thread_create_ex_handle(void (*entry_point)(void *),void *arg,const task_cr
     t->kernel_stack_bytes = STACK_SIZE;
     t->last_cpu_slot = TASK_CPU_SLOT_NONE;
     t->flags = creation_flags;
+#ifdef HOBBYOS_SELFTEST
+    t->test_cpu_plus_one = options->test_cpu_plus_one;
+#endif
     t->cleanup_fn = options->cleanup_fn;
     t->cleanup_ctx = options->cleanup_ctx;
     t->test_ready_hold = __atomic_exchange_n(&g_test_hold_next_ready, 0, __ATOMIC_ACQ_REL);
@@ -811,21 +838,22 @@ bool thread_create_ex_handle(void (*entry_point)(void *),void *arg,const task_cr
     if (!task_id_allocate_locked(&t->id) || g_next_lifecycle_generation == 0)
     {
         spin_unlock_irqrestore(&g_scheduler_lock, lock_flags);
-        kfree(t->stack_base);
+        kernel_stack_discard(t->stack_owner);
         kfree(t);
         return false;
     }
     t->lifecycle_generation = g_next_lifecycle_generation++;
     if (options->test_reap_hold || g_test_hold_next_reap) {
         uint32_t slot=0; while(slot<TEST_REAP_HOLD_MAX&&g_test_reap_hold_ids[slot]!=TASK_ID_INVALID)slot++;
-        if(slot==TEST_REAP_HOLD_MAX){g_test_hold_next_reap=0;spin_unlock_irqrestore(&g_scheduler_lock,lock_flags);kfree(t->stack_base);kfree(t);return false;}
+        if(slot==TEST_REAP_HOLD_MAX){g_test_hold_next_reap=0;spin_unlock_irqrestore(&g_scheduler_lock,lock_flags);kernel_stack_discard(t->stack_owner);kfree(t);return false;}
         g_test_reap_hold_ids[slot]=t->id; g_test_hold_next_reap=0;
     }
     if (options->name && options->name[0])
         sched_copy_name(t->name, sizeof(t->name), options->name);
     else
         sched_make_default_name(t->name, sizeof(t->name), t->id);
-    if (!registry_add_locked(t) || !enqueue_task_locked(t))
+    if (!kernel_stack_bind_task(t->stack_owner,t->id,t->lifecycle_generation,t->name) ||
+        !registry_add_locked(t) || !enqueue_task_locked(t))
     {
         for (uint32_t i = 0; i < TEST_REAP_HOLD_MAX; i++)
             if (g_test_reap_hold_ids[i] == t->id)
@@ -833,10 +861,11 @@ bool thread_create_ex_handle(void (*entry_point)(void *),void *arg,const task_cr
         if (t->registry_registered)
             registry_remove_locked(t);
         spin_unlock_irqrestore(&g_scheduler_lock, lock_flags);
-        kfree(t->stack_base);
+        kernel_stack_discard(t->stack_owner);
         kfree(t);
         return false;
     }
+    if (!kernel_stack_publish(t->stack_owner)) kpanic("Task stack ownership publication failed");
     task_handle_t handle={.id=t->id,.lifecycle_generation=t->lifecycle_generation};
     char log_name[32];sched_copy_name(log_name,sizeof(log_name),t->name);
     uint32_t log_flags=t->flags;int log_class=t->task_class;
@@ -2537,7 +2566,7 @@ uint32_t scheduler_reap_zombies(uint64_t grace_ms)
     if(structural_id){serial_write_all("[REAPER][STRUCTURAL_FAULT] id=");sched_serial_dec(structural_id);serial_write_all(" mask=0x");serial_write_hex64_all(structural_mask);serial_write_all("\n");kpanic("REAPER: structural zombie fault");}
     uint32_t freed=0;for(uint32_t i=0;i<n;i++){task_t*t=to_free[i];if(!t->reap_claimed||t->registry_registered||t->state!=TASK_ZOMBIE||t->on_cpu||t->current_cpu_slot!=TASK_CPU_SLOT_NONE||t->queue_membership!=TASK_QUEUE_NONE||t->wait_active||t->wait_kind!=TASK_WAIT_NONE||t->wait_object_key||t->deferred_ready||!t->exit_started||!t->cleanup_started||!t->cleanup_done||!t->lifecycle_notify_started||!t->lifecycle_notify_completed||t->lifecycle_notify_failed||!task_exit_reason_valid(t->exit_reason)||t->task_wake_timer_refs||t->timer_ref_acquires!=t->timer_ref_releases||!scheduler_task_stack_guard_ok(t)||!scheduler_task_stack_rsp_in_bounds(t)||!t->zombie_generation||!t->exit_started_ns||t->cleanup_completed_ns<t->exit_started_ns||t->zombie_entered_ns<t->cleanup_completed_ns)kpanic("REAPER: claimed invariant changed");
         if(!__atomic_load_n(&g_test_quiet_lifecycle,__ATOMIC_ACQUIRE)){serial_write_all("[REAPER] FREE id=");sched_serial_dec(t->id);serial_write_all(" generation=");sched_serial_dec(t->zombie_generation);serial_write_all(" reason=");serial_write_all(scheduler_task_exit_reason_to_string(t->exit_reason));serial_write_all(" stack_bytes=");sched_serial_dec(t->kernel_stack_bytes);serial_write_all("\n");}
-        if(t->stack_base) kfree(t->stack_base);
+        if(t->stack_base) kernel_stack_retire(t->stack_owner,t->id,t->lifecycle_generation);
         kfree(t);
         freed++;
     }

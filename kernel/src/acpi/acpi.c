@@ -1,6 +1,11 @@
 #include "acpi.h"
 #include "../core/io.h"
 #include "../graphics/console.h"
+#include "../memory/physical_translation.h"
+#include "../memory/firmware_mapping.h"
+#include "../memory/boot_address.h"
+#include "../core/spinlock.h"
+#include "../libc/memory.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -10,9 +15,90 @@ static AcpiSdtHeader *g_xsdt = NULL;
 static AcpiSdtHeader *g_rsdt = NULL;
 static const AcpiFadt *g_fadt = 0;
 
+static mapping_view_t g_acpi_views[256];
+static uint32_t g_acpi_view_count;
+static spinlock_t g_acpi_view_lock;
+static mapping_view_t g_rsdp_view;
+
+const AcpiSdtHeader *acpi_retained_table(const char *signature, uint64_t *physical)
+{
+    if (!signature || !physical) return NULL;
+    const AcpiSdtHeader *found = NULL;
+    irq_flags_t flags = spin_lock_irqsave(&g_acpi_view_lock);
+    for (unsigned i = 0; i < g_acpi_view_count; ++i) {
+        const AcpiSdtHeader *table = g_acpi_views[i].cpu;
+        if (g_acpi_views[i].bytes >= sizeof(*table) && !memcmp(table->signature, signature, 4)) {
+            found = table; *physical = g_acpi_views[i].physical; break;
+        }
+    }
+    spin_unlock_irqrestore(&g_acpi_view_lock, flags); return found;
+}
+
+static AcpiSdtHeader *acpi_table_pointer(uint64_t physical)
+{
+    irq_flags_t flags = spin_lock_irqsave(&g_acpi_view_lock);
+    for (unsigned i = 0; i < g_acpi_view_count; ++i) {
+        if (g_acpi_views[i].physical == physical) {
+            void *cpu = g_acpi_views[i].cpu;
+            spin_unlock_irqrestore(&g_acpi_view_lock, flags); return cpu;
+        }
+    }
+    spin_unlock_irqrestore(&g_acpi_view_lock, flags);
+    mapping_view_t header_view, full_view;
+    if (firmware_mapping_acquire(physical, sizeof(AcpiSdtHeader), &header_view) != MAPPING_OK) return NULL;
+    const AcpiSdtHeader *header = header_view.cpu;
+    uint32_t bytes = header->length;
+    bool valid = bytes >= sizeof(*header) &&
+        firmware_mapping_acquire(physical, bytes, &full_view) == MAPPING_OK;
+    if (owned_mapping_release(header_view.handle) != MAPPING_OK || !valid) return NULL;
+    flags = spin_lock_irqsave(&g_acpi_view_lock);
+    if (g_acpi_view_count == 256) {
+        spin_unlock_irqrestore(&g_acpi_view_lock, flags);
+        (void)owned_mapping_release(full_view.handle); return NULL;
+    }
+    for (unsigned i = 0; i < g_acpi_view_count; ++i) {
+        if (g_acpi_views[i].physical == physical) {
+            void *cpu = g_acpi_views[i].cpu;
+            spin_unlock_irqrestore(&g_acpi_view_lock, flags);
+            (void)owned_mapping_release(full_view.handle); return cpu;
+        }
+    }
+    g_acpi_views[g_acpi_view_count++] = full_view;
+    spin_unlock_irqrestore(&g_acpi_view_lock, flags);
+    return full_view.cpu;
+}
+
+static AcpiSdtHeader *acpi_table_link(const uint8_t *entry, size_t width)
+{
+    uint64_t physical = 0;
+    memcpy(&physical, entry, width);
+    return acpi_table_pointer(physical);
+}
+
+#define FADT_HAS(f, member) ((f)->header.length >= offsetof(AcpiFadt, member) + sizeof((f)->member))
+
+#ifdef HOBBYOS_SELFTEST
+bool acpi_observe_root(unsigned index, const void **address, uint32_t *bytes)
+{
+    if (!address || !bytes || index > 2) return false;
+    *address = index == 0 ? (const void *)g_rsdp :
+               index == 1 ? (const void *)g_xsdt : (const void *)g_rsdt;
+    *bytes = 0;
+    if (!*address) return false;
+    if (index == 0)
+        *bytes = g_rsdp->revision >= 2 ? sizeof(AcpiRsdp) : 20;
+    else
+        *bytes = ((const AcpiSdtHeader *)*address)->length;
+    return true;
+}
+#endif
+
 void init_acpi(void *rsdp_address)
 {
-    g_rsdp = (AcpiRsdp *)rsdp_address;
+    const boot_physical_objects_t *boot = physical_boot_objects();
+    g_rsdp = NULL;
+    if (rsdp_address && boot && firmware_mapping_acquire(boot->rsdp, boot->rsdp_bytes, &g_rsdp_view) == MAPPING_OK)
+        g_rsdp = g_rsdp_view.cpu;
     g_xsdt = NULL;
     g_rsdt = NULL;
 
@@ -21,14 +107,16 @@ void init_acpi(void *rsdp_address)
 
     if (g_rsdp->revision >= 2 && g_rsdp->xsdt_address != 0)
     {
-        g_xsdt = (AcpiSdtHeader *)((uint64_t)g_rsdp->xsdt_address);
+        g_xsdt = acpi_table_pointer(g_rsdp->xsdt_address);
     }
     else if (g_rsdp->rsdt_address != 0)
     {
-        g_rsdt = (AcpiSdtHeader *)((uint64_t)g_rsdp->rsdt_address);
+        g_rsdt = acpi_table_pointer(g_rsdp->rsdt_address);
     }
 
     g_fadt = (const AcpiFadt *)acpi_find_table("FACP");
+    /* Retain the indirect firmware table before read-only diagnostics run. */
+    (void)acpi_get_dsdt();
 }
 
 void *acpi_find_table(const char *signature)
@@ -47,11 +135,11 @@ void *acpi_find_table(const char *signature)
         if (sizeof(AcpiSdtHeader) + entries64 * 8 > g_xsdt->length)
             return NULL;
 
-        uint64_t *pointers = (uint64_t *)((char *)g_xsdt + sizeof(AcpiSdtHeader));
+        const uint8_t *pointers = (const uint8_t *)g_xsdt + sizeof(AcpiSdtHeader);
 
         for (uint64_t i = 0; i < entries64; i++)
         {
-            AcpiSdtHeader *header = (AcpiSdtHeader *)(uintptr_t)pointers[i];
+            AcpiSdtHeader *header = acpi_table_link(pointers + i * 8, 8);
             if (!header)
                 continue;
 
@@ -77,11 +165,11 @@ void *acpi_find_table(const char *signature)
         if (sizeof(AcpiSdtHeader) + entries64 * 4 > g_rsdt->length)
             return NULL;
 
-        uint32_t *pointers = (uint32_t *)((char *)g_rsdt + sizeof(AcpiSdtHeader));
+        const uint8_t *pointers = (const uint8_t *)g_rsdt + sizeof(AcpiSdtHeader);
 
         for (uint64_t i = 0; i < entries64; i++)
         {
-            AcpiSdtHeader *header = (AcpiSdtHeader *)(uintptr_t)pointers[i];
+            AcpiSdtHeader *header = acpi_table_link(pointers + i * 4, 4);
             if (!header)
                 continue;
 
@@ -117,7 +205,7 @@ void acpi_list_tables_debug(void)
             return;
         }
 
-        uint64_t *pointers = (uint64_t *)((char *)g_xsdt + sizeof(AcpiSdtHeader));
+        const uint8_t *pointers = (const uint8_t *)g_xsdt + sizeof(AcpiSdtHeader);
 
         console_write_debug("[ACPI] Using XSDT. Tables: ");
         console_print_dec_debug(entries);
@@ -125,7 +213,7 @@ void acpi_list_tables_debug(void)
 
         for (uint64_t i = 0; i < entries; i++)
         {
-            AcpiSdtHeader *h = (AcpiSdtHeader *)(uintptr_t)pointers[i];
+            AcpiSdtHeader *h = acpi_table_link(pointers + i * 8, 8);
             if (!h)
                 continue;
 
@@ -137,7 +225,7 @@ void acpi_list_tables_debug(void)
             console_put_char_debug(h->signature[2]);
             console_put_char_debug(h->signature[3]);
             console_write_debug(" addr=0x");
-            console_print_hex_debug((uint64_t)(uintptr_t)h);
+            console_print_hex_debug(physical_require_address(h, h->length));
             console_write_debug(" len=");
             console_print_dec_debug((uint64_t)h->length);
             console_write_debug(" rev=");
@@ -164,7 +252,7 @@ void acpi_list_tables_debug(void)
             return;
         }
 
-        uint32_t *pointers = (uint32_t *)((char *)g_rsdt + sizeof(AcpiSdtHeader));
+        const uint8_t *pointers = (const uint8_t *)g_rsdt + sizeof(AcpiSdtHeader);
 
         console_write_debug("[ACPI] Using RSDT. Tables: ");
         console_print_dec_debug(entries);
@@ -172,7 +260,7 @@ void acpi_list_tables_debug(void)
 
         for (uint64_t i = 0; i < entries; i++)
         {
-            AcpiSdtHeader *h = (AcpiSdtHeader *)(uintptr_t)pointers[i];
+            AcpiSdtHeader *h = acpi_table_link(pointers + i * 4, 4);
             if (!h)
                 continue;
 
@@ -184,7 +272,7 @@ void acpi_list_tables_debug(void)
             console_put_char_debug(h->signature[2]);
             console_put_char_debug(h->signature[3]);
             console_write_debug(" addr=0x");
-            console_print_hex_debug((uint64_t)(uintptr_t)h);
+            console_print_hex_debug(physical_require_address(h, h->length));
             console_write_debug(" len=");
             console_print_dec_debug((uint64_t)h->length);
             console_write_debug(" rev=");
@@ -216,7 +304,7 @@ void acpi_list_tables(void)
             return;
         }
 
-        uint64_t *pointers = (uint64_t *)((char *)g_xsdt + sizeof(AcpiSdtHeader));
+        const uint8_t *pointers = (const uint8_t *)g_xsdt + sizeof(AcpiSdtHeader);
 
         console_write("[ACPI] Using XSDT. Tables: ");
         console_print_dec(entries);
@@ -224,7 +312,7 @@ void acpi_list_tables(void)
 
         for (uint64_t i = 0; i < entries; i++)
         {
-            AcpiSdtHeader *h = (AcpiSdtHeader *)(uintptr_t)pointers[i];
+            AcpiSdtHeader *h = acpi_table_link(pointers + i * 8, 8);
             if (!h)
                 continue;
 
@@ -236,7 +324,7 @@ void acpi_list_tables(void)
             console_put_char(h->signature[2]);
             console_put_char(h->signature[3]);
             console_write(" addr=0x");
-            console_print_hex((uint64_t)(uintptr_t)h);
+            console_print_hex(physical_require_address(h, h->length));
             console_write(" len=");
             console_print_dec((uint64_t)h->length);
             console_write(" rev=");
@@ -263,7 +351,7 @@ void acpi_list_tables(void)
             return;
         }
 
-        uint32_t *pointers = (uint32_t *)((char *)g_rsdt + sizeof(AcpiSdtHeader));
+        const uint8_t *pointers = (const uint8_t *)g_rsdt + sizeof(AcpiSdtHeader);
 
         console_write("[ACPI] Using RSDT. Tables: ");
         console_print_dec(entries);
@@ -271,7 +359,7 @@ void acpi_list_tables(void)
 
         for (uint64_t i = 0; i < entries; i++)
         {
-            AcpiSdtHeader *h = (AcpiSdtHeader *)(uintptr_t)pointers[i];
+            AcpiSdtHeader *h = acpi_table_link(pointers + i * 4, 4);
             if (!h)
                 continue;
 
@@ -283,7 +371,7 @@ void acpi_list_tables(void)
             console_put_char(h->signature[2]);
             console_put_char(h->signature[3]);
             console_write(" addr=0x");
-            console_print_hex((uint64_t)(uintptr_t)h);
+            console_print_hex(physical_require_address(h, h->length));
             console_write(" len=");
             console_print_dec((uint64_t)h->length);
             console_write(" rev=");
@@ -312,15 +400,15 @@ const AcpiSdtHeader *acpi_get_dsdt(void)
         return NULL;
 
     uint64_t addr = 0;
-    if (f->x_dsdt)
+    if (FADT_HAS(f, x_dsdt) && f->x_dsdt)
         addr = f->x_dsdt;
-    else
+    else if (FADT_HAS(f, dsdt))
         addr = (uint64_t)f->dsdt;
 
     if (!addr)
         return NULL;
 
-    return (const AcpiSdtHeader *)(uintptr_t)addr;
+    return acpi_table_pointer(addr);
 }
 
 static uint16_t gas_io_port(const AcpiGas *gas)
@@ -342,14 +430,14 @@ uint16_t acpi_get_pmbase(void)
 
     uint16_t base = 0;
 
-    if (f->pm1a_evt_blk)
+    if (FADT_HAS(f, pm1a_evt_blk) && f->pm1a_evt_blk)
     {
         base = (uint16_t)(f->pm1a_evt_blk & 0xFF80u);
         if (base)
             return base;
     }
 
-    uint16_t x_evt = gas_io_port(&f->x_pm1a_evt_blk);
+    uint16_t x_evt = FADT_HAS(f, x_pm1a_evt_blk) ? gas_io_port(&f->x_pm1a_evt_blk) : 0;
     if (x_evt)
     {
         base = (uint16_t)(x_evt & 0xFF80u);
@@ -357,14 +445,14 @@ uint16_t acpi_get_pmbase(void)
             return base;
     }
 
-    if (f->pm1a_cnt_blk)
+    if (FADT_HAS(f, pm1a_cnt_blk) && f->pm1a_cnt_blk)
     {
         base = (uint16_t)(f->pm1a_cnt_blk & 0xFF80u);
         if (base)
             return base;
     }
 
-    uint16_t x_cnt = gas_io_port(&f->x_pm1a_cnt_blk);
+    uint16_t x_cnt = FADT_HAS(f, x_pm1a_cnt_blk) ? gas_io_port(&f->x_pm1a_cnt_blk) : 0;
     if (x_cnt)
     {
         base = (uint16_t)(x_cnt & 0xFF80u);
@@ -384,7 +472,7 @@ void acpi_enable_mode(void)
         return;
     }
 
-    if (f->smi_cmd == 0 || f->acpi_enable == 0)
+    if (!FADT_HAS(f, smi_cmd) || !FADT_HAS(f, acpi_enable) || f->smi_cmd == 0 || f->acpi_enable == 0)
     {
         console_write_debug("[ACPI] SMI_CMD or ACPI_ENABLE is 0; skipping ACPI enable.\n");
         return;
@@ -392,10 +480,10 @@ void acpi_enable_mode(void)
 
     uint16_t pm1a_cnt = 0;
 
-    if (f->pm1a_cnt_blk)
+    if (FADT_HAS(f, pm1a_cnt_blk) && f->pm1a_cnt_blk)
         pm1a_cnt = (uint16_t)f->pm1a_cnt_blk;
     if (!pm1a_cnt)
-        pm1a_cnt = gas_io_port(&f->x_pm1a_cnt_blk);
+        pm1a_cnt = FADT_HAS(f, x_pm1a_cnt_blk) ? gas_io_port(&f->x_pm1a_cnt_blk) : 0;
 
     console_write_debug("[ACPI] Enabling ACPI mode via SMI_CMD...\n");
     outb((uint16_t)f->smi_cmd, f->acpi_enable);

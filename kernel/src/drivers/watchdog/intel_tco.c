@@ -100,7 +100,7 @@ typedef struct
 static uint16_t derive_pmbase_from_fadt(void)
 {
     AcpiFadtMin *fadt = (AcpiFadtMin *)acpi_find_table(ACPI_SIG_FADT);
-    if (!fadt)
+    if (!fadt || fadt->header.length < sizeof(*fadt))
         return 0;
 
     uint16_t base = (uint16_t)(fadt->pm1a_evt_blk & 0xFF80u);

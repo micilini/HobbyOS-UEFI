@@ -904,6 +904,14 @@ def validate_contract_summary(summary: dict) -> None:
 
 
 def validate_all(evidence: Path) -> dict:
+    if os.environ.get('HOBBYOS_VALIDATION_CONTRACT') in ('tlb-coherency','physical-translation','owned-device-mapping','verified-ram-direct-map','low-address-isolation','kernel-image-protection','guarded-kernel-stacks'):
+        import tlb_current
+        tlb_current.audit_sites()
+        tlb_current.contract()
+    if os.environ.get('HOBBYOS_VALIDATION_CONTRACT') == 'cpu-control-state':
+        import cpu_current
+        cpu_current.audit_sites()
+        cpu_current.contract()
     campaign = load_json(evidence / "campaign.json", "CAMPAIGN_INVALID")
     require(campaign.get("schema") == 1, "CAMPAIGN_SCHEMA_INVALID")
     source_count = validate_sources(evidence, campaign.get("source_manifest"))
@@ -1035,6 +1043,14 @@ def fixup_probe_address(text: str, name: str, expected: int) -> int:
 
 def collect_static(args) -> dict:
     root = Path(args.repo_root).resolve()
+    if os.environ.get('HOBBYOS_VALIDATION_CONTRACT') in ('tlb-coherency','physical-translation','owned-device-mapping','verified-ram-direct-map','low-address-isolation','kernel-image-protection','guarded-kernel-stacks'):
+        import tlb_current
+        tlb_current.audit_sites(root)
+        tlb_current.contract(root)
+    if os.environ.get('HOBBYOS_VALIDATION_CONTRACT') == 'cpu-control-state':
+        import cpu_current
+        cpu_current.audit_sites(root)
+        cpu_current.contract(root)
     evidence = Path(args.evidence_root).resolve()
     static_dir = evidence / "static"
     static_dir.mkdir(parents=True, exist_ok=True)

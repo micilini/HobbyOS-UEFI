@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import validation_resources
 import re
 import shutil
 import subprocess
@@ -79,7 +80,11 @@ PANIC_STATE_REENTRY_FAULTS = 60
 MAX_CPUS = 32
 SCHEDULER_CURRENT_OFFSET = 8
 TASK_ID_OFFSET = 8
-TASK_GENERATION_OFFSET = 168
+# The guarded-stack owner handle precedes the unchanged lifecycle fields.
+# Historical captures retain their original task layout.
+TASK_GENERATION_OFFSET = (
+    184 if os.environ.get("HOBBYOS_VALIDATION_CONTRACT") ==
+    "guarded-kernel-stacks" else 168)
 
 
 def atomic_json(path, value):
@@ -312,6 +317,9 @@ def main():
     if not image.is_file() or not elf.is_file():
         parser.error("image and ELF must exist")
     symbols = panic_qemu.elf_symbols(elf)
+    if (os.environ.get("HOBBYOS_VALIDATION_CONTRACT") ==
+            "guarded-kernel-stacks" and "kernel_stack_acquire" not in symbols):
+        parser.error("guarded-stack task layout requires the current kernel")
     required = {
         "g_assertion_test_state", "g_assertion_test_fixture",
         "g_panic_test_state", "g_panic_owner", "g_scheduler_cpus", "g_cpus",
@@ -329,15 +337,13 @@ def main():
         parser.error("topology array size is not divisible by max CPUs")
 
     working_image = run_dir / "working.img"
-    subprocess.run(["cp", "--reflink=auto", str(image), str(working_image)],
-                   check=True)
+    validation_resources.sparse_copy(image, working_image)
     image_hash = sha256(working_image)
     elf_hash = sha256(elf)
     socket_dir = Path(tempfile.mkdtemp(prefix="hobbyos-assert-"))
     os.chmod(socket_dir, 0o700)
     command, firmware, qmp_path, hmp_path, gdb_path = (
         panic_qemu.launch_arguments(args, run_dir, socket_dir, working_image))
-    del hmp_path
     qemu_version = subprocess.run(
         [args.qemu, "--version"], text=True, stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT, check=True).stdout.splitlines()[0]
@@ -384,12 +390,17 @@ def main():
     process = None
     qmp = None
     stderr_handle = None
+    native_audit = None
     cleanup = {"method": None, "started": None, "completed": None}
     try:
         stderr_handle = (run_dir / "qemu-stderr.log").open("w")
         process = subprocess.Popen(command, stdout=stderr_handle,
                                    stderr=subprocess.STDOUT)
         result["qemu_pid"] = process.pid
+        import stack_native_audit
+        if stack_native_audit.enabled():
+            native_audit = stack_native_audit.prepare(elf, working_image, process.pid)
+            stack_native_audit.reference(native_audit, run_dir)
         socket_deadline = time.monotonic() + 10.0
         if not panic_qemu.wait_path(qmp_path, socket_deadline):
             raise RuntimeError("QMP socket did not appear")
@@ -638,6 +649,13 @@ def main():
     finally:
         cleanup["started"] = time.monotonic()
         if qmp and process and process.poll() is None:
+            if native_audit is not None:
+                try:
+                    stack_native_audit.capture(native_audit, hmp_path, run_dir / "serial-transcript.log", process.pid)
+                except Exception as error:
+                    result["native_service_error"] = str(error)
+                    result["status"] = "FAIL"
+                    result["host_return_code"] = 1
             try:
                 qmp.command("quit", {}, time.monotonic() + 2.0)
                 cleanup["method"] = "qmp-quit"

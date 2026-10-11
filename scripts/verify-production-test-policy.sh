@@ -120,11 +120,18 @@ require_only_blank_between "$scheduler_panic_line" "$marker_2_line" \
    bsp_lapic_probe_line < irq_line &&
    irq_line + 1 == marker_4_line)) ||
     fail_policy source-order=irq-bootstrap-breadcrumbs
-((marker_4_line + 1 == runtime_ready_wait_line &&
-   runtime_ready_wait_line < console_line)) ||
-    fail_policy source-order=irq-release-to-console
-((console_line + 1 == marker_5_line && marker_5_line + 1 == pci_line)) ||
-    fail_policy source-order=console-marker-5-pci
+if [[ ${HOBBYOS_VALIDATION_CONTRACT:-} == owned-device-mapping || ${HOBBYOS_VALIDATION_CONTRACT:-} == verified-ram-direct-map || ${HOBBYOS_VALIDATION_CONTRACT:-} == low-address-isolation || ${HOBBYOS_VALIDATION_CONTRACT:-} == kernel-image-protection || ${HOBBYOS_VALIDATION_CONTRACT:-} == guarded-kernel-stacks ]]; then
+    ((marker_4_line + 1 == runtime_ready_wait_line)) ||
+        fail_policy source-order=irq-release-to-device-worker
+    python3 -B scripts/device-mapping-order.py --source "$boot_source" ||
+        fail_policy source-order=device-worker
+else
+    ((marker_4_line + 1 == runtime_ready_wait_line &&
+       runtime_ready_wait_line < console_line)) ||
+        fail_policy source-order=irq-release-to-console
+    ((console_line + 1 == marker_5_line && marker_5_line + 1 == pci_line)) ||
+        fail_policy source-order=console-marker-5-pci
+fi
 
 for marker in \
     '[SELFTEST][AUTORUN] BEGIN' \
@@ -149,21 +156,91 @@ profiletest_count=$(grep -Ec '\.name[[:space:]]*=[[:space:]]*"profiletest"' \
 [[ $profiletest_count == 0 ]] ||
     fail_policy profiletest-registered-in-production
 
-manual_diagnostics=(
-    schedtest synctest accounttest killtest reaptest inputtest modaltest taskmantest
-)
-for command in "${manual_diagnostics[@]}"; do
-    command_count=$(grep -Ec \
-        "\\.name[[:space:]]*=[[:space:]]*\"${command}\"" \
-        "$registry_pp" || true)
-    [[ $command_count == 1 ]] ||
-        fail_policy "manual-diagnostic-count=$command_count command=$command"
-done
+if [[ ${HOBBYOS_VALIDATION_CONTRACT:-} == physical-translation ||
+      ${HOBBYOS_VALIDATION_CONTRACT:-} == owned-device-mapping || ${HOBBYOS_VALIDATION_CONTRACT:-} == verified-ram-direct-map || ${HOBBYOS_VALIDATION_CONTRACT:-} == low-address-isolation || ${HOBBYOS_VALIDATION_CONTRACT:-} == kernel-image-protection || ${HOBBYOS_VALIDATION_CONTRACT:-} == guarded-kernel-stacks ]]; then
+    nm -an kernel.elf > "$tmp_dir/physical-symbols.txt"
+    for symbol in physical_boot_adapt physical_pointer_range physical_address_range \
+        bitmap_find_zero_run_below paging_kernel_root_physical paging_query_range; do
+        grep -Eq "[[:space:]]${symbol}$" "$tmp_dir/physical-symbols.txt" ||
+            fail_policy "physical-enforcement-missing=$symbol"
+    done
+    for command in phystest ptinspect cpustate memmap tlbtest; do
+        ! grep -Eq "\\.name[[:space:]]*=[[:space:]]*\"${command}\"" "$registry_pp" ||
+            fail_policy "diagnostic-registered-in-production=$command"
+    done
+    ! grep -Eq '[[:space:]](cmd_phystest|physical_fixture_run|physical_host_backing)$' \
+        "$tmp_dir/physical-symbols.txt" || fail_policy physical-test-symbol-present
+    ! grep -Eq '\[PHYSICAL\]\[(SEARCH|POINTER|CPU|RESULT)\]' "$strings_file" ||
+        fail_policy physical-test-marker-present
+    grep -Fq '[PHYSICAL][BOOT] READY' "$strings_file" || fail_policy physical-boot-proof-missing
+    if [[ ${HOBBYOS_VALIDATION_CONTRACT:-} == owned-device-mapping || ${HOBBYOS_VALIDATION_CONTRACT:-} == verified-ram-direct-map || ${HOBBYOS_VALIDATION_CONTRACT:-} == low-address-isolation || ${HOBBYOS_VALIDATION_CONTRACT:-} == kernel-image-protection || ${HOBBYOS_VALIDATION_CONTRACT:-} == guarded-kernel-stacks ]]; then
+        for symbol in mmio_mapping_acquire firmware_mapping_acquire owned_mapping_release \
+            dma_buffer_allocate pmm_alloc_constrained_frames kernel_cache_writeback cpu_request_mapping_run; do
+            grep -Eq "[[:space:]]${symbol}$" "$tmp_dir/physical-symbols.txt" ||
+                fail_policy "owned-memory-enforcement-missing=$symbol"
+        done
+    fi
+fi
 
-smpstress_count=$(grep -Ec '\.name[[:space:]]*=[[:space:]]*"smpstress"' \
-    "$registry_pp" || true)
-[[ $smpstress_count == 1 ]] ||
-    fail_policy "manual-diagnostic-count=$smpstress_count command=smpstress"
+if [[ ${HOBBYOS_VALIDATION_CONTRACT:-} == verified-ram-direct-map || ${HOBBYOS_VALIDATION_CONTRACT:-} == low-address-isolation || ${HOBBYOS_VALIDATION_CONTRACT:-} == kernel-image-protection || ${HOBBYOS_VALIDATION_CONTRACT:-} == guarded-kernel-stacks ]]; then
+    for symbol in paging_build_create paging_build_verify paging_build_activate ram_map_plan_verify pmm_direct_map_activate; do
+        grep -Eq "[[:space:]]${symbol}$" "$tmp_dir/physical-symbols.txt" || fail_policy "ram-enforcement-missing=$symbol"
+    done
+    ! grep -Eq '[[:space:]](cmd_rammap|ram_map_fixture_run|pmm_test_alloc_range|paging_ram_scratch_table)$' "$tmp_dir/physical-symbols.txt" || fail_policy ram-test-symbol-present
+    ! grep -Eq '\[RAM_MAP\]\[(BEGIN|HIGH|HEAP|BITMAP|LEAVES)\]' "$strings_file" || fail_policy ram-test-marker-present
+    grep -Fq '[RAM_MAP] PRELOAD' "$strings_file" || fail_policy ram-preload-proof-missing
+    grep -Fq '[RAM_MAP] ACTIVE' "$strings_file" || fail_policy ram-activation-proof-missing
+fi
+
+if [[ ${HOBBYOS_VALIDATION_CONTRACT:-} == low-address-isolation || ${HOBBYOS_VALIDATION_CONTRACT:-} == kernel-image-protection || ${HOBBYOS_VALIDATION_CONTRACT:-} == guarded-kernel-stacks ]]; then
+    for symbol in paging_low_half_empty paging_bootstrap_retire bootstrap_lifetime_depart bootstrap_tables_verify low_fault_description; do
+        grep -Eq "[[:space:]]${symbol}$" "$tmp_dir/physical-symbols.txt" || fail_policy "low-root-enforcement-missing=$symbol"
+    done
+    ! grep -Eq '(cmd_lowmap|null_probe|null_destructive|g_bootstrap_snapshot)' "$tmp_dir/physical-symbols.txt" || fail_policy null-test-symbol-present
+    ! grep -Eq '\[LOW_ROOT\]\[(NULL|DESTRUCTIVE|BOOT_SNAPSHOT)\]' "$strings_file" || fail_policy null-test-marker-present
+    grep -Fq 'Page Fault: NULL-address access' "$strings_file" || fail_policy null-diagnostic-missing
+fi
+
+if [[ ${HOBBYOS_VALIDATION_CONTRACT:-} == kernel-image-protection || ${HOBBYOS_VALIDATION_CONTRACT:-} == guarded-kernel-stacks ]]; then
+    for symbol in image_permissions_from_linker image_permissions_check_leaf image_walk_main paging_image_boot_check; do
+        grep -Eq "[[:space:]]${symbol}$" "$tmp_dir/physical-symbols.txt" || fail_policy "image-enforcement-missing=$symbol"
+    done
+    ! grep -Eq '(cmd_wxtest|protection_probe|protection_store|protection_fetch|protection_text_target|protection_rodata_target|protection_data_target)' "$tmp_dir/physical-symbols.txt" || fail_policy image-test-symbol-present
+    ! grep -Eq '\[IMAGE_PROTECTION\]\[(FAULT|CPU|BEGIN|UNSUPPORTED)\]' "$strings_file" || fail_policy image-test-marker-present
+    ! grep -Eq '\.name[[:space:]]*=[[:space:]]*"wxtest"' "$registry_pp" || fail_policy image-test-command-present
+    gcc -E -P -ffreestanding -std=gnu11 kernel/src/smp/cpu_request_state.c > "$tmp_dir/request-production.c"
+    ! grep -q CPU_REQUEST_PROTECTION "$tmp_dir/request-production.c" || fail_policy image-test-operation-present
+    grep -Fq '[IMAGE_PROTECTION] PRELOAD' "$strings_file" || fail_policy image-preload-proof-missing
+fi
+
+development_commands=(
+    panic irq usbdiag smpstress taskdiag tasktest schedtest synctest accounttest
+    killtest reaptest inputtest modaltest taskmantest diagnosticresulttest
+    locktest alloctest profiletest ptinspect tlbtest mappingtest lowmap wxtest
+    stacktest phystest rammap cpustate memmap irqlatency
+)
+if [[ ${HOBBYOS_VALIDATION_CONTRACT:-} == guarded-kernel-stacks ]]; then
+    for symbol in kernel_stack_acquire kernel_stack_retire stack_owner_guard_lookup stack_fault_classify paging_stack_install; do
+        grep -Eq "[[:space:]]${symbol}$" "$tmp_dir/physical-symbols.txt" || fail_policy "stack-enforcement-missing=$symbol"
+    done
+    ! grep -Eq '(cmd_stacktest|guard_probe|guard_overflow|stack_test_)' "$tmp_dir/physical-symbols.txt" || fail_policy stack-test-symbol-present
+    ! grep -Fq '[STACK_GUARD]' "$strings_file" || fail_policy stack-test-marker-present
+    ! grep -Eq '\.name[[:space:]]*=[[:space:]]*"stacktest"' "$registry_pp" || fail_policy stack-test-command-present
+    grep -Fq '[STACK_FAULT] classification=' "$strings_file" || fail_policy stack-panic-diagnosis-missing
+fi
+nm -an kernel.elf > "$tmp_dir/production-symbols.txt"
+for command in "${development_commands[@]}"; do
+    ! grep -Eq "\\.name[[:space:]]*=[[:space:]]*\"${command}\"" "$registry_pp" ||
+        fail_policy "development-command-present=$command"
+    ! grep -Eq "[[:space:]]cmd_${command}$" "$tmp_dir/production-symbols.txt" ||
+        fail_policy "development-handler-present=$command"
+done
+for command in help clear version mem shutdown restart cpu pci acpi echo ps kill taskman; do
+    command_count=$(grep -Ec "\\.name[[:space:]]*=[[:space:]]*\"${command}\"" "$registry_pp" || true)
+    [[ $command_count == 1 ]] || fail_policy "production-command-count=$command_count command=$command"
+done
+! grep -Eq '[[:space:]](selftest_run_all|selftest_run_suite|tlb_proof_begin|irq_latency_test_begin|killtest_cli_telemetry_enabled|reaptest_zombie_mem_observe_ps)$' \
+    "$tmp_dir/production-symbols.txt" || fail_policy development-payload-present
 
 boot_handlers=(
     cmd_schedtest cmd_synctest cmd_accounttest cmd_killtest cmd_reaptest
@@ -242,4 +319,4 @@ hash_artifacts=(kernel.elf hobbyos.img)
 sha256sum "${hash_artifacts[@]}" > "$hash_file"
 cat "$hash_file"
 
-echo '[BOOT][PRODUCTION_TEST_POLICY] PASS autorun=0 tasktest=0 manual_diagnostics=1 breadcrumbs=5'
+echo '[BOOT][PRODUCTION_TEST_POLICY] PASS autorun=0 tasktest=0 development_commands=0 production_commands=13 breadcrumbs=5'

@@ -22,6 +22,12 @@ de boot usam uma linha serial atômica por marker. Não introduza limite de CPUs
 como atalho diagnóstico; o LAPIC permanece em 1 ms salvo experimento posterior
 explicitamente autorizado.
 
+Production images exclude laboratory shell commands. Build with `SELFTEST=1`
+to use `irq`, `accounttest`, `taskdiag`, stress and regression commands;
+`irqlatency` also requires `IRQ_LATENCY=1`. Keep the same build role across
+kernel and image rebuilds. `python3 -B scripts/test-command-policy.py` checks
+the actual registry in production, DEBUG and SELFTEST roles.
+
 ## QEMU para agente
 
 ```bash
@@ -44,9 +50,10 @@ Somente um harness pode possuir `.qemu` por vez.
   desconhecida começa mascarada. IRQ ISA é resolvida por MADT ISO e GSI base.
 - Timers LAPIC são calibrados em 1000 us, preparados mascarados e ativados
   somente no release. Inicializar o contador HPET não arma timer0.
-- HPET é somente clocksource de produção: Timer0 permanece quiescente. O
-  LAPIC do BSP é o único clockevent global; APs fazem apenas accounting e
-  preempção locais com o mesmo período de 1000 us.
+- Qualified KVM pvclock may supply production monotonic time. HPET remains
+  required for boot, reference checks and fallback; Timer0 stays quiescent.
+  The BSP LAPIC is the only global clockevent. APs perform local accounting
+  and preemption with the same 1000 us period.
 - APs aguardam o barrier de interrupções com IF=0. Preempção por hard IRQ exige
   handoff voluntário do contexto bootstrap e gate por CPU.
 - Serviços externos e MSI só são liberados depois que seus handlers e

@@ -9,11 +9,7 @@
 #define IDT_TA_INTERRUPT_GATE 0x8E
 #define IDT_TA_TRAP_GATE 0x8F
 
-#define INT_VECTOR_HPET_TIMER 32
-#define INT_VECTOR_KEYBOARD 33
-#define INT_VECTOR_LAPIC_TIMER 34
-
-#define INT_VECTOR_XHCI 64
+#include "interrupt_vectors.h"
 
 typedef struct
 {

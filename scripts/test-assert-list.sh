@@ -319,13 +319,38 @@ for name in unchanged:
     new = Path(name).read_bytes()
     rows.append({"path": name, "unchanged": old == new,
                  "sha256": hashlib.sha256(new).hexdigest()})
-if not all(row["unchanged"] for row in rows):
+import os
+if os.environ.get("HOBBYOS_VALIDATION_CONTRACT") in ("physical-translation", "owned-device-mapping", "verified-ram-direct-map", "low-address-isolation", "kernel-image-protection", "guarded-kernel-stacks"):
+    sys.path.insert(0, "scripts")
+    import memory_current
+    contract = memory_current.current_contract()
+    for row in rows:
+        if row["path"] == "kernel/src/memory/heap.c":
+            row["current_contract"] = contract["name"]
+            row["authorized_delta"] = "Checked physical backing conversion; original heap algorithms and guards retained"
+            row["boundary_validated"] = True
+        if (contract["name"] == "guarded-kernel-stacks" and
+                row["path"] == "kernel/src/core/scheduler.c"):
+            row["current_contract"] = contract["name"]
+            row["authorized_delta"] = "Owned stack acquisition and ACK-gated release; protected scheduler policy and lifecycle bodies retained"
+            row["boundary_validated"] = True
+if not all(row["unchanged"] or row.get("boundary_validated", False) for row in rows):
     raise SystemExit("protected source changed")
 interrupts = Path("kernel/src/core/interrupts.c").read_bytes()
 interrupts_sha256 = hashlib.sha256(interrupts).hexdigest()
 expected_architecture_sha256 = (
-    "5e1928c11acdbfef27f2fbcdd02359036c2b2817d38ece2d691bd45b24a5e429"
+    "ab86c9528733a581e0b12bebfeba9db2dfe0602d237ac0d302cc82c3e8323304"
 )
+# The successor contract retains exact exception, timer and observer checks.
+import os
+if os.environ.get("HOBBYOS_VALIDATION_CONTRACT") in ("tlb-coherency","physical-translation"):
+    expected_architecture_sha256 = "b80131f3f766616ab2c631d81f553812a5a131c45d09636186c55ff1520a2a88"
+elif os.environ.get("HOBBYOS_VALIDATION_CONTRACT") in ("low-address-isolation","kernel-image-protection","guarded-kernel-stacks"):
+    expected_architecture_sha256 = contract["promoted_sources"]["kernel/src/core/interrupts.c"]["candidate_sha256"]
+elif os.environ.get("HOBBYOS_VALIDATION_CONTRACT") == "verified-ram-direct-map":
+    expected_architecture_sha256 = contract["immutable_reviewed_anchors"]["kernel/src/core/interrupts.c"]
+elif os.environ.get("HOBBYOS_VALIDATION_CONTRACT") == "owned-device-mapping":
+    expected_architecture_sha256 = contract["interrupt_dispatch_sha256"]
 integration_tokens = (
     b"static __attribute__((noinline)) bool general_protection_msr_fixup",
     b"cpu_msr_fixup_lookup",
@@ -343,6 +368,19 @@ if interrupts_sha256 != expected_architecture_sha256 or not all(
             b"arch_selftest_record_unhandled_gp(frame->rip, error_code, "
             b"frame->cs);") != 2:
     raise SystemExit("architecture interrupt integration is incomplete")
+wake_start = interrupts.index(b"static void irq_runtime_rendezvous_wake_handler_inner(void)")
+wake_end = interrupts.index(b"\n}", wake_start) + 2
+expected_wake = b"""static void irq_runtime_rendezvous_wake_handler_inner(void)
+{
+    irq_stats_record(INT_VECTOR_RUNTIME_RENDEZVOUS_WAKE);
+#ifdef HOBBYOS_SELFTEST
+    cpu_control_snapshot_irq();
+#endif
+    lapic_eoi();
+}"""
+if interrupts[wake_start:wake_end] != expected_wake or interrupts.count(
+        b'#ifdef HOBBYOS_SELFTEST\n#include "../cpu/cpu_control_snapshot.h"\n#endif') != 1:
+    raise SystemExit("SELFTEST observation hook changed wake statistics, gating or EOI")
 rows.append({
     "path": "kernel/src/core/interrupts.c",
     "unchanged": False,

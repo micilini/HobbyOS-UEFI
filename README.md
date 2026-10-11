@@ -50,25 +50,37 @@ If you are looking for the old/stable version (Bootloader/UEFI only), please vis
 * **I/O APIC** — Multi-controller routing by GSI range with firmware entries
   masked before known routes are installed; the HPET Timer0 route stays absent
   or masked.
-* **Clocksource/clockevent split** — HPET is the monotonic clocksource with
-  Timer0 quiescent. Per-CPU LAPIC timers stay at 1000 us, and only the BSP
-  LAPIC drives global software timers and released deferred services.
+* **Clocksource/clockevent split** — Qualified KVM pvclock supplies monotonic
+  time when supported; HPET remains the boot/reference and fallback provider,
+  including on the tested physical machine. HPET Timer0 stays quiescent.
+  Per-CPU LAPIC timers stay at 1000 us, and only the BSP LAPIC drives global
+  software timers and released deferred services.
 
 #### Memory Management
 * **PMM** — Physical Memory Manager with separate allocation/reservation
   bitmaps, word-at-a-time first-fit searches, contiguous frame allocation and
-  explicit rejection of invalid frees.
-* **VMM** — 4-Level Paging (PML4 → PDPT → PD → PT) with identity + higher-half
-  mapping and MMIO mapping (PCD/PWT). An NX flag constant exists, but the
-  current mappings do not establish an NX, read-only, or W^X policy.
+  explicit rejection of invalid frees and coherent full-bitmap observations.
+* **VMM** — 4-Level Paging (PML4 → PDPT → PD → PT), a verified direct RAM map,
+  checked physical address domains and owned device mappings. The main root's
+  lower half is empty. Linked code is read-only/executable; its direct alias
+  is read-only/non-executable; immutable data is read-only and mutable data is
+  writable/non-executable. CPUs without NX retain read-only mappings and
+  guards, with execution protection explicitly unavailable.
+* **Stack protection** — Task/BSP/AP stacks have 16-KiB payloads; IST stacks
+  have 32-KiB payloads. Unmapped 4-KiB guards, task canaries, ownership checks
+  and safe retirement protect their lifetime.
+* **Memory coherence** — Cross-CPU invalidation completes before mapping or
+  backing reuse. Failed or uncertain completion quarantines storage; the
+  elapsed-time request deadline remains one second.
 * **Heap** — Dynamic kernel allocator (`kmalloc`/`kfree`/`kmalloc_aligned`)
   with a 32MB initial pool, PMM-backed expansion, checked size arithmetic and
-  locked provenance validation for frees.
+  locked provenance validation for frees. Expansion prepares private storage
+  before a locked first-fit recheck and publication.
 
 #### SMP (Symmetric Multiprocessing)
 * **AP Bootstrap** — Real-mode trampoline (`trampoline.S`) boots Application
-  Processors via INIT-SIPI-SIPI; a fronteira final limpa DF e entrega a C uma
-  stack alinhada segundo a ABI SysV sem alterar o blob de low memory.
+  Processors via INIT-SIPI-SIPI; the final handoff clears DF and provides a
+  SysV-aligned stack before entering C.
 * **Topology Discovery** — MADT-based CPU enumeration, per-CPU structures, BSP APIC ID detection (works when BSP ≠ APIC ID 0).
 * **Per-CPU State** — Each CPU has its own GDT, TSS, IDT, stack, idle task, and `need_resched` flag indexed by APIC ID.
 
@@ -83,8 +95,8 @@ If you are looking for the old/stable version (Bootloader/UEFI only), please vis
   (intrusive linked list).
 * **DPC (Deferred Procedure Call)** — Lock-free MPSC queue with dedicated interactive worker thread for bottom-half processing (used by xHCI).
 * **Software Timers** — Sorted deadline list, callback-based, driven from timer IRQ. Supports `timer_sleep()` for blocking delays.
-* **TASKMAN V1 (complete and certified)** — Paginated `ps`, cooperative `kill`, modal
-  `taskman`, read-only `taskdiag`, hardened task identity/lifecycle/reaper,
+* **TASKMAN V1** — Paginated `ps`, cooperative `kill`, modal
+  `taskman`, development-only `taskdiag`, hardened task identity/lifecycle/reaper,
   windowed CPU accounting, and generation-bound snapshots.
 * **Lifecycle & Test Hardening** — Exactly-once cleanup/notification,
   timer-reference-safe reap, modal/input ownership, and bounded selftest/fault
@@ -113,17 +125,16 @@ If you are looking for the old/stable version (Bootloader/UEFI only), please vis
 
 #### Shell
 * Interactive command-line shell with real-time keystroke processing, cursor display (blinking via `shell_on_tick` with trylock for IRQ safety), command history buffer, and atomic command execution.
-* **Built-in commands:** `help`, `echo`, `clear`, `version`, `mem`, `cpu`,
-  `pci`, `irq`, `acpi`, `power` (shutdown/restart/sleep), `panic`, `smpstress`,
-  `usbdiag`, `ps`, `kill`, `taskman`, and `taskdiag`.
+* **Production commands:** `help`, `echo`, `clear`, `version`, `mem`, `cpu`,
+  `pci`, `acpi`, `shutdown`, `restart`, `ps`, `kill`, and `taskman`.
   `mem` and `cpu` also emit bounded, atomic `[MEM][SUMMARY]` and
   `[CPU][SUMMARY]` serial receipts for offline validation; an inconsistent
   census returns a nonzero command status.
-* **Test/diagnostic commands:** `schedtest`, `synctest`, `accounttest`,
-  `killtest`, `reaptest`, `inputtest`, `modaltest`, and `taskmantest` support
-  development builds. `tasktest` and the bounded FIFO contention command
-  `locktest`, the allocator hardening command `alloctest`, and the ABI/memory
-  command `profiletest` are registered only when `SELFTEST=1`.
+* **Development commands:** IRQ inspection, deliberate panic, stress and
+  regression commands are compiled and registered only with `SELFTEST=1`.
+  `irqlatency` additionally requires `IRQ_LATENCY=1`. These commands and the
+  bulk proof recorder are absent from the normal production image; runtime
+  safety checks and emergency panic diagnostics remain enabled.
 
 #### PCI
 * MCFG-based PCIe configuration space scanning, vendor/device/class name lookup, MSI (Message Signaled Interrupts) configuration, Bus Master enable.
@@ -152,16 +163,29 @@ If you are looking for the old/stable version (Bootloader/UEFI only), please vis
 
 ## Bare-metal production image
 
-Use `make production-image` as the canonical command for physical media. Task
-diagnostics remain available as manual shell commands and are not run at boot.
+Use `make production-image` as the canonical command for physical media.
+It excludes the laboratory commands and optional timing/proof instrumentation.
+Use a separate `SELFTEST=1` image for the development commands documented below.
 
-Foundation Stage 1 is closed for host/QEMU validation. The final status and
-the deliberately deferred Stage 2 work are recorded in
-[`docs/foundation/reports/E1-FECHAMENTO.md`](docs/foundation/reports/E1-FECHAMENTO.md);
-the physical i9-12900K run remains a maintainer action documented in
-[`docs/foundation/reports/E1-BM-roteiro.md`](docs/foundation/reports/E1-BM-roteiro.md).
+The foundation architecture and validation boundaries are documented in
+[the architecture notes](docs/foundation/architecture.md) and
+[the validation policy](docs/foundation/validation-policy.md).
 
-Interrupt bring-up diagnostics are available through `irq check`,
+On 2026-10-10, William accepted closure of the current memory-hardening and
+latency work with known timing limitations and outstanding validation.
+The physical diagnostic completed its functional workload and proof export,
+but its timing verdict remains FAIL. This decision does not establish a
+50-us guarantee or completion of every planned test. See the
+[closure record](docs/memory/maintenance-closure.md) for evidence and scope.
+
+On 2026-10-11, the cleaned production image completed an owner-operated
+physical smoke on the i9-12900K: two boots reached readiness with all 24
+logical CPUs, the 13-command shell was confirmed, memory checks passed,
+and two TASKMAN sessions completed and were reaped. This validates the
+reported production smoke; the deferred campaign and timing limitations
+remain recorded in the closure document.
+
+In a `SELFTEST=1` image, interrupt bring-up diagnostics are available through `irq check`,
 `irq controllers`, `irq routes`, and `irq boot`. The complete host/QEMU gate is
 `scripts/test-timer-clockevent.sh all`; architecture and operator guidance are
 in [the timer clockevent document](docs/timer-clocksource-clockevent.md). The
@@ -191,7 +215,14 @@ controller acquisition protocol remains documented in
 
 ### 🛠️ To-Do (Planned — in rough priority order)
 
-1. **Ring 0 Hardening** — The kernel currently runs everything in Ring 0 with a single address space. Audit and document this as an intentional design choice, enforce stack guards, and add kernel-only memory protections (NX on data, RO on code).
+1. **Interrupt latency and remaining validation** — Continue improving long
+   interrupt-masked windows, particularly required cache maintenance, lock
+   waits and observer entry/return qualification. The latest physical
+   diagnostic recorded a 4.472752-ms enclosing maximum; three CPUs failed
+   observer qualification. The former 50-us target remains a research
+   reference, not a release guarantee. Preserve working short paths and
+   complete the deferred functional/native/production coverage described in
+   the [closure record](docs/memory/maintenance-closure.md).
 2. **TASKMAN V2** — Add real per-task CPU affinity and memory
    ownership/accounting, then evolve the monitor toward process-aware identity
    and reusable modal system interfaces.
@@ -199,6 +230,9 @@ controller acquisition protocol remains documented in
 4. **Support for UHD 770 (GPU)** — Create a Driver to support Intel GPU, AMD and for future NVIDIA (model by model).
 5. **Filesystem** — FAT12/FAT16/FAT32 and exFAT read/write support with a VFS abstraction layer.
 6. **Graphical User Interface** — Windowed desktop environment with mouse support, window manager, and file explorer (inspired by Windows Explorer).
+7. **Further isolation** — All tasks still share Ring 0 and one address
+   space. Existing guards and mapping protections do not provide user/kernel
+   isolation; audit this intentional limitation as future functionality grows.
 
 ---
 

@@ -223,7 +223,7 @@ def command_segment(lines, row):
     return lines[row["start_line_count"]:row["end_line_count"]]
 
 
-def verify_qemu_profile(root, name, candidate_hash):
+def verify_qemu_profile(root, name, candidate_hash, *, transport_replay=None):
     errors = []
     profile_dir = root / "qemu" / name
     profile = read_env(profile_dir / "profile.env", f"{name} profile")
@@ -287,12 +287,13 @@ def verify_qemu_profile(root, name, candidate_hash):
                 errors.append(
                     f"{name}: transaction {sequence} projection differs")
                 continue
-            completed = subprocess.run(
-                [sys.executable, str(transport_verifier),
-                 "transport-command", str(profile_dir), str(record),
-                 str(serial_path)],
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                check=False)
+            if transport_replay is None:
+                completed = subprocess.run(
+                    [sys.executable, str(transport_verifier),
+                     "transport-command", str(profile_dir), str(record), str(serial_path)],
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False)
+            else:
+                completed = transport_replay(profile_dir, record, serial_path)
             if completed.returncode != 0:
                 errors.append(
                     f"{name}: transaction {sequence} transport replay failed: " +
@@ -448,6 +449,21 @@ def verify_sources(root, base_commit, synthetic):
         ["git", "show", f"{base_commit}:kernel/link.ld"],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     base_linker = root / "static/base-link.ld"
+    import low_current
+    import kernel_image_current
+    import stack_current
+    if kernel_image_current.enabled():low_current=kernel_image_current
+    if stack_current.enabled():low_current=stack_current
+    if low_current.enabled():
+        promotion = low_current.contract()["promoted_sources"]["kernel/link.ld"]
+        recorded = read_json(root / "static/linker-successor.json", "linker successor")
+        if (base_commit != low_current.BASE or completed.returncode != 0 or
+                not linker.is_file() or not base_linker.is_file() or
+                completed.stdout != base_linker.read_bytes() or recorded != promotion or
+                hashlib.sha256(completed.stdout).hexdigest() != promotion["baseline_sha256"] or
+                sha256(linker) != promotion["candidate_sha256"]):
+            errors.append("statistics linker successor differs from the approved stack boundary")
+        return errors
     if (completed.returncode != 0 or not linker.is_file() or
             not base_linker.is_file() or
             completed.stdout != linker.read_bytes() or

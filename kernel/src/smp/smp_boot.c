@@ -1,4 +1,5 @@
 #include "smp_boot.h"
+#include "../core/clocksource.h"
 #include "smp_topology.h"
 #include "../acpi/madt.h"
 #include "../apic/lapic.h"
@@ -9,15 +10,24 @@
 #include "../core/idt.h"
 #include "../memory/paging.h"
 #include "../memory/pmem.h"
+#include "../memory/bootstrap_memory.h"
+#include "../cpu/tss.h"
 #include "../cpu/cpu.h"
+#include "../cpu/control_policy.h"
 #include "../core/interrupts.h"
 #include "../core/irq_bootstrap.h"
 #include "../core/scheduler.h"
 #include "../core/build_profile.h"
+#include "../core/panic.h"
 
 
 extern uint64_t smp_trampoline_cr4;
 extern uint64_t smp_trampoline_efer;
+extern uint64_t smp_trampoline_cr0;
+extern uint64_t smp_trampoline_pat;
+extern uint32_t smp_trampoline_status;
+extern uint32_t smp_trampoline_paging_features;
+extern uint32_t smp_trampoline_physical_bits;
 extern uint32_t smp_trampoline_x2apic_flag;
 extern uint32_t smp_trampoline_base;
 extern uint8_t smp_trampoline_gdtr;
@@ -31,7 +41,7 @@ extern void ap_kernel_entry_asm(void);
 
 extern void gdt_flush(uint64_t gdtr_addr);
 
-#define HHDM_OFFSET 0xFFFFFFFF80000000ULL
+#include "../memory/physical_translation.h"
 
 volatile bool g_ap_boot_done = false;
 
@@ -68,16 +78,18 @@ static void smp_print_hex(uint64_t n)
 
 void ap_kernel_entry(uint64_t entry_rsp_mod16, uint64_t entry_df)
 {
-    extern PageTable *g_kernel_pml4;
-    paging_load_map(g_kernel_pml4);
-
-    idt_load();
-    init_lapic_ap();
-    uint32_t my_apic_id = lapic_get_id();
-    serial_write_all("[AP] apic_id=0x");
-    smp_print_hex(my_apic_id);
-    serial_write_all("\n");
-
+    uint32_t my_apic_id;
+    if (!cpu_local_arch_id(&my_apic_id))
+    {
+        cpu_slot_t failed_slot;
+        if (cpu_local_arch_id(&my_apic_id) &&
+            smp_cpu_slot_from_apic_id(my_apic_id, &failed_slot))
+        {
+            SmpCpuInfo *failed = smp_cpu_by_slot(failed_slot);
+            if (failed) failed->state = CPU_STATE_FAILED;
+        }
+        while (1) __asm__ volatile("cli; hlt");
+    }
     cpu_slot_t slot = CPU_SLOT_INVALID;
     if (!smp_cpu_slot_from_apic_id(my_apic_id, &slot))
     {
@@ -109,6 +121,42 @@ void ap_kernel_entry(uint64_t entry_rsp_mod16, uint64_t entry_df)
 
     gdt_flush((uint64_t)&gdtr);
     __asm__ volatile("mov $0x28, %%ax; ltr %%ax" ::: "ax");
+    idt_load();
+    GdtPtr actual_gdt;
+    IdtPtr actual_idt;
+    bootstrap_departure_t departure={0};
+    __asm__ volatile("mov %%cr3,%0; mov %%rsp,%1; sgdt %2; sidt %3; mov %%cs,%4; str %5"
+        : "=r"(departure.previous_root),"=r"(departure.rsp),"=m"(actual_gdt),"=m"(actual_idt),
+          "=r"(departure.cs),"=r"(departure.tr) :: "memory");
+    const Tss64 *tss=me->tss_ptr;
+    const GdtTable *gdt=me->gdt_ptr;
+    uint64_t tss_base=(uint64_t)gdt->tss.base_low | ((uint64_t)gdt->tss.base_mid1<<16) |
+        ((uint64_t)gdt->tss.base_mid2<<24) | ((uint64_t)gdt->tss.base_high<<32);
+    departure.gdtr=actual_gdt.offset; departure.idtr=actual_idt.base; departure.tss=tss_base;
+    departure.ist1=tss->ist1; departure.ist2=tss->ist2; departure.ist3=tss->ist3;
+    departure.stack_first=me->stack_top-SMP_AP_STACK_BYTES; departure.stack_bytes=SMP_AP_STACK_BYTES;
+    departure.generation=paging_bootstrap_lifetime()->generation;
+    departure.apic_id=my_apic_id; departure.slot=slot;
+    if (entry_rsp_mod16!=8 || entry_df || actual_gdt.offset!=(uintptr_t)gdt ||
+        actual_gdt.size!=sizeof(GdtTable)-1 || actual_idt.limit!=IDT_ENTRIES*sizeof(IdtEntry)-1 ||
+        tss_base!=(uintptr_t)tss || !paging_bootstrap_handoff_ready(&departure))
+        kpanic("AP high descriptor handoff is not ready");
+    paging_load_kernel_root();
+    __asm__ volatile("mov %%cr3,%0; mov %%rsp,%1; sgdt %2; sidt %3; mov %%cs,%4; str %5"
+        : "=r"(departure.root),"=r"(departure.rsp),"=m"(actual_gdt),"=m"(actual_idt),
+          "=r"(departure.cs),"=r"(departure.tr) :: "memory");
+    if (actual_gdt.offset!=departure.gdtr || actual_idt.base!=departure.idtr ||
+        actual_gdt.size!=sizeof(GdtTable)-1 || actual_idt.limit!=IDT_ENTRIES*sizeof(IdtEntry)-1)
+        kpanic("AP descriptors changed across the main-root switch");
+    if (!cpu_policy_confirm_local(my_apic_id,paging_kernel_root_physical(),"AP") ||
+        !paging_bootstrap_depart(&departure)) {
+        me->state=CPU_STATE_FAILED;
+        while (1) __asm__ volatile("cli; hlt");
+    }
+    init_lapic_ap();
+    serial_write_all("[AP] apic_id=0x");
+    smp_print_hex(my_apic_id);
+    serial_write_all("\n");
     if (scheduler_cpu_init_ap(slot) != SCHED_BOOT_OK)
     {
         serial_write_all("[SMP][CPU] ERROR code=SCHEDULER_AP_INIT apic=");
@@ -118,6 +166,7 @@ void ap_kernel_entry(uint64_t entry_rsp_mod16, uint64_t entry_df)
         while (1) __asm__ volatile("cli; hlt");
     }
 
+    clocksource_prepare_local();
     lapic_timer_calibration_t ap_cal;
     if (!lapic_timer_calibrate(1000, &ap_cal) ||
         !lapic_timer_prepare_periodic(INT_VECTOR_LAPIC_TIMER, &ap_cal))
@@ -162,56 +211,63 @@ void ap_kernel_entry(uint64_t entry_rsp_mod16, uint64_t entry_df)
     }
 }
 
-static uint64_t smp_find_trampoline_page()
-{
-    for (uint64_t addr = 0x1000; addr < 0xA0000; addr += 0x1000)
-    {
-        if (pmm_is_frame_free(addr))
-            return addr;
-    }
-    return 0;
-}
-
 void smp_boot_aps(void)
 {
     serial_write_all("[SMP] Starting BOOTSTRAP sequence...\n");
-
-    PageTable *boot_pml4 = paging_create_bootstrap_table();
-    if (!boot_pml4)
-        return;
-
-    uint64_t boot_cr3 = (uint64_t)boot_pml4;
+    if (!g_cpu_count || g_cpu_count>HOBBYOS_MAX_CPUS) kpanic("AP bootstrap topology is invalid");
+    if (g_cpu_count==1) { paging_bootstrap_not_needed(); return; }
+    uint32_t ids[HOBBYOS_MAX_CPUS];
+    uint64_t intended=0;
+    for (unsigned i=0; i<g_cpu_count; ++i) {
+        ids[i]=g_cpus[i].apic_id;
+        if (!g_cpus[i].is_bsp) intended|=UINT64_C(1)<<i;
+    }
+    bootstrap_claim_t claim;
+    uint64_t boot_cr3;
+    if (!pmm_claim_bootstrap(&claim) || !paging_bootstrap_create(&claim,claim.generation,intended,ids,g_cpu_count,&boot_cr3))
+        kpanic("AP bootstrap ownership or private root construction failed");
 
     serial_write_all("[SMP] Bootstrap CR3 created at ");
     smp_print_hex(boot_cr3);
     serial_write_all("\n");
 
-    uint64_t trampoline_addr = smp_find_trampoline_page();
-    if (!trampoline_addr)
-        trampoline_addr = 0x10000;
-
-    pmm_mark_frame_used(trampoline_addr);
+    uint64_t trampoline_addr=claim.physical;
 
     uint64_t trampoline_len = (uint64_t)_trampoline_end - (uint64_t)_trampoline_start;
-    memcpy((void *)trampoline_addr, _trampoline_start, trampoline_len);
+    if (trampoline_len > CPU_BOOT_PAGE_BYTES - CPU_BOOT_STACK_RESERVE)
+        kpanic("AP bootstrap blob overlaps temporary stack");
+    uint8_t *trampoline = physical_require_pointer(trampoline_addr, CPU_BOOT_PAGE_BYTES, PHYSICAL_RAM);
+    memcpy(trampoline, _trampoline_start, trampoline_len);
 
-    volatile uint64_t *ptr_cr3 = (volatile uint64_t *)(trampoline_addr + ((uint64_t)&smp_trampoline_cr3 - (uint64_t)_trampoline_start));
-    volatile uint64_t *ptr_cr4 = (volatile uint64_t *)(trampoline_addr + ((uint64_t)&smp_trampoline_cr4 - (uint64_t)_trampoline_start));
-    volatile uint64_t *ptr_efer = (volatile uint64_t *)(trampoline_addr + ((uint64_t)&smp_trampoline_efer - (uint64_t)_trampoline_start));
-    volatile uint64_t *ptr_stack = (volatile uint64_t *)(trampoline_addr + ((uint64_t)&smp_trampoline_stack - (uint64_t)_trampoline_start));
-    volatile uint64_t *ptr_entry = (volatile uint64_t *)(trampoline_addr + ((uint64_t)&smp_trampoline_entry_ptr - (uint64_t)_trampoline_start));
-    volatile uint32_t *ptr_x2flag = (volatile uint32_t *)(trampoline_addr + ((uint64_t)&smp_trampoline_x2apic_flag - (uint64_t)_trampoline_start));
-    volatile uint8_t *ptr_gdtr = (volatile uint8_t *)(trampoline_addr + ((uint64_t)&smp_trampoline_gdtr - (uint64_t)_trampoline_start));
+    volatile uint64_t *ptr_cr3 = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_cr3 - (uint64_t)_trampoline_start));
+    volatile uint64_t *ptr_cr4 = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_cr4 - (uint64_t)_trampoline_start));
+    volatile uint64_t *ptr_efer = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_efer - (uint64_t)_trampoline_start));
+    volatile uint64_t *ptr_cr0 = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_cr0 - (uint64_t)_trampoline_start));
+    volatile uint64_t *ptr_pat = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_pat - (uint64_t)_trampoline_start));
+    volatile uint32_t *ptr_status = (volatile uint32_t *)(trampoline + ((uint64_t)&smp_trampoline_status - (uint64_t)_trampoline_start));
+    volatile uint64_t *ptr_stack = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_stack - (uint64_t)_trampoline_start));
+    volatile uint64_t *ptr_entry = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_entry_ptr - (uint64_t)_trampoline_start));
+    volatile uint32_t *ptr_x2flag = (volatile uint32_t *)(trampoline + ((uint64_t)&smp_trampoline_x2apic_flag - (uint64_t)_trampoline_start));
+    volatile uint8_t *ptr_gdtr = (volatile uint8_t *)(trampoline + ((uint64_t)&smp_trampoline_gdtr - (uint64_t)_trampoline_start));
 
-    uint64_t current_cr4;
-    __asm__ volatile("mov %%cr4, %0" : "=r"(current_cr4));
-    uint64_t current_efer = cpu_read_msr(0xC0000080);
+    const cpu_policy_t *policy = cpu_policy_get();
+    if (!policy) kpanic("AP control policy is not published");
     uint64_t apic_msr = cpu_read_msr(0x1B);
     uint32_t x2apic_on = (apic_msr & (1ULL << 10)) ? 1 : 0;
 
+    paging_boot_requirements_t paging_requirements;
+    if (!paging_boot_requirements(&paging_requirements)) kpanic("AP paging requirements are not published");
+    volatile uint32_t *ptr_paging_features = (volatile uint32_t *)(trampoline +
+        ((uint64_t)&smp_trampoline_paging_features - (uint64_t)_trampoline_start));
+    volatile uint32_t *ptr_physical_bits = (volatile uint32_t *)(trampoline +
+        ((uint64_t)&smp_trampoline_physical_bits - (uint64_t)_trampoline_start));
+    *ptr_paging_features = paging_requirements.extended_features;
+    *ptr_physical_bits = paging_requirements.physical_bits;
     *ptr_cr3 = boot_cr3;
-    *ptr_cr4 = current_cr4;
-    *ptr_efer = current_efer;
+    *ptr_cr4 = policy->cr4;
+    *ptr_efer = policy->efer_write;
+    *ptr_cr0 = policy->cr0_final;
+    *ptr_pat = policy->pat;
     *ptr_entry = (uint64_t)&ap_kernel_entry_asm;
     *ptr_x2flag = x2apic_on;
 
@@ -228,22 +284,39 @@ void smp_boot_aps(void)
             continue;
 
         SmpCpuInfo *cpu = &g_cpus[i];
-
+        if (!paging_bootstrap_start(i,cpu->apic_id,claim.generation)) kpanic("AP start has no live bootstrap owner");
         cpu->state = CPU_STATE_PREPARE;
 
-        uint64_t stack_phys = cpu->stack_top & ~HHDM_OFFSET;
-        *ptr_stack = stack_phys;
+        if (cpu->stack_top < SMP_AP_STACK_BYTES)
+            kpanic("AP stack extent is invalid");
+        (void)physical_require_address(
+            (const void *)(uintptr_t)(cpu->stack_top - SMP_AP_STACK_BYTES), SMP_AP_STACK_BYTES);
+        *ptr_stack = cpu->stack_top;
+        *ptr_status = CPU_BOOT_PENDING;
 
         __asm__ volatile("mfence" ::: "memory");
 
-        lapic_send_init(cpu->apic_id);
-        lapic_send_sipi(cpu->apic_id, sipi_vec);
+        lapic_delivery_result_t delivery = lapic_send_init(cpu->apic_id);
+        if (delivery == LAPIC_DELIVERY_SUBMITTED)
+            delivery = lapic_send_sipi(cpu->apic_id, sipi_vec);
+        if (delivery != LAPIC_DELIVERY_SUBMITTED) {
+            cpu->state = CPU_STATE_FAILED;
+            char line[128];
+            int n = ksnprintf(line, sizeof(line),
+                "[SMP][CPU] ERROR code=AP_DELIVERY slot=%u apic=%u result=%u\n",
+                i, cpu->apic_id, (unsigned)delivery);
+            if (n > 0 && (size_t)n < sizeof(line)) serial_write_all(line);
+            /* A triggered SIPI may still arrive; ONLINE cannot erase this error. */
+            kpanic("AP checked IPI delivery failed");
+        }
 
         int timeout = 10000000;
         bool online = false;
 
         while (timeout > 0)
         {
+            if (*ptr_status > CPU_BOOT_APPLIED || cpu->state == CPU_STATE_FAILED)
+                break;
             if (cpu->state == CPU_STATE_ONLINE)
             {
                 online = true;
@@ -253,13 +326,26 @@ void smp_boot_aps(void)
             timeout--;
         }
 
-        if (!online)
+        if (!online && *ptr_status <= CPU_BOOT_APPLIED && cpu->state != CPU_STATE_FAILED)
         {
-            lapic_send_sipi(cpu->apic_id, sipi_vec);
+            if (!paging_bootstrap_retry(i,cpu->apic_id,claim.generation))
+                kpanic("AP retry outlived its bootstrap admission");
+            delivery = lapic_send_sipi(cpu->apic_id, sipi_vec);
+            if (delivery != LAPIC_DELIVERY_SUBMITTED) {
+                cpu->state = CPU_STATE_FAILED;
+                char line[128];
+                int n = ksnprintf(line, sizeof(line),
+                    "[SMP][CPU] ERROR code=AP_DELIVERY slot=%u apic=%u result=%u\n",
+                    i, cpu->apic_id, (unsigned)delivery);
+                if (n > 0 && (size_t)n < sizeof(line)) serial_write_all(line);
+                kpanic("AP checked IPI delivery failed");
+            }
 
             timeout = 10000000;
             while (timeout > 0)
             {
+                if (*ptr_status > CPU_BOOT_APPLIED || cpu->state == CPU_STATE_FAILED)
+                    break;
                 if (cpu->state == CPU_STATE_ONLINE)
                 {
                     online = true;
@@ -277,6 +363,18 @@ void smp_boot_aps(void)
                 serial_write_all("\n");
             }
         }
+        if (!online && (*ptr_status > CPU_BOOT_APPLIED || cpu->state == CPU_STATE_FAILED))
+        {
+            cpu->state = CPU_STATE_FAILED;
+            char line[128];
+            int n = ksnprintf(line, sizeof(line),
+                "[CPU_STATE][AP_FAIL] slot=%u apic=%u reason=%u\n",
+                i, cpu->apic_id, *ptr_status > CPU_BOOT_APPLIED ? *ptr_status : CPU_BOOT_READBACK);
+            if (n > 0 && (size_t)n < sizeof(line)) serial_write_all(line);
+            break;
+        }
     }
+    if (!paging_bootstrap_retire(ptr_cr3))
+        kpanic("AP bootstrap retirement could not be proved");
     serial_write_all("[SMP] Boot sequence finished.\n");
 }

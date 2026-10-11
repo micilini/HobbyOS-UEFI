@@ -1,4 +1,9 @@
 #include "panic.h"
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+#include "irq_latency.h"
+#include "../memory/warning_report.h"
+#include "../memory/irq_latency_test.h"
+#endif
 
 #include "idt.h"
 #include "interrupts.h"
@@ -11,6 +16,8 @@
 #include "../smp/smp_boot.h"
 #include "../smp/smp_topology.h"
 #include "../cpu/mmio.h"
+#include "../memory/kernel_stack.h"
+#include "../memory/stack_fault.h"
 #include "../libc/string.h"
 
 #ifdef HOBBYOS_ASSERT_TEST
@@ -291,8 +298,14 @@ void assertion_warn_report(const assertion_context_t *context)
         (unsigned long long)task.generation, task.valid, if_enabled);
     if (result < 0 || (size_t)result >= sizeof(line))
         serial_write_all("[ASSERT][WARN] format_error=1\n");
-    else
-        serial_write_all(line);
+    else {
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+        if (irq_latency_memory_scope_active() || irq_latency_test_reporting())
+            (void)warning_report_enqueue(line,(size_t)result);
+        else
+#endif
+            serial_write_all(line);
+    }
     irq_restore(flags);
 }
 #endif
@@ -1008,6 +1021,46 @@ static void panic_emit_reentry(const panic_identity_t *identity,
     panic_do_action(action);
 }
 
+static void panic_emit_stack_fault(const panic_identity_t *identity,uint8_t vector,
+                                  const InterruptFrame *frame,uint64_t error,uint64_t cr2)
+{
+    if (!frame || (vector!=8 && vector!=14)) return;
+    stack_owner_view_t owner,handler={0};
+    if (!kernel_stack_guard_owner(cr2,&owner)) return;
+    uint64_t rsp;
+    __asm__ volatile("mov %%rsp,%0" : "=r"(rsp));
+    bool healthy=identity->slot_valid && kernel_stack_cpu_owner(identity->slot,STACK_KIND_IST1,&handler);
+    stack_fault_facts_t facts={cr2,error,frame->rip,frame->rsp,frame->cs,rsp,vector,
+        identity->slot_valid ? identity->slot : UINT32_MAX,identity->cpu_id};
+    stack_fault_kind_t kind=stack_fault_classify(&facts,&owner,healthy ? &handler : NULL);
+    if (kind==STACK_FAULT_UNKNOWN) return;
+    serial_write_all("[STACK_FAULT] classification=");
+    serial_write_all(kind==STACK_FAULT_OVERFLOW_ASSOCIATED ? "STACK_OVERFLOW_ASSOCIATED" : "GUARD_ACCESS");
+    serial_write_all(" vector=");panic_emit_u64(vector);
+    serial_write_all(" cr2=0x");serial_write_hex64_all(cr2);
+    serial_write_all(" raw_rip=0x");serial_write_hex64_all(frame->rip);
+    serial_write_all(" rip_authority=");serial_write_all(vector==8 ? "ABORT_UNDEFINED" : "FAULT_BOUNDARY");
+    serial_write_all(" raw_rsp=0x");serial_write_hex64_all(frame->rsp);
+    serial_write_all(" actor_cpu=");panic_emit_u64(facts.cpu);
+    serial_write_all(" actor_apic=");panic_emit_u64(facts.apic);
+    serial_write_all(" actor_task=UNAVAILABLE_FAULT_SAFE owner_kind=");panic_emit_u64(owner.kind);
+    serial_write_all(" owner_task=");panic_emit_u64(owner.task_id);
+    serial_write_all(" owner_lifecycle=");panic_emit_u64(owner.task_lifecycle);
+    serial_write_all(" owner_cpu=");panic_emit_u64(owner.cpu);
+    serial_write_all(" owner_apic=");panic_emit_u64(owner.apic);
+    serial_write_all(" slot=");panic_emit_u64(owner.slot);
+    serial_write_all(" generation=");panic_emit_u64(owner.generation);
+    serial_write_all(" state=");panic_emit_u64(owner.state);
+    serial_write_all(" guard=0x");serial_write_hex64_all(owner.guard);
+    serial_write_all(" base=0x");serial_write_hex64_all(owner.base);
+    serial_write_all(" end=0x");serial_write_hex64_all(owner.end);
+    serial_write_all(" handler_rsp=0x");serial_write_hex64_all(rsp);
+    serial_write_all(" handler_ist1=");panic_emit_bool(healthy && rsp>=handler.base && rsp<handler.end);
+    serial_write_all(" handler_base=0x");serial_write_hex64_all(handler.base);
+    serial_write_all(" handler_end=0x");serial_write_hex64_all(handler.end);
+    serial_write_all(" consistent=1\n");
+}
+
 static void panic_emit_exception(const char *title, uint8_t vector,
                                  InterruptFrame *frame,
                                  uint64_t error_code, int has_error_code,
@@ -1098,6 +1151,7 @@ static void panic_emit_exception(const char *title, uint8_t vector,
     }
     serial_write_all("\n");
     panic_emit_frame(frame);
+    if (has_cr2 && has_error_code) panic_emit_stack_fault(&identity,vector,frame,error_code,cr2);
 
     serial_write_all("[PANIC][ERROR_CODE] valid=");
     panic_emit_bool((uint8_t)has_error_code);

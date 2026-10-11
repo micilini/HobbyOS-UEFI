@@ -118,10 +118,17 @@ void acpi_enable_mode(void);
 
 void init_acpi(void *rsdp_address);
 void *acpi_find_table(const char *signature);
+/* No acquisition or table parsing: read only an already retained table. */
+const AcpiSdtHeader *acpi_retained_table(const char *signature, uint64_t *physical);
 
 void acpi_list_tables_debug(void);
 void acpi_list_tables(void);
 
 const AcpiSdtHeader *acpi_get_dsdt(void);
+
+#ifdef HOBBYOS_SELFTEST
+/* Copy retained root locations; discovery and ownership stay with init_acpi. */
+bool acpi_observe_root(unsigned index, const void **address, uint32_t *bytes);
+#endif
 
 #endif

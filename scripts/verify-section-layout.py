@@ -421,7 +421,14 @@ def trampoline_state(elf: ElfFile) -> dict[str, Any]:
     end = elf.symbol("_trampoline_end")["value"]
     if start != section["addr"] or end != section["addr"] + section["size"]:
         fail("TRAMPOLINE_BOUNDARY_INVALID", elf.label)
-    if section["size"] != 0x178:
+    control_contract = os.environ.get('HOBBYOS_VALIDATION_CONTRACT') in ('cpu-control-state', 'tlb-coherency', 'physical-translation', 'owned-device-mapping','verified-ram-direct-map','low-address-isolation','kernel-image-protection','guarded-kernel-stacks')
+    if control_contract:
+        from memory_current import current_contract as contract
+        abi = contract()['trampoline_abi']
+        expected_size = abi['size']
+    else:
+        expected_size = 0x178
+    if section["size"] != expected_size:
         fail("TRAMPOLINE_SIZE_INVALID", f"{elf.label}: {section['size']}")
     offsets: dict[str, int] = {}
     for name in TRAMPOLINE_PATCH_SYMBOLS:
@@ -429,6 +436,18 @@ def trampoline_state(elf: ElfFile) -> dict[str, Any]:
         if value < start or value >= end:
             fail("TRAMPOLINE_PATCH_OUTSIDE", f"{elf.label}: {name}=0x{value:x}")
         offsets[name] = value - start
+    if control_contract:
+        if section['size'] + abi['temporary_stack_reserve'] > 4096:
+            fail('TRAMPOLINE_STACK_COLLISION', elf.label)
+        for name, expected in abi['patch_offsets'].items():
+            if elf.symbol(name)['value'] - start != expected:
+                fail('TRAMPOLINE_PATCH_OUTSIDE', name)
+            offsets[name] = expected
+        for name, expected in abi['new_instruction_sites'].items():
+            offset = elf.symbol(name)['value'] - start
+            opcode = b'\x0f\xa2' if 'cpuid' in name else b'\x0f\x30'
+            if offset != expected or elf.section_data(section)[offset:offset+2] != opcode:
+                fail('CONTROL_BOOTSTRAP_SITE_INVALID', name)
     return {
         "start": start,
         "end": end,
@@ -559,6 +578,9 @@ def validate_layout(elf: ElfFile) -> dict[str, Any]:
     msr_fixup_result = msr_fixup_state(elf)
     allocated = [section for section in elf.sections if section["flags"] & SHF_ALLOC]
     load_result = validate_loads(elf, allocated)
+    if os.environ.get('HOBBYOS_VALIDATION_CONTRACT') in ('kernel-image-protection','guarded-kernel-stacks'):
+        from kernel_image_evidence import verify_native_image
+        verify_native_image(elf)
     return {
         "elf_bytes": len(elf.data),
         "elf_sha256": sha256_bytes(elf.data),
@@ -618,7 +640,14 @@ def compare_trampoline(before: ElfFile, after: ElfFile) -> dict[str, Any]:
     return {"before": left, "after": right, "status": "PASS"}
 
 
-def classify_input_section(name: str, section_type: int, size: int) -> tuple[str, str]:
+def classify_input_section(name: str, section_type: int, size: int, *,
+                           guarded_stacks: bool = False, object_name: str = "",
+                           flags: int = 0, alignment: int = 0) -> tuple[str, str]:
+    if guarded_stacks and name == ".bsp_stack":
+        if (object_name != "kernel/src/core/entry.o" or section_type != SHT_NOBITS or
+                size != 16384 or flags != SHF_ALLOC | SHF_WRITE or alignment != PAGE_SIZE):
+            fail("BSP_STACK_INPUT_INVALID", object_name + ":" + name)
+        return "kernel-zero-fill", ".bss"
     if name == "":
         return "elf-metadata", "none"
     if name == ".boot_text":
@@ -715,7 +744,7 @@ def make_object_list(repo: Path, common: list[str], commands: Path, profile: str
     return names
 
 
-def collect_core(repo: Path, evidence: Path, base_commit: str, references: list[str]) -> None:
+def collect_core(repo: Path, evidence: Path, base_commit: str, references: list[str], *, current: bool = False) -> None:
     if evidence.exists():
         unexpected = [item.name for item in evidence.iterdir() if item.name != "preflight"]
         if unexpected:
@@ -733,7 +762,7 @@ def collect_core(repo: Path, evidence: Path, base_commit: str, references: list[
     copy_regular(repo / "kernel/link.ld", new_script)
     old_text = old_script.read_text(encoding="utf-8")
     new_text = new_script.read_text(encoding="utf-8")
-    if "*(.*)" not in old_text:
+    if not current and "*(.*)" not in old_text:
         fail("COLLECTION_BASE_SCRIPT_INVALID", "base script lacks catch-all")
     if "*(.*)" in new_text:
         fail("CATCH_ALL_PRESENT", "current linker script")
@@ -786,7 +815,10 @@ def collect_core(repo: Path, evidence: Path, base_commit: str, references: list[
             if object_elf.header["type"] != ET_REL:
                 fail("COLLECTION_OBJECT_TYPE_INVALID", relative)
             for section in object_elf.sections:
-                family, destination = classify_input_section(section["name"], section["type"], section["size"])
+                family, destination = classify_input_section(
+                    section["name"], section["type"], section["size"],
+                    guarded_stacks=current and os.environ.get("HOBBYOS_VALIDATION_CONTRACT") == "guarded-kernel-stacks",
+                    object_name=relative, flags=section["flags"], alignment=section["align"])
                 item = {
                     "profile": profile,
                     "object": relative,
@@ -826,11 +858,15 @@ def collect_core(repo: Path, evidence: Path, base_commit: str, references: list[
             "ld", "-T", "kernel/link.ld", *common_ld,
             f"-Map={repo_relative(repo, after_map)}", "-o", repo_relative(repo, after_elf), *copied_paths,
         ]
+        if current:
+            before_args = ["ld", "-T", "kernel/link.ld", *common_ld,
+                           f"-Map={repo_relative(repo, before_map)}", "-o",
+                           repo_relative(repo, before_elf), *copied_paths]
         command_record(before_args, repo, commands / f"{profile}-before-link")
         command_record(after_args, repo, commands / f"{profile}-after-link")
         if sha256_file(after_elf) != sha256_file(canonical):
             fail("LINK_SCRIPT_RELINK_MISMATCH", profile)
-        before_layout = validate_legacy_layout(ElfFile.from_path(before_elf))
+        before_layout = (validate_layout if current else validate_legacy_layout)(ElfFile.from_path(before_elf))
         after_layout = validate_layout(ElfFile.from_path(after_elf))
         trampoline = compare_trampoline(ElfFile.from_path(before_elf), ElfFile.from_path(after_elf))
         write_tool_reports(repo, before_elf, pair_root / "before", commands, f"{profile}-before")
@@ -921,7 +957,7 @@ def collect_core(repo: Path, evidence: Path, base_commit: str, references: list[
         pass
     campaign = {
         "schema": 1,
-        "kind": "section-layout-evidence",
+        "kind": "section-layout-current-evidence" if current else "section-layout-evidence",
         "collection_head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip(),
         "base_commit": base_commit,
         "collected_at": now(),
@@ -1404,7 +1440,13 @@ def run_fixtures(evidence: Path, output: Path) -> dict[str, Any]:
     def move_trampoline(data: bytearray, elf: ElfFile) -> None:
         section = elf.section(".trampoline")
         patch_section_field(data, section, 16, section["addr"] + PAGE_SIZE)
-        for name in ("_trampoline_start", "_trampoline_end", *TRAMPOLINE_PATCH_SYMBOLS):
+        names = {"_trampoline_start", "_trampoline_end", *TRAMPOLINE_PATCH_SYMBOLS}
+        if os.environ.get('HOBBYOS_VALIDATION_CONTRACT') in ('cpu-control-state', 'tlb-coherency', 'physical-translation', 'owned-device-mapping','verified-ram-direct-map','low-address-isolation','kernel-image-protection','guarded-kernel-stacks'):
+            from memory_current import current_contract as contract
+            abi = contract()['trampoline_abi']
+            names.update(abi['patch_offsets'])
+            names.update(abi['new_instruction_sites'])
+        for name in sorted(names):
             patch_symbol_value(data, elf, name, elf.symbol(name)["value"] + PAGE_SIZE)
 
     pair_binary_case("trampoline-moved", "TRAMPOLINE_START_CHANGED", "move trampoline and its symbols by one page", move_trampoline)
@@ -1484,6 +1526,36 @@ def run_fixtures(evidence: Path, output: Path) -> dict[str, Any]:
         lambda: validate_map_policy(altered_map, pair_record["after"]["elf"], order, True),
         map_dir, "replace the linked output identity in the raw map",
     ))
+
+    if (campaign.get("kind") == "section-layout-current-evidence" and
+            os.environ.get("HOBBYOS_VALIDATION_CONTRACT") == "guarded-kernel-stacks"):
+        section_input = dict(name=".bsp_stack", section_type=SHT_NOBITS, size=16384,
+            guarded_stacks=True, object_name="kernel/src/core/entry.o",
+            flags=SHF_ALLOC | SHF_WRITE, alignment=PAGE_SIZE)
+
+        def admit_stack_input(value: dict[str, Any]) -> None:
+            if classify_input_section(**value) != ("kernel-zero-fill", ".bss"):
+                fail("UNEXPECTED_INPUT_SECTION", str(value))
+
+        admit_stack_input(section_input)
+        for identifier, field, value in (
+            ("bsp-input-object", "object_name", "kernel/src/core/other.o"),
+            ("bsp-input-type", "section_type", SHT_PROGBITS),
+            ("bsp-input-read-only", "flags", SHF_ALLOC),
+            ("bsp-input-executable", "flags", SHF_ALLOC | SHF_WRITE | SHF_EXECINSTR),
+            ("bsp-input-size-small", "size", 16383),
+            ("bsp-input-size-large", "size", 32768),
+            ("bsp-input-alignment", "alignment", 16),
+            ("bsp-input-extra-alignment", "alignment", 8192),
+            ("bsp-input-unknown-name", "name", ".bsp_stack.other"),
+            ("bsp-input-historical-contract", "guarded_stacks", False),
+        ):
+            changed = dict(section_input, **{field: value})
+            expected = "UNEXPECTED_INPUT_SECTION" if field in ("name", "guarded_stacks") else "BSP_STACK_INPUT_INVALID"
+            records.append(expect_error(identifier, expected,
+                lambda value=changed: admit_stack_input(value), output / identifier,
+                f"change the exact current BSP object input field {field} to {value!r}"))
+        admit_stack_input(section_input)
 
     summary = {
         "schema": 1,

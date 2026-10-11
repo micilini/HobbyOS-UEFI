@@ -15,7 +15,7 @@ historical_source+=q35-kvm-smp24-valid-list-none
 
 usage()
 {
-    echo "usage: $0 preflight|static|host|historical|fixtures|verify|all" >&2
+    echo "usage: $0 preflight|static|host|historical|fixtures|verify|current|all" >&2
     exit 2
 }
 
@@ -137,6 +137,33 @@ for name in protected:
         "unchanged": old == current,
         "sha256": hashlib.sha256(current).hexdigest(),
     })
+import os
+current_scope = None
+protected_promotions = []
+if os.environ.get("HOBBYOS_ASSERT_RECORD_CURRENT") == "1":
+    sys.path.insert(0, "scripts")
+    import memory_current
+    current_scope = memory_current.scope("assertion-record")
+    allowed = set(current_scope["changed_paths"])
+    changed = set(current_scope["changed_paths"])
+    protected_rows = [r for r in protected_rows if r["path"] not in ("makefile", ".gitignore")]
+    import low_current
+    import kernel_image_current
+    import stack_current
+    if kernel_image_current.enabled():low_current=kernel_image_current
+    if stack_current.enabled():low_current=stack_current
+    if low_current.enabled():
+        promoted = ("kernel/link.ld", "kernel/src/core/panic.c", "scripts/assert-qemu.py") if stack_current.enabled() else ("kernel/link.ld",)
+        contract = low_current.contract()
+        for name in promoted:
+            promotion = contract["promoted_sources"][name]
+            previous = subprocess.check_output(["git", "show", f"{low_current.BASE}:{name}"])
+            row = next(r for r in protected_rows if r["path"] == name)
+            if (promotion["baseline_sha256"] != hashlib.sha256(previous).hexdigest() or
+                    promotion["candidate_sha256"] != row["sha256"]):
+                raise SystemExit("assertion source successor differs from the approved stack boundary: " + name)
+            protected_promotions.append(dict(row, approved_successor=promotion))
+        protected_rows = [r for r in protected_rows if r["path"] not in promoted]
 source = Path("kernel/src/core/assert_selftest.c").read_text()
 checks = {
     "scope": changed <= allowed,
@@ -155,6 +182,8 @@ result = {
     "checks": checks,
     "changed_paths": sorted(changed),
     "protected": protected_rows,
+    "protected_promotions": protected_promotions,
+    "current_scope": current_scope,
 }
 output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
 if not all(checks.values()):
@@ -369,6 +398,19 @@ case ${1:-} in
     historical) historical_check ;;
     fixtures) fixture_tests ;;
     verify) verify_only ;;
+    current)
+        export HOBBYOS_ASSERT_RECORD_CURRENT=1
+        if [[ ${HOBBYOS_VALIDATION_CONTRACT:-} == guarded-kernel-stacks ]]; then
+            base_commit=$(PYTHONPATH=scripts python3 -c 'import stack_current; print(stack_current.BASE)')
+        fi
+        [[ -n ${MEMORY_ASSERTION_EVIDENCE:-} ]]
+        preflight
+        static_checks
+        host_tests
+        fixture_tests
+        python3 scripts/memory-current-regression.py records assertion-record \
+            --evidence "$evidence" --assertions "$MEMORY_ASSERTION_EVIDENCE"
+        ;;
     all)
         preflight
         static_checks

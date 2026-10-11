@@ -10,6 +10,19 @@ switch_context:
     push r14
     push r15
 
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+    sub rsp, 40
+    mov [rsp], rdi
+    mov [rsp + 8], rsi
+    mov [rsp + 16], rdx
+    mov [rsp + 24], rcx
+    call irq_latency_context_switch
+    mov rdi, [rsp]
+    mov rsi, [rsp + 8]
+    mov rdx, [rsp + 16]
+    mov rcx, [rsp + 24]
+    add rsp, 40
+#endif
     mov [rdi], rsp
     mov rsp, [rsi]
 
@@ -27,7 +40,11 @@ switch_context:
     ret
 
 thread_wrapper:
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+    call irq_latency_enable
+#else
     sti
+#endif
     mov rdi, r13
     call r12
 

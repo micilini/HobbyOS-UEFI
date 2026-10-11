@@ -145,6 +145,7 @@ typedef struct
 } lapic_timer_rate_sample_t;
 
 bool init_lapic(void);
+bool lapic_discovered_extent(uint64_t source, uint64_t *physical, uint64_t *bytes);
 bool init_lapic_ap(void);
 void lapic_write(uint32_t reg, uint32_t value);
 uint32_t lapic_read(uint32_t reg);
@@ -156,9 +157,10 @@ bool lapic_bind_quiescent_slot(uint32_t slot);
 bool lapic_quiescent_snapshot(uint32_t slot,
                               lapic_quiescent_snapshot_t *out);
 
-void lapic_send_ipi(uint32_t apic_id, uint8_t vector);
-void lapic_send_init(uint32_t apic_id);
-void lapic_send_sipi(uint32_t apic_id, uint32_t trampoline_page);
+#include "lapic_delivery.h"
+lapic_delivery_result_t lapic_send_ipi(uint32_t apic_id, uint32_t vector);
+lapic_delivery_result_t lapic_send_init(uint32_t apic_id);
+lapic_delivery_result_t lapic_send_sipi(uint32_t apic_id, uint32_t trampoline_page);
 void lapic_send_broadcast_halt(void);
 
 bool lapic_timer_calibrate(uint32_t desired_period_us,

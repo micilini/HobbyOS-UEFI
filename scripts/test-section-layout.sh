@@ -12,7 +12,7 @@ verifier=(python3 scripts/verify-section-layout.py)
 
 usage()
 {
-    echo "usage: $0 preflight|core|candidates|fixtures|verify|elf|all [ELF]" >&2
+    echo "usage: $0 preflight|core|candidates|fixtures|verify|elf|current|all [ELF]" >&2
     exit 2
 }
 
@@ -80,6 +80,10 @@ run_fixtures()
 
 command=${1:-}
 case "$command" in
+    current)
+        python3 scripts/memory-current-layout.py collect --evidence "$evidence" \
+            --candidate-manifest "$candidate_manifest"
+        ;;
     preflight)
         preflight
         ;;

@@ -220,7 +220,7 @@ def require(condition: bool, message: str) -> None:
 
 
 def require_text(path: Path, *markers: str) -> str:
-    require(path.exists(), f"missing {path.relative_to(ROOT)}")
+    require(path.exists(), f"missing {path}")
     text = path.read_text(encoding="utf-8", errors="replace")
     for marker in markers:
         require(marker in text, f"{path.name}: missing {marker}")
@@ -228,7 +228,7 @@ def require_text(path: Path, *markers: str) -> str:
 
 
 def verify_manifest(path: Path) -> None:
-    require(path.exists(), f"missing {path.relative_to(ROOT)}")
+    require(path.exists(), f"missing {path}")
     lines = path.read_text(encoding="utf-8").splitlines()
     require(lines, f"empty manifest {path.name}")
     for line in lines:
@@ -397,8 +397,16 @@ def verify_candidate(by_stage: dict[str, dict[str, str]], matrix_hash: str) -> N
             "candidate ledger kernel drift")
 
 
-def verify(mode: str) -> None:
-    verify_git()
+def verify(mode: str, *, portable=None) -> None:
+    current = mode == 'current'
+    if current:
+        import memory_current
+        memory_current.scope('interrupts')
+        mode = 'matrix'
+    elif portable is None:
+        verify_git()
+    else:
+        portable.verify_source_identity()
     rows = read_rows()
     by_stage = {row["stage"]: row for row in rows}
     required = {
@@ -474,8 +482,9 @@ def verify(mode: str) -> None:
     require(set(debug_build_hashes) == {"j2", "jN"} and
             len(set(debug_build_hashes.values())) == 1,
             "deterministic j2/jN hashes")
-    undefined = subprocess.check_output(["nm", "-u", "kernel.elf"], cwd=ROOT,
-                                        text=True).strip()
+    undefined = (subprocess.check_output(["nm", "-u", "kernel.elf"], cwd=ROOT,
+                                        text=True).strip() if portable is None else
+                 portable.elf_tool(matrix_hash, "undefined").strip())
     require(not undefined, "undefined kernel symbols")
     soak = require_text(
         ROOT / by_stage["soak24"]["log"],
@@ -502,8 +511,9 @@ def verify(mode: str) -> None:
         require_text(directory / "reset-serial.log", "[IRQ][SELFTEST] PASS")
         reset_build = require_text(directory / "reset-build.log", "kernel-check: PASS")
         require(f"-D{macro}" not in reset_build, f"{stage}: contaminated reset build")
-    current_strings = subprocess.check_output(["strings", "kernel.elf"], cwd=ROOT,
-                                              text=True, errors="replace")
+    current_strings = (subprocess.check_output(["strings", "kernel.elf"], cwd=ROOT,
+                                              text=True, errors="replace") if portable is None else
+                       portable.elf_tool(matrix_hash, "strings"))
     require("[IRQ][NEGATIVE]" not in current_strings, "negative marker in final kernel")
 
     before = ARTIFACT / "taskman-protected-before.sha256"
@@ -515,8 +525,13 @@ def verify(mode: str) -> None:
     require(boot_before.exists() and boot_after.exists() and
             boot_before.read_bytes() == boot_after.read_bytes(),
             "bootloader manifest drift")
-    verify_manifest(ARTIFACT / "source-after-tests.sha256")
-    verify_manifest(ARTIFACT / "source-after-build.sha256")
+    for name in ("source-after-tests.sha256", "source-after-build.sha256"):
+        if current:
+            memory_current.source_manifest(ARTIFACT / name)
+        elif portable is not None:
+            portable.source_manifest(ARTIFACT / name)
+        else:
+            verify_manifest(ARTIFACT / name)
 
     screen_dir = ARTIFACT / "screens"
     for name in ("uefi-before-kernel.ppm", "early-core-cleared.ppm", "final-shell.ppm"):
@@ -536,7 +551,7 @@ def parser() -> argparse.ArgumentParser:
     for field in FIELDS:
         record_parser.add_argument(f"--{field.replace('_', '-')}")
     verify_parser = sub.add_parser("verify")
-    verify_parser.add_argument("mode", choices=("matrix", "all"))
+    verify_parser.add_argument("mode", choices=("matrix", "all", "current"))
     return result
 
 

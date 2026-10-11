@@ -2,6 +2,8 @@
 
 #include "usb_hub.h"
 #include "xhci.h"
+#include "xhci_dma.h"
+#include "usb_hotplug.h"
 #include "../../../core/spinlock.h"
 
 extern int xhci_control_transfer(uint8_t slot_id, usb_setup_packet_t *setup, void *data);
@@ -15,12 +17,11 @@ extern void console_print_dec_debug(uint64_t val);
 extern void console_print_hex_debug(uint64_t val);
 extern void console_set_color_debug(uint32_t fg, uint32_t bg);
 extern void timer_sleep(uint32_t ms);
-extern void *kmalloc_aligned(size_t size, size_t align);
 extern void memset(void *dst, int val, size_t n);
 extern void memcpy(void *dst, const void *src, size_t n);
 
 extern uint64_t timer_get_uptime_ms(void);
-extern void xhci_disable_slot(uint8_t slot_id);
+extern bool xhci_disable_slot(uint8_t slot_id);
 
 #define CONSOLE_COLOR_WHITE 0xFFFFFFFF
 #define CONSOLE_COLOR_BLACK 0xFF000000
@@ -35,6 +36,17 @@ static int usb_hub_count = 0;
 static spinlock_t g_usb_hub_lock;
 
 static uint8_t g_usb_hub_initializing[USB_HUB_MAX_HUBS];
+static uint8_t g_usb_hub_probing[USB_HUB_MAX_HUBS];
+#ifdef HOBBYOS_SELFTEST
+bool usb_hub_snapshot(unsigned index, usb_hub_info_t *out)
+{
+    if (!out || index>=USB_HUB_MAX_HUBS)return false;
+    irq_flags_t flags=spin_lock_irqsave(&g_usb_hub_lock);
+    bool valid=usb_hub_list[index].valid;
+    if(valid)*out=usb_hub_list[index];
+    spin_unlock_irqrestore(&g_usb_hub_lock,flags);return valid;
+}
+#endif
 
 void usb_hub_init(void)
 {
@@ -70,7 +82,7 @@ static int usb_hub_alloc_slot(void)
 {
     for (int i = 0; i < USB_HUB_MAX_HUBS; i++)
     {
-        if (!usb_hub_list[i].valid && !g_usb_hub_initializing[i])
+        if (!usb_hub_list[i].valid && !g_usb_hub_initializing[i] && !g_usb_hub_probing[i])
         {
             return i;
         }
@@ -133,12 +145,15 @@ void usb_hub_invalidate_by_slot(uint8_t slot_id)
 
 uint32_t usb_hub_calc_route_string(uint32_t parent_route, uint8_t port)
 {
-
-    uint8_t port_val = port;
-    if (port_val > 15)
-        port_val = 15;
-
-    return (parent_route << 4) | (port_val & 0x0F);
+    if (!port || port > 15 || parent_route > 0xfffff) return UINT32_MAX;
+    /* The tier nearest the root occupies the least-significant nibble. */
+    for (unsigned shift = 0; shift < 20; shift += 4) {
+        if (!(parent_route & (15u << shift))) {
+            if (parent_route >> shift) return UINT32_MAX;
+            return parent_route | ((uint32_t)port << shift);
+        }
+    }
+    return UINT32_MAX;
 }
 
 uint8_t usb_hub_get_port_speed(uint16_t port_status, int is_usb3_hub)
@@ -166,7 +181,7 @@ uint8_t usb_hub_get_port_speed(uint16_t port_status, int is_usb3_hub)
 int usb_hub_needs_tt(uint8_t device_speed, uint8_t parent_hub_speed)
 {
 
-    if (device_speed <= USB_SPEED_FULL && parent_hub_speed == USB_SPEED_HIGH)
+    if ((device_speed == USB_SPEED_FULL || device_speed == USB_SPEED_LOW) && parent_hub_speed == USB_SPEED_HIGH)
     {
         return 1;
     }
@@ -176,9 +191,8 @@ int usb_hub_needs_tt(uint8_t device_speed, uint8_t parent_hub_speed)
 int usb_hub_get_descriptor(uint8_t slot_id, int is_usb3, void *out_desc)
 {
     usb_setup_packet_t setup;
-    uint8_t buffer[16];
-
-    memset(buffer, 0, sizeof(buffer));
+    uint8_t *buffer = xhci_transfer_allocate(16);
+    if (!buffer) return 0;
 
     setup.RequestType = 0xA0;
     setup.Request = HUB_REQUEST_GET_DESCRIPTOR;
@@ -189,23 +203,26 @@ int usb_hub_get_descriptor(uint8_t slot_id, int is_usb3, void *out_desc)
     if (!xhci_control_transfer(slot_id, &setup, buffer))
     {
         console_write_debug("[USB_HUB] Failed to get hub descriptor\n");
+        (void)xhci_transfer_release(buffer);
         return 0;
     }
 
     if (out_desc)
     {
-        memcpy(out_desc, buffer, setup.Length);
+        /* The USB2 wire reply includes removable/power masks beyond the
+         * fixed parsed header. Those bytes do not belong to the caller. */
+        memcpy(out_desc, buffer, is_usb3 ? sizeof(usb3_hub_descriptor_t) : sizeof(usb_hub_descriptor_t));
     }
 
+    (void)xhci_transfer_release(buffer);
     return 1;
 }
 
 int usb_hub_get_port_status(uint8_t slot_id, uint8_t port, usb_hub_port_status_t *out_status)
 {
     usb_setup_packet_t setup;
-    uint8_t buffer[4];
-
-    memset(buffer, 0, sizeof(buffer));
+    uint8_t *buffer = xhci_transfer_allocate(4);
+    if (!buffer) return 0;
 
     setup.RequestType = 0xA3;
     setup.Request = HUB_REQUEST_GET_STATUS;
@@ -218,6 +235,7 @@ int usb_hub_get_port_status(uint8_t slot_id, uint8_t port, usb_hub_port_status_t
         console_write_debug("[USB_HUB] Failed to get port ");
         console_print_dec_debug(port);
         console_write_debug(" status\n");
+        (void)xhci_transfer_release(buffer);
         return 0;
     }
 
@@ -227,6 +245,7 @@ int usb_hub_get_port_status(uint8_t slot_id, uint8_t port, usb_hub_port_status_t
         out_status->wPortChange = (uint16_t)buffer[2] | ((uint16_t)buffer[3] << 8);
     }
 
+    (void)xhci_transfer_release(buffer);
     return 1;
 }
 
@@ -349,66 +368,63 @@ int usb_hub_power_on_ports(uint8_t slot_id, uint8_t num_ports)
     return powered;
 }
 
-int usb_hub_build_device_context(
-    uint8_t parent_hub_slot,
-    uint8_t port_on_hub,
-    uint8_t device_speed,
-    usb_device_context_t *out_ctx)
+bool usb_hub_context_current(const usb_device_context_t *ctx)
 {
-    usb_hub_info_t *parent_hub;
-
-    if (!out_ctx)
-        return 0;
-
-    memset(out_ctx, 0, sizeof(usb_device_context_t));
-
-    parent_hub = usb_hub_find_by_slot(parent_hub_slot);
-    if (!parent_hub)
-    {
-        console_write_debug("[USB_HUB] Parent hub not found for slot ");
-        console_print_dec_debug(parent_hub_slot);
-        console_write_debug("\n");
-        return 0;
+    if (!ctx || !ctx->parent_hub_slot || !ctx->port_on_parent || ctx->route_string > 0xfffff ||
+        !usb_hotplug_root_current(ctx->root_port, ctx->root_generation)) return false;
+    bool valid = false;
+    irq_flags_t flags = spin_lock_irqsave(&g_usb_hub_lock);
+    for (unsigned i = 0; i < USB_HUB_MAX_HUBS; ++i) {
+        const usb_hub_info_t *hub = &usb_hub_list[i];
+        if (hub->valid && hub->slot_id == ctx->parent_hub_slot &&
+            hub->slot_generation == ctx->parent_generation &&
+            hub->root_generation == ctx->root_generation && hub->root_port == ctx->root_port &&
+            ctx->port_on_parent <= hub->num_ports &&
+            ctx->route_string == usb_hub_calc_route_string(hub->route_string, ctx->port_on_parent)) valid = true;
     }
+    spin_unlock_irqrestore(&g_usb_hub_lock, flags);
+    return valid;
+}
+int usb_hub_build_device_context(uint8_t parent_slot, uint8_t port, uint8_t speed,
+                                 usb_device_context_t *out)
+{
+    if (!out || !port || port > 15) return 0;
+    usb_hub_info_t parent = {0};
+    irq_flags_t flags = spin_lock_irqsave(&g_usb_hub_lock);
+    for (unsigned i = 0; i < USB_HUB_MAX_HUBS; ++i)
+        if (usb_hub_list[i].valid && usb_hub_list[i].slot_id == parent_slot) parent = usb_hub_list[i];
+    spin_unlock_irqrestore(&g_usb_hub_lock, flags);
+    if (!parent.valid || port > parent.num_ports || parent.hub_depth >= USB_HUB_MAX_DEPTH) return 0;
+    uint32_t route = usb_hub_calc_route_string(parent.route_string, port);
+    if (route == UINT32_MAX) return 0;
+    usb_device_context_t ctx = { .root_port=parent.root_port, .root_generation=parent.root_generation,
+        .parent_generation=parent.slot_generation, .parent_hub_slot=parent_slot, .port_on_parent=port,
+        .hub_depth=parent.hub_depth+1, .speed=speed,
+        .route_string=route };
+    if (!usb_translator(speed, parent.speed, parent_slot, port, parent.upstream_tt_slot,
+                        parent.upstream_tt_port, &ctx.tt_hub_slot_id, &ctx.tt_port_num) ||
+        !usb_hub_context_current(&ctx)) return 0;
+    *out = ctx; return 1;
+}
 
-    out_ctx->route_string = usb_hub_calc_route_string(parent_hub->route_string, port_on_hub);
-
-    out_ctx->root_port = parent_hub->root_port;
-
-    out_ctx->hub_depth = parent_hub->hub_depth + 1;
-
-    if (out_ctx->hub_depth > USB_HUB_MAX_DEPTH)
-    {
-        console_write_debug("[USB_HUB] Maximum hub depth exceeded!\n");
-        return 0;
-    }
-
-    out_ctx->parent_hub_slot = parent_hub_slot;
-    out_ctx->port_on_parent = port_on_hub;
-    out_ctx->speed = device_speed;
-
-    if (device_speed <= USB_SPEED_FULL && !parent_hub->is_usb3)
-    {
-
-        out_ctx->tt_hub_slot_id = parent_hub_slot;
-        out_ctx->tt_port_num = port_on_hub;
-
-        console_write_debug("[USB_HUB] Device needs TT: hub_slot=");
-        console_print_dec_debug(out_ctx->tt_hub_slot_id);
-        console_write_debug(" port=");
-        console_print_dec_debug(out_ctx->tt_port_num);
-        console_write_debug("\n");
-    }
-
-    console_write_debug("[USB_HUB] Device context: route=0x");
-    console_print_hex_debug(out_ctx->route_string);
-    console_write_debug(" root_port=");
-    console_print_dec_debug(out_ctx->root_port);
-    console_write_debug(" depth=");
-    console_print_dec_debug(out_ctx->hub_depth);
-    console_write_debug("\n");
-
-    return 1;
+static bool publish_child(unsigned index, const usb_device_context_t *ctx, uint8_t slot)
+{
+    if (index >= USB_HUB_MAX_HUBS || !slot || slot >= 64) return false;
+    irq_flags_t flags = spin_lock_irqsave(&g_usb_hub_lock);
+    usb_hub_info_t *hub = &usb_hub_list[index];
+    bool ok = hub->valid && g_usb_hub_probing[index] &&
+        hub->slot_id == ctx->parent_hub_slot && hub->slot_generation == ctx->parent_generation &&
+        ctx->port_on_parent && ctx->port_on_parent <= hub->num_ports &&
+        !hub->child_slot[ctx->port_on_parent] &&
+        usb_hotplug_root_current(ctx->root_port, ctx->root_generation);
+    if (ok) hub->child_slot[ctx->port_on_parent] = slot;
+    spin_unlock_irqrestore(&g_usb_hub_lock, flags); return ok;
+}
+static void end_probe(unsigned index)
+{
+    irq_flags_t flags = spin_lock_irqsave(&g_usb_hub_lock);
+    g_usb_hub_probing[index] = 0;
+    spin_unlock_irqrestore(&g_usb_hub_lock, flags);
 }
 
 int usb_hub_enumerate(
@@ -420,6 +436,8 @@ int usb_hub_enumerate(
     uint8_t port_on_parent,
     int is_usb3)
 {
+    uint64_t root_generation;
+    if (!slot_id || slot_id >= 64 || !usb_hotplug_root_identity(root_port, &root_generation)) return -1;
     int hub_idx;
     uint8_t num_ports;
     uint16_t conf_len;
@@ -590,13 +608,16 @@ int usb_hub_enumerate(
         hub->parent_hub_idx = parent_hub_idx;
         hub->port_on_parent = port_on_parent;
 
+        hub->root_generation = root_generation;
+        hub->slot_generation = xhci_driver.slot_lifecycle[slot_id];
+        hub->speed = xhci_driver.slot_speed[slot_id];
+        hub->upstream_tt_slot = xhci_driver.slot_tt_hub[slot_id];
+        hub->upstream_tt_port = xhci_driver.slot_tt_port[slot_id];
         hub->is_usb3 = is_usb3_flag;
         hub->interface_num = interface_num;
         hub->config_value = config_value;
 
         usb_hub_count++;
-
-        g_usb_hub_initializing[hub_idx] = 0;
 
         spin_unlock_irqrestore(&g_usb_hub_lock, flags);
     }
@@ -608,7 +629,10 @@ int usb_hub_enumerate(
     console_set_color_debug(CONSOLE_COLOR_WHITE, CONSOLE_COLOR_BLACK);
 
     usb_hub_probe_ports(hub_idx);
-
+    irq_flags_t done_flags = spin_lock_irqsave(&g_usb_hub_lock);
+    g_usb_hub_initializing[hub_idx] = 0;
+    spin_unlock_irqrestore(&g_usb_hub_lock, done_flags);
+    if (!usb_hotplug_root_current(root_port, root_generation)) { usb_hub_invalidate_by_slot(slot_id); return -1; }
     return hub_idx;
 }
 
@@ -627,12 +651,13 @@ int usb_hub_probe_ports(int hub_idx)
         irq_flags_t flags = spin_lock_irqsave(&g_usb_hub_lock);
 
         hub = &usb_hub_list[hub_idx];
-        if (!hub->valid)
+        if (!hub->valid || g_usb_hub_probing[hub_idx])
         {
             spin_unlock_irqrestore(&g_usb_hub_lock, flags);
             return 0;
         }
 
+        g_usb_hub_probing[hub_idx] = 1;
         memcpy(&hub_snap, hub, sizeof(usb_hub_info_t));
         spin_unlock_irqrestore(&g_usb_hub_lock, flags);
     }
@@ -645,6 +670,8 @@ int usb_hub_probe_ports(int hub_idx)
 
     for (uint8_t port = 1; port <= hub_snap.num_ports; port++)
     {
+        if (!usb_hotplug_root_current(hub_snap.root_port, hub_snap.root_generation)) break;
+        if (hub_snap.child_slot[port]) continue;
         console_write_debug("[USB_HUB] Checking port ");
         console_print_dec_debug(port);
         console_write_debug("...");
@@ -704,30 +731,7 @@ int usb_hub_probe_ports(int hub_idx)
         console_write_debug("\n");
 
         usb_device_context_t dev_ctx;
-        dev_ctx.route_string = usb_hub_calc_route_string(hub_snap.route_string, port);
-        dev_ctx.root_port = hub_snap.root_port;
-        dev_ctx.hub_depth = hub_snap.hub_depth + 1;
-        dev_ctx.parent_hub_slot = hub_snap.slot_id;
-        dev_ctx.port_on_parent = port;
-        dev_ctx.speed = speed;
-        dev_ctx.slot_id = 0;
-
-        if ((speed == USB_SPEED_LOW || speed == USB_SPEED_FULL) && !hub_snap.is_usb3)
-        {
-            dev_ctx.tt_hub_slot_id = hub_snap.slot_id;
-            dev_ctx.tt_port_num = port;
-
-            console_write_debug("[USB_HUB] TT needed: hub_slot=");
-            console_print_dec_debug(hub_snap.slot_id);
-            console_write_debug(" tt_port=");
-            console_print_dec_debug(port);
-            console_write_debug("\n");
-        }
-        else
-        {
-            dev_ctx.tt_hub_slot_id = 0;
-            dev_ctx.tt_port_num = 0;
-        }
+        if (!usb_hub_build_device_context(hub_snap.slot_id, port, speed, &dev_ctx)) continue;
 
         console_write_debug("[USB_HUB] Configuring device: route=0x");
         console_print_hex_debug(dev_ctx.route_string);
@@ -740,15 +744,8 @@ int usb_hub_probe_ports(int hub_idx)
             speed,
             &dev_ctx);
 
-        if (slot_id > 0)
+        if (slot_id > 0 && publish_child(hub_idx, &dev_ctx, slot_id))
         {
-            {
-                irq_flags_t flags = spin_lock_irqsave(&g_usb_hub_lock);
-                if (usb_hub_list[hub_idx].valid)
-                    usb_hub_list[hub_idx].child_slot[port] = (uint8_t)slot_id;
-                spin_unlock_irqrestore(&g_usb_hub_lock, flags);
-            }
-
             devices_found++;
 
             console_set_color_debug(CONSOLE_COLOR_GREEN, CONSOLE_COLOR_BLACK);
@@ -767,6 +764,7 @@ int usb_hub_probe_ports(int hub_idx)
     console_print_dec_debug(devices_found);
     console_write_debug(" devices on hub\n\n");
 
+    end_probe(hub_idx);
     return devices_found;
 }
 
@@ -781,7 +779,7 @@ void usb_hub_print_tree(void)
         {
             irq_flags_t flags = spin_lock_irqsave(&g_usb_hub_lock);
 
-            if (!usb_hub_list[i].valid)
+            if (!usb_hub_list[i].valid || g_usb_hub_initializing[i] || g_usb_hub_probing[i])
             {
                 spin_unlock_irqrestore(&g_usb_hub_lock, flags);
                 continue;
@@ -832,11 +830,12 @@ void usb_hub_poll_all(void)
 
         {
             irq_flags_t flags = spin_lock_irqsave(&g_usb_hub_lock);
-            if (!usb_hub_list[i].valid)
+            if (!usb_hub_list[i].valid || g_usb_hub_initializing[i] || g_usb_hub_probing[i])
             {
                 spin_unlock_irqrestore(&g_usb_hub_lock, flags);
                 continue;
             }
+            g_usb_hub_probing[i] = 1;
             memcpy(&hub_snap, &usb_hub_list[i], sizeof(usb_hub_info_t));
             spin_unlock_irqrestore(&g_usb_hub_lock, flags);
         }
@@ -848,6 +847,7 @@ void usb_hub_poll_all(void)
             console_print_dec_debug(hub_snap.slot_id);
             console_write_debug(" is dead, removing from poll list\n");
             usb_hub_invalidate_by_slot(hub_snap.slot_id);
+            end_probe(i);
             continue;
         }
 
@@ -860,12 +860,14 @@ void usb_hub_poll_all(void)
                 console_print_dec_debug(hub_snap.slot_id);
                 console_write_debug(" unreachable, invalidating\n");
                 usb_hub_invalidate_by_slot(hub_snap.slot_id);
+                end_probe(i);
                 continue;
             }
         }
 
         for (uint8_t port = 1; port <= hub_snap.num_ports; port++)
         {
+            if (!usb_hotplug_root_current(hub_snap.root_port, hub_snap.root_generation)) break;
             usb_hub_port_status_t status;
             if (!usb_hub_get_port_status(hub_snap.slot_id, port, &status))
                 continue;
@@ -922,37 +924,15 @@ void usb_hub_poll_all(void)
                 console_write_debug("\n");
 
                 usb_device_context_t dev_ctx;
-                dev_ctx.route_string = usb_hub_calc_route_string(hub_snap.route_string, port);
-                dev_ctx.root_port = hub_snap.root_port;
-                dev_ctx.hub_depth = hub_snap.hub_depth + 1;
-                dev_ctx.parent_hub_slot = hub_snap.slot_id;
-                dev_ctx.port_on_parent = port;
-                dev_ctx.speed = speed;
-                dev_ctx.slot_id = 0;
-
-                if ((speed == USB_SPEED_LOW || speed == USB_SPEED_FULL) && !hub_snap.is_usb3)
-                {
-                    dev_ctx.tt_hub_slot_id = hub_snap.slot_id;
-                    dev_ctx.tt_port_num = port;
-                }
-                else
-                {
-                    dev_ctx.tt_hub_slot_id = 0;
-                    dev_ctx.tt_port_num = 0;
-                }
+                if (!usb_hub_build_device_context(hub_snap.slot_id, port, speed, &dev_ctx)) continue;
 
                 int slot_id = xhci_configure_device_with_context(
                     hub_snap.root_port - 1,
                     speed,
                     &dev_ctx);
 
-                if (slot_id > 0)
+                if (slot_id > 0 && publish_child(i, &dev_ctx, slot_id))
                 {
-                    irq_flags_t flags = spin_lock_irqsave(&g_usb_hub_lock);
-                    if (usb_hub_list[i].valid)
-                        usb_hub_list[i].child_slot[port] = (uint8_t)slot_id;
-                    spin_unlock_irqrestore(&g_usb_hub_lock, flags);
-
                     console_set_color_debug(CONSOLE_COLOR_GREEN, CONSOLE_COLOR_BLACK);
                     console_write_debug("[HUB-HP] Device configured at slot ");
                     console_print_dec_debug(slot_id);
@@ -977,7 +957,7 @@ void usb_hub_poll_all(void)
 
                 {
                     irq_flags_t flags = spin_lock_irqsave(&g_usb_hub_lock);
-                    if (usb_hub_list[i].valid)
+                    if (usb_hub_list[i].valid && usb_hub_list[i].slot_generation == hub_snap.slot_generation)
                         usb_hub_list[i].child_slot[port] = 0;
                     spin_unlock_irqrestore(&g_usb_hub_lock, flags);
                 }
@@ -988,5 +968,6 @@ void usb_hub_poll_all(void)
                 xhci_disable_slot(old_slot);
             }
         }
+        end_probe(i);
     }
 }

@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "idt.h"
+#include "irq_latency.h"
 
 typedef struct
 {
@@ -50,11 +51,20 @@ static inline void spin_cpu_relax(void)
 static inline int spin_trylock_irqsave(spinlock_t *lock, irq_flags_t *out_flags)
 {
     irq_flags_t f = irq_save();
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+    irq_latency_lock_token_t token = irq_latency_lock_wait((uintptr_t)lock);
+#endif
     if (spin_trylock(lock))
     {
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+        irq_latency_lock_acquired((uintptr_t)lock, token);
+#endif
         *out_flags = f;
         return 1;
     }
+#if defined(HOBBYOS_IRQ_LATENCY) && HOBBYOS_IRQ_LATENCY
+    irq_latency_lock_released((uintptr_t)lock);
+#endif
     irq_restore(f);
     return 0;
 }

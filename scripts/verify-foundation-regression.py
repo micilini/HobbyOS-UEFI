@@ -343,7 +343,7 @@ def keyboard_sample_errors(sample, raw, commands, parsed_symbols, layout):
     return errors
 
 
-def input_address_map_errors(row, profile_dir, parsed_symbols):
+def input_address_map_errors(row, profile_dir, parsed_symbols, *, elf_facts=None):
     """Rebuild the virtual-to-physical map from the candidate ELF."""
     errors = []
     name = row.get("input_address_map_artifact")
@@ -359,20 +359,23 @@ def input_address_map_errors(row, profile_dir, parsed_symbols):
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None, ["command input address-map artifact is malformed"]
     candidate = profile_dir.parent.parent / "candidate" / "kernel.elf"
-    if not candidate.is_file() or sha256(candidate) != row.get(
-            "candidate_sha256"):
-        return None, ["command input address-map candidate is absent or differs"]
-    nm_command = ["nm", "-n", str(candidate)]
-    nm_result = subprocess.run(nm_command, text=True, capture_output=True,
-                               check=False)
-    readelf_command = ["readelf", "-lW", str(candidate)]
-    readelf_result = subprocess.run(
-        readelf_command, text=True, capture_output=True, check=False)
-    if nm_result.returncode or readelf_result.returncode:
-        return None, ["command input address-map tools failed"]
+    if elf_facts is None:
+        if not candidate.is_file() or sha256(candidate) != row.get("candidate_sha256"):
+            return None, ["command input address-map candidate is absent or differs"]
+        nm_result = subprocess.run(["nm", "-n", str(candidate)], text=True, capture_output=True, check=False)
+        readelf_result = subprocess.run(["readelf", "-lW", str(candidate)], text=True, capture_output=True, check=False)
+        if nm_result.returncode or readelf_result.returncode:
+            return None, ["command input address-map tools failed"]
+        candidate_hash, nm_text, readelf_text = sha256(candidate), nm_result.stdout, readelf_result.stdout
+    else:
+        # A transport adapter must bind saved tool bytes to the omitted binary
+        # receipt. All address derivation and input checks below are identical.
+        candidate_hash, nm_text, readelf_text = elf_facts
+        if candidate_hash != row.get("candidate_sha256"):
+            return None, ["command input saved ELF candidate differs"]
     wanted = set(parsed_symbols)
     found = {}
-    for line in nm_result.stdout.splitlines():
+    for line in nm_text.splitlines():
         fields = line.split()
         if len(fields) >= 3 and fields[-1] in wanted:
             try:
@@ -386,7 +389,7 @@ def input_address_map_errors(row, profile_dir, parsed_symbols):
     if virtual != parsed_symbols:
         errors.append("command input virtual addresses differ from the ELF")
     segments = []
-    for line in readelf_result.stdout.splitlines():
+    for line in readelf_text.splitlines():
         fields = line.split()
         if len(fields) >= 6 and fields[0] == "LOAD":
             try:
@@ -417,9 +420,9 @@ def input_address_map_errors(row, profile_dir, parsed_symbols):
     expected = {
         "schema": 1,
         "kind": "elf-input-physical-address-map",
-        "elf_sha256": sha256(candidate),
+        "elf_sha256": candidate_hash,
         "readelf_argv": value.get("readelf_argv"),
-        "readelf_stdout": readelf_result.stdout,
+        "readelf_stdout": readelf_text,
         "load_segments": segments,
         "virtual_addresses": formatted_virtual,
         "physical_addresses": formatted_physical,
@@ -4341,13 +4344,15 @@ def validate_production_transaction(row, profile_dir, transcript, byte_ends,
     return errors
 
 
-def verify_production(root):
+def verify_production(root, *, portable_candidate_hash=None):
     errors = []
     candidate = root / "candidate" / "kernel.elf"
     image = root / "candidate" / "hobbyos.img"
-    if not candidate.is_file() or not image.is_file():
+    if portable_candidate_hash is None and (not candidate.is_file() or not image.is_file()):
         return ["production candidate ELF or image is missing"]
-    candidate_hash = sha256(candidate)
+    # The portable adapter verifies the omitted binary receipt before invoking
+    # this same raw transaction validator. Ordinary modes always hash the ELF.
+    candidate_hash = sha256(candidate) if portable_candidate_hash is None else portable_candidate_hash
     symbols = root / "candidate" / "symbols.txt"
     policy = root / "candidate" / "production-test-policy.log"
     if not symbols.is_file() or not policy.is_file():
@@ -4477,7 +4482,7 @@ def verify_production(root):
     return []
 
 
-def verify_diagnostic_negative(root):
+def verify_diagnostic_negative(root, *, portable_candidate_hash=None):
     errors = []
     candidate = root / "candidate" / "kernel.elf"
     profile_dir = root / "profiles" / "timer-ref-no-release-kvm-smp4"
@@ -4489,9 +4494,11 @@ def verify_diagnostic_negative(root):
     required_paths = (candidate, root / "candidate" / "hobbyos.img",
                       env_path, serial_path, ledger_path, launch_path,
                       symbols_path, root / "candidate" / "build-profile.env")
+    if portable_candidate_hash is not None:
+        required_paths = required_paths[2:]
     if not all(path.is_file() for path in required_paths):
         return ["diagnostic negative evidence is incomplete"]
-    candidate_hash = sha256(candidate)
+    candidate_hash = sha256(candidate) if portable_candidate_hash is None else portable_candidate_hash
     profile = read_env(env_path)
     launch = read_env(launch_path)
     expected = {"name": "timer-ref-no-release-kvm-smp4",

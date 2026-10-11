@@ -1,3 +1,4 @@
+#include "../memory/physical_translation.h"
 #include "splash.h"
 #include "graphics.h"
 #include "../memory/pmem.h"
@@ -418,8 +419,8 @@ void discard_splash_memory(BootInfo *boot_info)
 
     SimpleImage *logo = boot_info->logo;
 
-    uint64_t start_addr = (uint64_t)logo->PixelBuffer;
     uint64_t size = logo->Size;
+    uint64_t start_addr = physical_require_address(logo->PixelBuffer, size);
     uint64_t end_addr = start_addr + size;
 
     for (uint64_t addr = start_addr; addr < end_addr; addr += 4096)

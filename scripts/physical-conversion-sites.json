@@ -1,0 +1,3255 @@
+{
+  "schema": 1,
+  "base_commit": "0f6629ce6ee9c9e04fdde236ddac36f5b5531d49",
+  "sites": [
+    {
+      "path": "bootloader/src/gop.c",
+      "function": "get_framebuffer",
+      "anchor": "framebuffer.BaseAddress = (void *)gop->Mode->FrameBufferBase;",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/kernel_loader.c",
+      "function": "load_elf_kernel",
+      "anchor": "Elf64_Phdr *phdr = (Elf64_Phdr *)ph_buffer;",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/kernel_loader.c",
+      "function": "load_elf_kernel",
+      "anchor": "phdr = (Elf64_Phdr *)((UINT8 *)phdr + header.e_phentsize);",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/kernel_loader.c",
+      "function": "load_elf_kernel",
+      "anchor": "uefi_call_wrapper(BS->SetMem, 3, (void *)min_start, (max_end - min_start), 0);",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/kernel_loader.c",
+      "function": "load_elf_kernel",
+      "anchor": "phdr = (Elf64_Phdr *)ph_buffer;",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/kernel_loader.c",
+      "function": "load_elf_kernel",
+      "anchor": "status = uefi_call_wrapper(kernel_file->Read, 3, kernel_file, &to_read, (void *)phdr->p_paddr);",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/kernel_loader.c",
+      "function": "load_elf_kernel",
+      "anchor": "phdr = (Elf64_Phdr *)((UINT8 *)phdr + header.e_phentsize);",
+      "occurrence": 2,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/kernel_loader.c",
+      "function": "load_elf_kernel",
+      "anchor": "return (void *)header.e_entry;",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/mem.c",
+      "function": "get_memory_map",
+      "anchor": "(EFI_MEMORY_DESCRIPTOR *)mmap_info->Base,",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/mem.c",
+      "function": "get_memory_map",
+      "anchor": "(EFI_MEMORY_DESCRIPTOR *)mmap_info->Base,",
+      "occurrence": 2,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "function": "acpi_checksum8",
+      "anchor": "const uint8_t *b = (const uint8_t *)p;",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "function": "acpi_find_sdt",
+      "anchor": "const AcpiRsdp *rsdp = (const AcpiRsdp *)rsdp_void;",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "function": "acpi_find_sdt",
+      "anchor": "xsdt = (const AcpiSdtHeader *)(uintptr_t)rsdp->XsdtAddress;",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "function": "acpi_find_sdt",
+      "anchor": "rsdt = (const AcpiSdtHeader *)(uintptr_t)rsdp->RsdtAddress;",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "function": "acpi_find_sdt",
+      "anchor": "const uint64_t *table_ptrs = (const uint64_t *)((const uint8_t *)root + hdr_len);",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "function": "acpi_find_sdt",
+      "anchor": "const AcpiSdtHeader *h = (const AcpiSdtHeader *)(uintptr_t)table_ptrs[i];",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "function": "acpi_find_sdt",
+      "anchor": "const uint32_t *table_ptrs = (const uint32_t *)((const uint8_t *)root + hdr_len);",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "function": "acpi_find_sdt",
+      "anchor": "const AcpiSdtHeader *h = (const AcpiSdtHeader *)(uintptr_t)table_ptrs[i];",
+      "occurrence": 2,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/serial.c",
+      "function": "serial_discover_from_spcr",
+      "anchor": "const AcpiSpcr *spcr = (const AcpiSpcr *)spcr_hdr;",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/utils.c",
+      "function": "memcmp",
+      "anchor": "const unsigned char *s1 = (const unsigned char *)a;",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "bootloader/src/utils.c",
+      "function": "memcmp",
+      "anchor": "const unsigned char *s2 = (const unsigned char *)b;",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Unchanged UEFI-owned loader allocation/protocol address before the fixed kernel entry mapping."
+    },
+    {
+      "path": "kernel/link.ld",
+      "function": "translation_unit",
+      "anchor": "*(.text .text.*)",
+      "occurrence": 1,
+      "domain": "LINKED_IMAGE_PLACEMENT",
+      "reason": "Unchanged linker section placement; agrees with the image-only C layout contract."
+    },
+    {
+      "path": "kernel/link.ld",
+      "function": "translation_unit",
+      "anchor": "*(.rodata .rodata.*)",
+      "occurrence": 1,
+      "domain": "LINKED_IMAGE_PLACEMENT",
+      "reason": "Unchanged linker section placement; agrees with the image-only C layout contract."
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "function": "acpi_observe_root",
+      "anchor": "*address = index == 0 ? (const void *)g_rsdp :",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "function": "acpi_observe_root",
+      "anchor": "index == 1 ? (const void *)g_xsdt : (const void *)g_rsdt;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "function": "acpi_observe_root",
+      "anchor": "index == 1 ? (const void *)g_xsdt : (const void *)g_rsdt;",
+      "occurrence": 2,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "function": "init_acpi",
+      "anchor": "g_rsdp = (AcpiRsdp *)rsdp_address;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "function": "init_acpi",
+      "anchor": "g_fadt = (const AcpiFadt *)acpi_find_table(\"FACP\");",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "function": "acpi_find_table",
+      "anchor": "const uint8_t *pointers = (const uint8_t *)g_xsdt + sizeof(AcpiSdtHeader);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "function": "acpi_find_table",
+      "anchor": "return (void *)header;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "function": "acpi_find_table",
+      "anchor": "const uint8_t *pointers = (const uint8_t *)g_rsdt + sizeof(AcpiSdtHeader);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "function": "acpi_find_table",
+      "anchor": "return (void *)header;",
+      "occurrence": 2,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "function": "acpi_list_tables_debug",
+      "anchor": "const uint8_t *pointers = (const uint8_t *)g_xsdt + sizeof(AcpiSdtHeader);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "function": "acpi_list_tables_debug",
+      "anchor": "const uint8_t *pointers = (const uint8_t *)g_rsdt + sizeof(AcpiSdtHeader);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "function": "acpi_list_tables",
+      "anchor": "const uint8_t *pointers = (const uint8_t *)g_xsdt + sizeof(AcpiSdtHeader);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "function": "acpi_list_tables",
+      "anchor": "const uint8_t *pointers = (const uint8_t *)g_rsdt + sizeof(AcpiSdtHeader);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/acpi/acpi.c",
+      "function": "acpi_get_fadt",
+      "anchor": "g_fadt = (const AcpiFadt *)acpi_find_table(\"FACP\");",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_checksum_valid",
+      "anchor": "const uint8_t *bytes = (const uint8_t *)table;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_scan",
+      "anchor": "const uint8_t *ptr = (const uint8_t *)table + sizeof(MadtTable);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_scan",
+      "anchor": "const uint8_t *end = (const uint8_t *)table + table->header.length;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_scan",
+      "anchor": "const MadtEntryHeader *entry = (const MadtEntryHeader *)ptr;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_scan",
+      "anchor": "if (((const MadtProcessorEntry *)ptr)->flags & MADT_FLAG_ENABLED)",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_scan",
+      "anchor": "if (((const MadtProcessorX2ApicEntry *)ptr)->flags & MADT_FLAG_ENABLED)",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_scan",
+      "anchor": "if (!((const MadtIoApicEntry *)ptr)->ioapic_address)",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_scan",
+      "anchor": "const MadtIsoEntry *iso = (const MadtIsoEntry *)ptr;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_scan",
+      "anchor": "(const MadtLocalApicNmiEntry *)ptr;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_scan",
+      "anchor": "(const MadtLocalX2ApicNmiEntry *)ptr;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_scan",
+      "anchor": "((const MadtLocalApicAddressOverrideEntry *)ptr)->lapic_address;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_populate",
+      "anchor": "const uint8_t *ptr = (const uint8_t *)table + sizeof(MadtTable);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_populate",
+      "anchor": "const uint8_t *end = (const uint8_t *)table + table->header.length;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_populate",
+      "anchor": "const MadtEntryHeader *entry = (const MadtEntryHeader *)ptr;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_populate",
+      "anchor": "const MadtProcessorEntry *cpu = (const MadtProcessorEntry *)ptr;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_populate",
+      "anchor": "(const MadtProcessorX2ApicEntry *)ptr;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_populate",
+      "anchor": "const MadtIoApicEntry *io = (const MadtIoApicEntry *)ptr;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_populate",
+      "anchor": "if (!madt_iso_store((const MadtIsoEntry *)ptr))",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_populate",
+      "anchor": "(const MadtLocalApicNmiEntry *)ptr;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_populate",
+      "anchor": "(const MadtLocalX2ApicNmiEntry *)ptr;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "init_madt",
+      "anchor": "MadtTable *table = (MadtTable *)acpi_find_table(ACPI_SIG_MADT);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/madt.c",
+      "function": "madt_fixture_checksum",
+      "anchor": "uint8_t *bytes = (uint8_t *)table;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked ACPI CPU table view; existing MADT length/checksum/entry guards bound offsets."
+    },
+    {
+      "path": "kernel/src/acpi/sleep.c",
+      "function": "acpi_get_s5_sleep_types",
+      "anchor": "const uint8_t *aml = (const uint8_t *)dsdt + sizeof(AcpiSdtHeader);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/apic/ioapic.c",
+      "function": "ioapic_read_locked",
+      "anchor": "mmio_write32((void *)(controller->registers + IOREGSEL), reg);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/apic/ioapic.c",
+      "function": "ioapic_read_locked",
+      "anchor": "return mmio_read32((void *)(controller->registers + IOWIN));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/apic/ioapic.c",
+      "function": "ioapic_write_locked",
+      "anchor": "mmio_write32((void *)(controller->registers + IOREGSEL), reg);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/apic/ioapic.c",
+      "function": "ioapic_write_locked",
+      "anchor": "mmio_write32((void *)(controller->registers + IOWIN), value);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/apic/lapic.c",
+      "function": "lapic_write",
+      "anchor": "mmio_write32((void *)(g_lapic_registers + reg), value);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/apic/lapic.c",
+      "function": "lapic_read",
+      "anchor": "return g_lapic_base ? mmio_read32((void *)(g_lapic_registers + reg)) : 0;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/assert_selftest.c",
+      "function": "assertion_test_runtime",
+      "anchor": "spinlock_t *lock = (spinlock_t *)(uintptr_t)address;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/dpc.c",
+      "function": "dpc_enqueue",
+      "anchor": "dpc_job_t *job = (dpc_job_t *)kmalloc(sizeof(dpc_job_t));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/interrupts.c",
+      "function": "interrupts_consume_reschedule",
+      "anchor": "kpanic_exception_ex(g_exc_names[(vec)], (uint8_t)(vec), (void *)frame, 0, 0, 0, 0); \\",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/interrupts.c",
+      "function": "interrupts_consume_reschedule",
+      "anchor": "kpanic_exception_ex(g_exc_names[(vec)], (uint8_t)(vec), (void *)frame, error_code, 1, 0, 0); \\",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/interrupts.c",
+      "function": "interrupts_consume_reschedule",
+      "anchor": "kpanic_exception(\"Divide by Zero (Division Error)\", (void *)frame, 0, 0, cr2, 0);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/interrupts.c",
+      "function": "__attribute__",
+      "anchor": "kpanic_exception(\"General Protection Fault (#GP)\", (void *)frame, error_code, 1, cr2, 0);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/interrupts.c",
+      "function": "__attribute__",
+      "anchor": "kpanic_exception(\"Page Fault (#PF)\", (void *)frame, error_code, 1, cr2, 1);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/interrupts.c",
+      "function": "__attribute__",
+      "anchor": "kpanic_exception(\"Unknown Exception\", (void *)frame, 0, 0, cr2, 0);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/interrupts.c",
+      "function": "irq_external_dispatch",
+      "anchor": "kpanic_exception_ex(g_exc_names[2], 2, (void *)frame,",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/interrupts.c",
+      "function": "irq_external_dispatch",
+      "anchor": "kpanic_exception_ex(g_exc_names[14], 14, (void *)frame, error_code, 1, cr2, 1);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/list.h",
+      "function": "list_del",
+      "anchor": "((type *)((char *)(ptr) - offsetof(type, member)))",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/panic.c",
+      "function": "panic_emit_exception",
+      "anchor": "spin_lock((spinlock_t *)(uintptr_t)",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/panic.c",
+      "function": "kpanic_exception_ex",
+      "anchor": "panic_emit_exception(title, vector, (InterruptFrame *)frame,",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/panic.c",
+      "function": "panic_test_hold_locks",
+      "anchor": "spinlock_t *console_lock = (spinlock_t *)(uintptr_t)",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/panic.c",
+      "function": "panic_test_hold_locks",
+      "anchor": "spinlock_t *clock_lock = (spinlock_t *)(uintptr_t)",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "function": "create_idle_task",
+      "anchor": "task_t *idle = (task_t *)kmalloc(sizeof(task_t));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "function": "thread_create_ex_handle",
+      "anchor": "task_t *t = (task_t *)kmalloc(sizeof(task_t));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "function": "thread_create_ex_handle",
+      "anchor": "uint64_t *sp = (uint64_t *)((uint8_t *)t->stack_base + STACK_SIZE);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "function": "scheduler_task_stack_guard_ok",
+      "anchor": "const uint8_t *p=(const uint8_t*)task->stack_base;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "function": "scheduler_report_stack_usage",
+      "anchor": "uint8_t *bytes = (uint8_t *)task->stack_base;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "function": "scheduler_finish_switch",
+      "anchor": "scheduler_cpu_state_t *cpu = pointer_valid ? (scheduler_cpu_state_t *)cpu_state : NULL;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "function": "scheduler_test_corrupt_stack_guard",
+      "anchor": "bool scheduler_test_corrupt_stack_guard(task_id_t id,uint32_t offset){bool ok=false;irq_flags_t f=spin_lock_irqsave(&g_scheduler_lock);task_t*t=find_task_by_id_locked(id);if(t&&!t->on_cpu&&t->stack_base&&offset<t->kernel_stack_guard_bytes){((uint8_t*)t->stack_base)[offset]^=1u;ok=true;}spin_unlock_irqrestore(&g_scheduler_lock,f);if(ok)serial_write_all(\"[TASK][STACK][NEGATIVE] STACK_GUARD_CORRUPTION_DETECTED\\n\");return ok;}",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "function": "scheduler_cancellation_selftest",
+      "anchor": "bool scheduler_cancellation_selftest(void){task_create_options_t bad={.name=\"bad\",.task_class=TASK_CLASS_NORMAL,.flags=TASK_FLAG_SYSTEM|TASK_FLAG_KILLABLE|TASK_FLAG_KILL_PROTECTED};bool ok=!thread_create_ex((void (*)(void *))1,NULL,&bad);ok=ok&&!strcmp(scheduler_task_exit_reason_to_string(TASK_EXIT_NORMAL),\"NORMAL\")&&!strcmp(scheduler_task_exit_reason_to_string(TASK_EXIT_KILLED),\"KILLED\");task_snapshot_t s={.flags=TASK_FLAG_SYSTEM};ok=ok&&!strcmp(scheduler_task_kill_state_to_string(&s),\"NO\");s.flags=TASK_FLAG_SYSTEM|TASK_FLAG_KILL_PROTECTED;ok=ok&&!strcmp(scheduler_task_kill_state_to_string(&s),\"PROT\");s.flags=TASK_FLAG_SYSTEM|TASK_FLAG_KILLABLE;s.id=UINT64_MAX;ok=ok&&!strcmp(scheduler_task_kill_state_to_string(&s),\"-\");s.flags=TASK_FLAG_SYSTEM;s.state=TASK_ZOMBIE;ok=ok&&!strcmp(scheduler_task_kill_state_to_string(&s),\"ZOMB\");serial_write_all(ok?\"[TASK][SELFTEST] CANCELLATION_GUARDS_OK\\n\":\"[TASK][SELFTEST] CANCELLATION_GUARDS_FAIL\\n\");return ok;}",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/scheduler.c",
+      "function": "task_reap_mask_locked",
+      "anchor": "if(task_is_current_locked((task_t*)t,&cpu)) m|=TASK_REAP_DEFER_CURRENT;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/core/timers.c",
+      "function": "timer_node_alloc",
+      "anchor": "timer_node_t *node = (timer_node_t *)kmalloc(sizeof(*node));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/cpu/mmio.h",
+      "function": "mmio_read8_relaxed",
+      "anchor": "uint8_t value = *(volatile uint8_t *)address;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/cpu/mmio.h",
+      "function": "mmio_read16_relaxed",
+      "anchor": "uint16_t value = *(volatile uint16_t *)address;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/cpu/mmio.h",
+      "function": "mmio_read32_relaxed",
+      "anchor": "uint32_t value = *(volatile uint32_t *)address;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/cpu/mmio.h",
+      "function": "mmio_read64_relaxed",
+      "anchor": "uint64_t value = *(volatile uint64_t *)address;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/cpu/mmio.h",
+      "function": "mmio_write8_relaxed",
+      "anchor": "*(volatile uint8_t *)address = value;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/cpu/mmio.h",
+      "function": "mmio_write16_relaxed",
+      "anchor": "*(volatile uint16_t *)address = value;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/cpu/mmio.h",
+      "function": "mmio_write32_relaxed",
+      "anchor": "*(volatile uint32_t *)address = value;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/cpu/mmio.h",
+      "function": "mmio_write64_relaxed",
+      "anchor": "*(volatile uint64_t *)address = value;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/cpu/tss.c",
+      "function": "tss_create_per_cpu",
+      "anchor": "Tss64 *tss = (Tss64 *)kmalloc(sizeof(Tss64));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "function": "pci_get_capability",
+      "anchor": "uint8_t *ptr_to_cap = (uint8_t *)header + 0x34;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "function": "pci_msi_prepare",
+      "anchor": "volatile uint16_t *msg_ctl_p = (volatile uint16_t *)(cap + 0x02);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "function": "pci_msi_prepare",
+      "anchor": "volatile uint32_t *msg_addr_lo_p = (volatile uint32_t *)(cap + 0x04);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "function": "pci_msi_prepare",
+      "anchor": "volatile uint32_t *msg_addr_hi_p = is_64bit ? (volatile uint32_t *)(cap + 0x08) : NULL;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "function": "pci_msi_prepare",
+      "anchor": "volatile uint16_t *msg_data_p = is_64bit ? (volatile uint16_t *)(cap + 0x0C)",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "function": "pci_msi_prepare",
+      "anchor": ": (volatile uint16_t *)(cap + 0x08);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "function": "pci_enumerate_function",
+      "anchor": "uint32_t *bars = (uint32_t *)((uint64_t)pci_header + 0x10);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "function": "pci_init",
+      "anchor": "McfgHeader *mcfg = (McfgHeader *)acpi_find_table(ACPI_SIG_MCFG);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "function": "pci_init",
+      "anchor": "McfgDeviceConfig *config = (McfgDeviceConfig *)((uint64_t)mcfg + sizeof(McfgHeader) + (sizeof(McfgDeviceConfig) * t));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "function": "pci_list_devices",
+      "anchor": "McfgHeader *mcfg = (McfgHeader *)acpi_find_table(\"MCFG\");",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "function": "pci_list_devices",
+      "anchor": "McfgDeviceConfig *config = (McfgDeviceConfig *)((uint64_t)mcfg + sizeof(McfgHeader));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_hotplug.c",
+      "function": "hp_portsc_reg",
+      "anchor": "return (volatile uint32_t *)((volatile uint8_t *)xhci_driver.port_regs +",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_hotplug.c",
+      "function": "hp_timer_callback",
+      "anchor": "hp_port_context_t *port_ctx = (hp_port_context_t *)ctx;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_hotplug.c",
+      "function": "hp_fsm_run",
+      "anchor": "hp_port_context_t *p = (hp_port_context_t *)ctx;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_hub.c",
+      "function": "usb_hub_enumerate",
+      "anchor": "usb_config_descriptor_t *conf = (usb_config_descriptor_t *)conf_buf;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_hub.c",
+      "function": "usb_hub_enumerate",
+      "anchor": "uint8_t *ptr = (uint8_t *)conf_buf;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/usb_hub.c",
+      "function": "usb_hub_enumerate",
+      "anchor": "usb_interface_descriptor_t *iface = (usb_interface_descriptor_t *)(ptr + offset);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_mmio32_at",
+      "anchor": "return (volatile uint32_t *)((volatile uint8_t *)base + offset);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "memset((void *)ring_virt, 0, 4096);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "xhci_driver.slot_kbd_rings[slot_id] = (volatile xhci_trb_t *)ring_virt;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "memset((void *)buf_virt, 0, 64);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "xhci_driver.slot_kbd_buffers[slot_id][q] = (uint8_t *)buf_virt;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "uint64_t inp_phys = physical_require_address((const void *)input_ctx, 4096);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "uint32_t *icc = (uint32_t *)input_ctx;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "uint32_t *slot_ctx = (uint32_t *)((uint8_t *)input_ctx + ctx_size);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "uint32_t *ep0_ctx = (uint32_t *)((uint8_t *)input_ctx + (ctx_size * 2));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "uint32_t *ep_ctx = (uint32_t *)((uint8_t *)input_ctx + (ctx_size * (dci + 1)));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_endpoint_irq",
+      "anchor": "__asm__ __volatile__(\"clflush (%0)\" ::\"r\"((uint8_t *)input_ctx + off) : \"memory\");",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_drain_events",
+      "anchor": "volatile uint32_t *iman = (volatile uint32_t *)(ir0 + 0x00);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_write64_split",
+      "anchor": "volatile uint32_t *lo = (volatile uint32_t *)addr;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_write64_split",
+      "anchor": "volatile uint32_t *hi = (volatile uint32_t *)(addr + 4);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_recover_command_ring",
+      "anchor": "uint64_t expected_base = physical_require_address((const void *)xhci_driver.cmd_ring_base, xhci_driver.cmd_ring_size * sizeof(xhci_trb_t));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_recover_command_ring",
+      "anchor": "uint32_t cmd = xhci_read32((volatile uint32_t *)(op_base + OP_USBCMD));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_recover_command_ring",
+      "anchor": "xhci_write32((volatile uint32_t *)(op_base + OP_USBCMD), cmd & ~(USBCMD_RUN_STOP | USBCMD_INTE));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_recover_command_ring",
+      "anchor": "uint32_t sts = xhci_read32((volatile uint32_t *)(op_base + OP_USBSTS));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_recover_command_ring",
+      "anchor": "cmd = xhci_read32((volatile uint32_t *)(op_base + OP_USBCMD));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_recover_command_ring",
+      "anchor": "xhci_write32((volatile uint32_t *)(op_base + OP_USBCMD), cmd | USBCMD_HC_RESET);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_recover_command_ring",
+      "anchor": "cmd = xhci_read32((volatile uint32_t *)(op_base + OP_USBCMD));",
+      "occurrence": 2,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_recover_command_ring",
+      "anchor": "uint32_t sts = xhci_read32((volatile uint32_t *)(op_base + OP_USBSTS));",
+      "occurrence": 2,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_recover_command_ring",
+      "anchor": "uint64_t cmd_ring_phys = physical_require_address((const void *)xhci_driver.cmd_ring_base, xhci_driver.cmd_ring_size * sizeof(xhci_trb_t));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_recover_command_ring",
+      "anchor": "uint64_t dcbaap_phys = physical_require_address((const void *)xhci_driver.dcbaa, (xhci_driver.max_slots + 1) * sizeof(uint64_t));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_recover_command_ring",
+      "anchor": "uint32_t config = xhci_read32((volatile uint32_t *)(op_base + OP_CONFIG));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_recover_command_ring",
+      "anchor": "cmd = xhci_read32((volatile uint32_t *)(op_base + OP_USBCMD));",
+      "occurrence": 3,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_recover_command_ring",
+      "anchor": "xhci_write32((volatile uint32_t *)(op_base + OP_USBCMD), cmd | USBCMD_RUN_STOP | USBCMD_INTE);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_recover_command_ring",
+      "anchor": "uint32_t sts = xhci_read32((volatile uint32_t *)(op_base + OP_USBSTS));",
+      "occurrence": 3,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_queue_kbd_request_buf",
+      "anchor": "buf_phys = physical_require_address((const void *)buf, 64);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_set_leds",
+      "anchor": "uint64_t buf_phys = physical_require_address((const void *)buf, 64);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device",
+      "anchor": "uint64_t dev_phys = physical_require_address((const void *)dev_ctx, out_bytes);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device",
+      "anchor": "uint64_t inp_phys = physical_require_address((const void *)input_ctx, 4096);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device",
+      "anchor": "uint32_t *icc_add = (uint32_t *)((uint8_t *)input_ctx + 4);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device",
+      "anchor": "uint32_t *slot_dw = (uint32_t *)((uint8_t *)input_ctx + ctx_size);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device",
+      "anchor": "uint32_t *ep0_dw = (uint32_t *)((uint8_t *)input_ctx + (ctx_size * 2));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device",
+      "anchor": "uint64_t tr_phys = physical_require_address((const void *)tr_ring, 4096);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device",
+      "anchor": "xhci_trb_t *ring = (xhci_trb_t *)tr_ring;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device",
+      "anchor": "xhci_driver.slot_ep0_rings[slot_id] = (xhci_trb_t *)tr_ring;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_write64",
+      "anchor": "*(volatile uint64_t *)addr = val;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_read64",
+      "anchor": "return *(volatile uint64_t *)addr;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_alloc_dcbaa",
+      "anchor": "uint64_t dcbaa_phys = physical_require_address((const void *)dcbaa_virt, size);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_alloc_dcbaa",
+      "anchor": "xhci_driver.dcbaa = (uint64_t *)dcbaa_virt;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_alloc_dcbaa",
+      "anchor": "uint64_t sp_array_phys = physical_require_address((const void *)sp_array_virt, sp_array_bytes);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_alloc_dcbaa",
+      "anchor": "uint64_t buf_phys = physical_require_address((const void *)buf_virt, 4096);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_alloc_dcbaa",
+      "anchor": "((uint64_t *)sp_array_virt)[i] = buf_phys;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_init_command_ring",
+      "anchor": "uint64_t phys = physical_require_address((const void *)ptr, size);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_init_command_ring",
+      "anchor": "xhci_driver.cmd_ring_base = (xhci_trb_t *)ptr;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_init_event_ring",
+      "anchor": "uint64_t ring_phys = physical_require_address((const void *)ring_virt, ring_bytes);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_init_event_ring",
+      "anchor": "xhci_driver.event_ring = (xhci_trb_t *)ring_virt;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_init_event_ring",
+      "anchor": "uint64_t erst_phys = physical_require_address((const void *)erst_virt, sizeof(xhci_erst_entry_t));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_init_event_ring",
+      "anchor": "xhci_driver.erst = (xhci_erst_entry_t *)erst_virt;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_event_ring_try_resync",
+      "anchor": "volatile uint64_t *erdp_reg = (volatile uint64_t *)(ir0 + 0x18);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_process_events",
+      "anchor": "uint64_t ev_ring_phys_base = physical_require_address((const void *)xhci_driver.event_ring, xhci_driver.event_ring_size * sizeof(xhci_trb_t));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_handle_interrupt",
+      "anchor": "volatile uint32_t *iman = (volatile uint32_t *)(ir0 + 0x00);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_clflush_range",
+      "anchor": "const uint8_t *p = (const uint8_t *)ptr;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_get_output_ep_ctx_dw",
+      "anchor": "return (volatile uint32_t *)(out + (uint64_t)ctx_size * (uint64_t)dci);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_dump_kbd_endpoint_state",
+      "anchor": "xhci_clflush_range((const void *)ep, (uint64_t)xhci_get_ctx_size());",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_init",
+      "anchor": "xhci_driver.port_regs = (xhci_port_regs_t *)((uint64_t)xhci_driver.op_regs + 0x400);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_evaluate_context",
+      "anchor": "uint64_t inp_phys = physical_require_address((const void *)input_ctx, 4096);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_evaluate_context",
+      "anchor": "uint32_t *icc_drop = (uint32_t *)((uint8_t *)input_ctx + 0);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_evaluate_context",
+      "anchor": "uint32_t *icc_add = (uint32_t *)((uint8_t *)input_ctx + 4);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_evaluate_context",
+      "anchor": "uint8_t *in_slot = (uint8_t *)input_ctx + ctx_size;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_evaluate_context",
+      "anchor": "uint8_t *in_ep0 = (uint8_t *)input_ctx + (ctx_size * 2);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_evaluate_context",
+      "anchor": "((xhci_slot_context_t *)in_slot)->SlotState = 0;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_evaluate_context",
+      "anchor": "((xhci_endpoint_context_t *)in_ep0)->EpState = 0;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_evaluate_context",
+      "anchor": "((xhci_endpoint_context_t *)in_ep0)->MaxPacketSize = new_mps;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_send_command_wait",
+      "anchor": "uint64_t cmd_phys = physical_require_address((const void *)cmd, sizeof(*cmd)) & ~0xFULL;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_send_command_wait",
+      "anchor": "volatile uint32_t *crcr_lo = (volatile uint32_t *)crcr_addr;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_send_command_wait",
+      "anchor": "uint64_t ring_phys = physical_require_address((const void *)xhci_driver.cmd_ring_base, xhci_driver.cmd_ring_size * sizeof(xhci_trb_t));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_send_command_wait",
+      "anchor": "volatile uint32_t *crcr_hi = (volatile uint32_t *)(crcr_addr + 4);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_get_descriptor_device",
+      "anchor": "uint64_t phys = physical_require_address((const void *)buffer, 64);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_get_config_descriptor",
+      "anchor": "uint64_t head_phys = physical_require_address((const void *)buf_head, 64);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_get_config_descriptor",
+      "anchor": "uint64_t full_phys = physical_require_address((const void *)buf_full, alloc_len);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_parse_config",
+      "anchor": "usb_config_descriptor_t *cfg = (usb_config_descriptor_t *)config_buffer;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_parse_config",
+      "anchor": "uint8_t *ptr = (uint8_t *)config_buffer;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_parse_config",
+      "anchor": "usb_interface_descriptor_t *iface = (usb_interface_descriptor_t *)(ptr + offset);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_parse_config",
+      "anchor": "usb_endpoint_descriptor_t *ep = (usb_endpoint_descriptor_t *)(ptr + offset);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_control_transfer",
+      "anchor": "uint32_t setup_param_low = *(uint32_t *)setup;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_control_transfer",
+      "anchor": "uint32_t setup_param_high = *(((uint32_t *)setup) + 1);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_control_transfer",
+      "anchor": "uint64_t data_phys = physical_require_address((const void *)data, setup->Length);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device_with_context",
+      "anchor": "uint64_t dev_phys = physical_require_address((const void *)dev_ctx, out_bytes);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device_with_context",
+      "anchor": "uint64_t inp_phys = physical_require_address((const void *)input_ctx, 4096);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device_with_context",
+      "anchor": "uint32_t *icc_add = (uint32_t *)((uint8_t *)input_ctx + 4);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device_with_context",
+      "anchor": "uint32_t *slot_dw = (uint32_t *)((uint8_t *)input_ctx + ctx_size);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device_with_context",
+      "anchor": "uint32_t *ep0_dw = (uint32_t *)((uint8_t *)input_ctx + (ctx_size * 2));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device_with_context",
+      "anchor": "uint64_t tr_phys = physical_require_address((const void *)tr_ring, 4096);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device_with_context",
+      "anchor": "xhci_trb_t *ring = (xhci_trb_t *)tr_ring;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device_with_context",
+      "anchor": "xhci_driver.slot_ep0_rings[slot_id] = (xhci_trb_t *)tr_ring;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU pointer derived from checked BAR/heap/PMM extent; typed buffer/register offsets preserve existing hardware numerics."
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "function": "wdat_read_reg",
+      "anchor": "*out_val = *(volatile uint8_t *)p;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "function": "wdat_read_reg",
+      "anchor": "*out_val = *(volatile uint16_t *)p;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "function": "wdat_read_reg",
+      "anchor": "*out_val = *(volatile uint32_t *)p;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "function": "wdat_read_reg",
+      "anchor": "*out_val = *(volatile uint64_t *)p;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "function": "wdat_write_reg",
+      "anchor": "*(volatile uint8_t *)p = (uint8_t)val;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "function": "wdat_write_reg",
+      "anchor": "*(volatile uint16_t *)p = (uint16_t)val;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "function": "wdat_write_reg",
+      "anchor": "*(volatile uint32_t *)p = (uint32_t)val;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "function": "wdat_write_reg",
+      "anchor": "*(volatile uint64_t *)p = (uint64_t)val;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "function": "wdat_run_action",
+      "anchor": "const uint8_t *base = (const uint8_t *)wdat;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "function": "wdat_run_action",
+      "anchor": "const AcpiWdatEntry *entries = (const AcpiWdatEntry *)(base + wdat->header_length);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "function": "acpi_wdat_disable",
+      "anchor": "AcpiTableWdat *wdat = (AcpiTableWdat *)acpi_find_table(ACPI_SIG_WDAT);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wddt.c",
+      "function": "acpi_wddt_disable",
+      "anchor": "const AcpiWddtBlob *wddt = (const AcpiWddtBlob *)tbl;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdrt.c",
+      "function": "acpi_wdrt_disable",
+      "anchor": "const AcpiWdrtTable *wdrt = (const AcpiWdrtTable *)tbl;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/intel_tco.c",
+      "function": "derive_pmbase_from_fadt",
+      "anchor": "AcpiFadtMin *fadt = (AcpiFadtMin *)acpi_find_table(ACPI_SIG_FADT);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/graphics/console.c",
+      "function": "draw_char_pixels_at",
+      "anchor": "char *fontPtr = (char *)g_font->glyph_buffer + (c * char_height);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/graphics/console.c",
+      "function": "console_scroll",
+      "anchor": "char *fontPtr = (char *)g_font->glyph_buffer + (c * g_font->psf_header->charsize);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/graphics/console.c",
+      "function": "console_render_full_internal",
+      "anchor": "char *fontPtr = (char *)g_font->glyph_buffer + (c * g_font->psf_header->charsize);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/graphics/console.c",
+      "function": "console_clear",
+      "anchor": "((volatile uint32_t *)fb->BaseAddress)[0] == bg_color) {",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/graphics/console.c",
+      "function": "console_draw_cursor",
+      "anchor": "char *fontPtr = (char *)g_font->glyph_buffer + (underlying_char * g_font->psf_header->charsize);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/graphics/graphics.c",
+      "function": "graphics_bind_framebuffer",
+      "anchor": "g_back_buffer = (uint32_t *)back_buffer;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/graphics/graphics.c",
+      "function": "get_draw_buffer",
+      "anchor": "return (void *)g_back_buffer;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/graphics/graphics.c",
+      "function": "swap_buffers",
+      "anchor": "memcpy((void *)g_fb->BaseAddress, (void *)g_back_buffer, buffer_size);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/graphics/graphics.c",
+      "function": "swap_buffers",
+      "anchor": "memcpy((void *)g_fb->BaseAddress, (void *)g_back_buffer, buffer_size);",
+      "occurrence": 2,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/graphics/graphics.c",
+      "function": "put_pixel",
+      "anchor": "uint32_t *screen = (uint32_t *)g_fb->BaseAddress;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/graphics/graphics.c",
+      "function": "clear_screen",
+      "anchor": "uint32_t *screen = (uint32_t *)g_fb->BaseAddress;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/graphics/graphics.c",
+      "function": "draw_overlay_image",
+      "anchor": "uint8_t *fileData = (uint8_t *)img->PixelBuffer;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/graphics/splash.c",
+      "function": "discard_splash_memory",
+      "anchor": "pmm_free_frame((void *)addr);",
+      "occurrence": 1,
+      "domain": "NUMERIC_PHYSICAL",
+      "reason": "Numeric physical frame argument to the existing free API, not a CPU dereference."
+    },
+    {
+      "path": "kernel/src/libc/format_selftest.c",
+      "function": "format_case_truncation",
+      "anchor": "return ksnprintf(buffer, 3, \"%p\", (void *)(uintptr_t)0x2a) == 18 &&",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/format_selftest.c",
+      "function": "format_case_embedded_zero",
+      "anchor": "return ksnprintf((char *)buffer, sizeof(buffer), \"A%cB\", 0) == 3 &&",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/format_selftest.c",
+      "function": "format_case_pointer",
+      "anchor": "ksnprintf(buffer, sizeof(buffer), \"%p\", (void *)NULL) == 18 &&",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/format_selftest.c",
+      "function": "format_case_pointer",
+      "anchor": "(void *)(uintptr_t)0x2a) == 20 &&",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/format_selftest.c",
+      "function": "format_case_va_list",
+      "anchor": "(void *)(uintptr_t)0x2a, \"done\") &&",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/format_selftest.c",
+      "function": "format_case_invalid_format",
+      "anchor": "format_fill((unsigned char *)buffer, sizeof(buffer), 0xa5u);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "function": "memcpy",
+      "anchor": "uint8_t *d = (uint8_t *)dest;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "function": "memcpy",
+      "anchor": "const uint8_t *s = (const uint8_t *)src;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "function": "memcpy",
+      "anchor": "memory_word_t word = *(const memory_word_t *)(const void *)s;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "function": "memcpy",
+      "anchor": "*(memory_word_t *)(void *)d = word;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "function": "memset",
+      "anchor": "uint8_t *d = (uint8_t *)dest;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "function": "memset",
+      "anchor": "*(memory_word_t *)(void *)d = word;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "function": "memmove",
+      "anchor": "uint8_t *d = (uint8_t *)dest;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "function": "memmove",
+      "anchor": "const uint8_t *s = (const uint8_t *)src;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "function": "memmove",
+      "anchor": "memory_word_t word = *(const memory_word_t *)(const void *)s;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "function": "memmove",
+      "anchor": "*(memory_word_t *)(void *)d = word;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "function": "memmove",
+      "anchor": "memory_word_t word = *(const memory_word_t *)(const void *)s;",
+      "occurrence": 2,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "function": "memmove",
+      "anchor": "*(memory_word_t *)(void *)d = word;",
+      "occurrence": 2,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "function": "memcmp",
+      "anchor": "const uint8_t *p1 = (const uint8_t *)s1;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/memory.c",
+      "function": "memcmp",
+      "anchor": "const uint8_t *p2 = (const uint8_t *)s2;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/string.c",
+      "function": "strcmp",
+      "anchor": "return *(const unsigned char *)s1 - *(const unsigned char *)s2;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/string.c",
+      "function": "strcmp",
+      "anchor": "return *(const unsigned char *)s1 - *(const unsigned char *)s2;",
+      "occurrence": 2,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/string.c",
+      "function": "strncmp",
+      "anchor": "return *(const unsigned char *)s1 - *(const unsigned char *)s2;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/string.c",
+      "function": "strncmp",
+      "anchor": "return *(const unsigned char *)s1 - *(const unsigned char *)s2;",
+      "occurrence": 2,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/libc/string.c",
+      "function": "strchr",
+      "anchor": "return (char *)s;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/boot_address.c",
+      "function": "backing",
+      "anchor": "{ (void)bytes; return (const void *)(uintptr_t)physical; }",
+      "occurrence": 1,
+      "domain": "BOOTSTRAP_EXCEPTION",
+      "reason": "Private bounded entry access; copied handoff descriptors establish the sealed normal contract."
+    },
+    {
+      "path": "kernel/src/memory/boot_address.c",
+      "function": "boot_pointer",
+      "anchor": "*pointer = (void *)value;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/boot_address.c",
+      "function": "physical_boot_adapt",
+      "anchor": "g_map.Base = (EfiMemoryDescriptor *)g_map_bytes;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "function": "payload_from_block",
+      "anchor": "return (void *)((uint8_t *)b + sizeof(HeapBlock));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "function": "heap_try_split_block",
+      "anchor": "uint8_t *new_addr = (uint8_t *)payload_from_block(b) + req_size;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "function": "heap_try_split_block",
+      "anchor": "HeapBlock *nb = (HeapBlock *)new_addr;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "function": "heap_expand_locked",
+      "anchor": "pmm_free_frame((void *)((uintptr_t)phys + page * PAGE_SIZE));",
+      "occurrence": 1,
+      "domain": "NUMERIC_PHYSICAL",
+      "reason": "Numeric physical frame argument to the existing free API, not a CPU dereference."
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "function": "heap_expand_locked",
+      "anchor": "HeapBlock *new_blk = (HeapBlock *)virtual_region;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "function": "kmalloc_aligned",
+      "anchor": "uint8_t *base = (uint8_t *)raw + sizeof(AlignedAllocHeader);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "function": "kmalloc_aligned",
+      "anchor": "AlignedAllocHeader *hdr = (AlignedAllocHeader *)(aligned - sizeof(AlignedAllocHeader));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "function": "kmalloc_aligned",
+      "anchor": "hdr->user_ptr = (void *)aligned;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "function": "kmalloc_aligned",
+      "anchor": "return (void *)aligned;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "function": "heap_free_checked",
+      "anchor": "memcpy(&aligned_header, (const void *)header_address,",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "function": "heap_free_checked",
+      "anchor": "aligned_header.raw_ptr == (void *)payload &&",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/heap.c",
+      "function": "heap_free_checked",
+      "anchor": "memset((void *)header_address, 0, sizeof(AlignedAllocHeader));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/memory_observation.c",
+      "function": "memory_observation_init",
+      "anchor": "if (!memory_descriptor_decode((const uint8_t *)map->Base, map->Size,",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/paging.c",
+      "function": "fixture_alloc_table",
+      "anchor": "pmm_free_frame((void *)frame);",
+      "occurrence": 1,
+      "domain": "NUMERIC_PHYSICAL",
+      "reason": "Numeric physical frame argument to the existing free API, not a CPU dereference."
+    },
+    {
+      "path": "kernel/src/memory/paging.c",
+      "function": "fixture_alloc_table",
+      "anchor": "if (!pointer) { pmm_free_frame((void *)frame); return NULL; }",
+      "occurrence": 1,
+      "domain": "NUMERIC_PHYSICAL",
+      "reason": "Numeric physical frame argument to the existing free API, not a CPU dereference."
+    },
+    {
+      "path": "kernel/src/memory/physical_contract.c",
+      "function": "physical_contract_init",
+      "anchor": "memcpy(&d, (const uint8_t *)map->Base + i * map->DescriptorSize, sizeof(d));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/physical_contract.c",
+      "function": "physical_contract_init",
+      "anchor": "memcpy(&prior, (const uint8_t *)map->Base + j * map->DescriptorSize, sizeof(prior));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/physical_contract.c",
+      "function": "physical_contract_init",
+      "anchor": "memcpy(&d, (const uint8_t *)map->Base + i * map->DescriptorSize, sizeof(d));",
+      "occurrence": 2,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/physical_fixture.c",
+      "function": "physical_fixture_run",
+      "anchor": "*(volatile uint64_t *)one_pointer=UINT64_C(0x6d656d6f72793131);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/physical_fixture.c",
+      "function": "physical_fixture_run",
+      "anchor": "*(volatile uint64_t *)((uint8_t *)run_pointer+3*4096-8)=UINT64_C(0x7461696c33333333);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/physical_fixture.c",
+      "function": "physical_fixture_run",
+      "anchor": "ok &= *(volatile uint64_t *)one_pointer==UINT64_C(0x6d656d6f72793131) &&",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/physical_fixture.c",
+      "function": "physical_fixture_run",
+      "anchor": "*(volatile uint64_t *)((uint8_t *)run_pointer+3*4096-8)==UINT64_C(0x7461696c33333333);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/physical_fixture.c",
+      "function": "physical_fixture_run",
+      "anchor": "if (run) for(unsigned i=0;i<3;i++) pmm_free_frame((void *)((uintptr_t)run+i*4096));",
+      "occurrence": 1,
+      "domain": "NUMERIC_PHYSICAL",
+      "reason": "Numeric physical frame argument to the existing free API, not a CPU dereference."
+    },
+    {
+      "path": "kernel/src/memory/physical_fixture.c",
+      "function": "physical_fixture_run",
+      "anchor": "valid = valid && physical_address_range((void *)(cpu->stack_top-SMP_AP_STACK_BYTES),",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/physical_translation.c",
+      "function": "physical_pointer_range",
+      "anchor": "*pointer = (void *)(uintptr_t)virtual_address;",
+      "occurrence": 1,
+      "domain": "TRANSLATION_EXCEPTION",
+      "reason": "Pointer formation after whole-range provenance/identity bounds or actual mapped-device proof."
+    },
+    {
+      "path": "kernel/src/memory/physical_translation.c",
+      "function": "physical_device_pointer",
+      "anchor": "*pointer = (void *)(uintptr_t)physical;",
+      "occurrence": 1,
+      "domain": "TRANSLATION_EXCEPTION",
+      "reason": "Pointer formation after whole-range provenance/identity bounds or actual mapped-device proof."
+    },
+    {
+      "path": "kernel/src/memory/pmem.c",
+      "function": "find_free_segment_for_bitmap",
+      "anchor": "best_addr = (void *)seg_start;",
+      "occurrence": 1,
+      "domain": "NUMERIC_PHYSICAL",
+      "reason": "Compatibility physical address returned to callers; no CPU dereference."
+    },
+    {
+      "path": "kernel/src/memory/pmem.c",
+      "function": "init_pmm",
+      "anchor": "g_reserved_bitmap_buffer = (uint8_t *)g_bitmap_buffer + g_bitmap_size;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/pmem.c",
+      "function": "pmm_alloc_frame",
+      "anchor": "return (void *)((uintptr_t)frame * PAGE_SIZE);",
+      "occurrence": 1,
+      "domain": "NUMERIC_PHYSICAL",
+      "reason": "Compatibility physical address returned to callers; no CPU dereference."
+    },
+    {
+      "path": "kernel/src/memory/pmem.c",
+      "function": "pmm_alloc_contiguous_frames",
+      "anchor": "return (void *)((uintptr_t)run_start * PAGE_SIZE);",
+      "occurrence": 1,
+      "domain": "NUMERIC_PHYSICAL",
+      "reason": "Compatibility physical address returned to callers; no CPU dereference."
+    },
+    {
+      "path": "kernel/src/memory/pmem.c",
+      "function": "pmm_test_reserved_frame",
+      "anchor": "return (void *)(uintptr_t)g_bitmap_physical;",
+      "occurrence": 1,
+      "domain": "NUMERIC_PHYSICAL",
+      "reason": "Compatibility physical address returned to callers; no CPU dereference."
+    },
+    {
+      "path": "kernel/src/memory/tlb_fixture.c",
+      "function": "emit_line",
+      "anchor": "for(const unsigned char *p=(const unsigned char *)line+1;*p;++p) {",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/memory/tlb_fixture.c",
+      "function": "cleanup",
+      "anchor": "pmm_free_frame((void*)w->frame_a);pmm_free_frame((void*)w->frame_b);",
+      "occurrence": 1,
+      "domain": "NUMERIC_PHYSICAL",
+      "reason": "Numeric physical frame argument to the existing free API, not a CPU dereference."
+    },
+    {
+      "path": "kernel/src/memory/tlb_fixture.c",
+      "function": "cleanup",
+      "anchor": "pmm_free_frame((void*)w->frame_a);pmm_free_frame((void*)w->frame_b);",
+      "occurrence": 2,
+      "domain": "NUMERIC_PHYSICAL",
+      "reason": "Numeric physical frame argument to the existing free API, not a CPU dereference."
+    },
+    {
+      "path": "kernel/src/memory/tlb_fixture.c",
+      "function": "tlb_fixture_run",
+      "anchor": "ok=thread_create_named_with_class_flags(concurrent_worker,(void*)(uintptr_t)window,",
+      "occurrence": 1,
+      "domain": "SYNTHETIC_ARGUMENT",
+      "reason": "Bounded fixture-window index passed as a callback argument; not a physical memory pointer."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_alloctest.c",
+      "function": "alloctest_heap",
+      "anchor": "(uint8_t *)interior + 1u, 1u, 0u, 0u);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_alloctest.c",
+      "function": "alloctest_pmm",
+      "anchor": "pmm_free_frame((uint8_t *)frame + 1u);",
+      "occurrence": 1,
+      "domain": "NUMERIC_PHYSICAL",
+      "reason": "Numeric physical frame argument to the existing free API, not a CPU dereference."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_alloctest.c",
+      "function": "alloctest_pmm",
+      "anchor": "pmm_free_frame((void *)(uintptr_t)pmm_get_total_memory());",
+      "occurrence": 1,
+      "domain": "NUMERIC_PHYSICAL",
+      "reason": "Numeric physical frame argument to the existing free API, not a CPU dereference."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_cpu.c",
+      "function": "cmd_cpu",
+      "anchor": "((uint32_t *)vendor)[0] = ebx;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_cpu.c",
+      "function": "cmd_cpu",
+      "anchor": "((uint32_t *)vendor)[1] = edx;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_cpu.c",
+      "function": "cmd_cpu",
+      "anchor": "((uint32_t *)vendor)[2] = ecx;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_cpu.c",
+      "function": "cmd_cpu",
+      "anchor": "uint32_t *p = (uint32_t *)brand;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_inputtest.c",
+      "function": "test_producers",
+      "anchor": "thread_create_named_handle(producer_worker, (void *)(uintptr_t)0, \"input-producer-a\", &a) &&",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_inputtest.c",
+      "function": "test_producers",
+      "anchor": "thread_create_named_handle(producer_worker, (void *)(uintptr_t)1, \"input-producer-b\", &b);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_irq.c",
+      "function": "irq_boot",
+      "anchor": "irq_boot_sample_t *samples = (irq_boot_sample_t *)kmalloc(samples_bytes);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_locktest.c",
+      "function": "locktest_worker",
+      "anchor": "locktest_worker_t *worker = (locktest_worker_t *)arg;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_memory_observation.c",
+      "function": "map_dump",
+      "anchor": "const HpetTable *hpet = (const HpetTable *)table;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_memory_observation.c",
+      "function": "map_dump",
+      "anchor": "const McfgDeviceConfig *configs = (const McfgDeviceConfig *)",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_modaltest.c",
+      "function": "test_boundary",
+      "anchor": "char *args[2] = {\"inputtest\", (char *)sub};",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_reaptest.c",
+      "function": "fixture_worker",
+      "anchor": "static void fixture_worker(void*a){reap_zombie_fixture_t*f=(reap_zombie_fixture_t*)a;__atomic_store_n(&f->started,1,__ATOMIC_RELEASE);sem_wait(&f->release_gate);__atomic_store_n(&f->finished,1,__ATOMIC_RELEASE);}",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_schedtest.c",
+      "function": "yield_worker",
+      "anchor": "schedtest_ctx_t *context = (schedtest_ctx_t *)arg;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_schedtest.c",
+      "function": "cpu_pin_worker",
+      "anchor": "schedtest_ctx_t *context = (schedtest_ctx_t *)arg;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_smpstress.c",
+      "function": "smpstress_cleanup",
+      "anchor": "static void smpstress_cleanup(void *ctx){smpstress_ctx_t*c=(smpstress_ctx_t*)ctx;task_t*t=get_current_task();if(c&&t&&killtest_ui_telemetry_enabled()){serial_write_all(\"[SMP][KILL] id=\");serial_write_hex64_all(t->id);serial_write_all(\" worker=\");serial_write_u32_dec_all(c->worker_id);serial_write_all(\" reason=\");serial_write_all(scheduler_task_exit_reason_to_string(t->exit_reason));serial_write_all(\" cleanup=1\\n\");}if(ctx)kfree(ctx);}",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_smpstress.c",
+      "function": "smpstress_worker",
+      "anchor": "smpstress_ctx_t *c = (smpstress_ctx_t *)arg;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_smpstress.c",
+      "function": "cmd_smpstress",
+      "anchor": "smpstress_ctx_t *ctx = (smpstress_ctx_t *)kmalloc(sizeof(smpstress_ctx_t));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "function": "sem_waiter_worker",
+      "anchor": "sync_worker_ctx_t *ctx = (sync_worker_ctx_t *)arg;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "function": "sem_signaler_worker",
+      "anchor": "sync_worker_ctx_t *ctx = (sync_worker_ctx_t *)arg;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "function": "boundary_hook",
+      "anchor": "sync_boundary_test_t *test = (sync_boundary_test_t *)ctx;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "function": "sleep_worker",
+      "anchor": "sync_worker_ctx_t *ctx = (sync_worker_ctx_t *)arg;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "function": "cancel_sem_worker",
+      "anchor": "cancel_case_t *test = (cancel_case_t *)arg;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "function": "cancel_sleep_worker",
+      "anchor": "cancel_case_t *test = (cancel_case_t *)arg;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "function": "timer_cancel_callback",
+      "anchor": "(timer_test_callback_ticket_t *)ctx;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "function": "timer_order_callback",
+      "anchor": "(timer_test_callback_ticket_t *)ctx;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_synctest.c",
+      "function": "timer_backlog_callback",
+      "anchor": "(timer_test_callback_ticket_t *)ctx;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_taskman.c",
+      "function": "render",
+      "anchor": "char(*formatted)[CONSOLE_MAX_COLS_STORAGE+1u]=(void*)c->visual->text_scratch;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/shell/commands/cmd_taskmantest.c",
+      "function": "stats_print_with_capacity",
+      "anchor": "char *record = (char *)kmalloc(record_capacity);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint64_t *ptr_cr3 = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_cr3 - (uint64_t)_trampoline_start));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked bootstrap-page CPU pointer plus symbol-derived patch offset, or checked full AP stack extent; hardware values stay physical."
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint64_t *ptr_cr4 = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_cr4 - (uint64_t)_trampoline_start));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked bootstrap-page CPU pointer plus symbol-derived patch offset, or checked full AP stack extent; hardware values stay physical."
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint64_t *ptr_efer = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_efer - (uint64_t)_trampoline_start));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked bootstrap-page CPU pointer plus symbol-derived patch offset, or checked full AP stack extent; hardware values stay physical."
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint64_t *ptr_cr0 = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_cr0 - (uint64_t)_trampoline_start));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked bootstrap-page CPU pointer plus symbol-derived patch offset, or checked full AP stack extent; hardware values stay physical."
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint64_t *ptr_pat = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_pat - (uint64_t)_trampoline_start));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked bootstrap-page CPU pointer plus symbol-derived patch offset, or checked full AP stack extent; hardware values stay physical."
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint32_t *ptr_status = (volatile uint32_t *)(trampoline + ((uint64_t)&smp_trampoline_status - (uint64_t)_trampoline_start));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked bootstrap-page CPU pointer plus symbol-derived patch offset, or checked full AP stack extent; hardware values stay physical."
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint64_t *ptr_stack = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_stack - (uint64_t)_trampoline_start));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked bootstrap-page CPU pointer plus symbol-derived patch offset, or checked full AP stack extent; hardware values stay physical."
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint64_t *ptr_entry = (volatile uint64_t *)(trampoline + ((uint64_t)&smp_trampoline_entry_ptr - (uint64_t)_trampoline_start));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked bootstrap-page CPU pointer plus symbol-derived patch offset, or checked full AP stack extent; hardware values stay physical."
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint32_t *ptr_x2flag = (volatile uint32_t *)(trampoline + ((uint64_t)&smp_trampoline_x2apic_flag - (uint64_t)_trampoline_start));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked bootstrap-page CPU pointer plus symbol-derived patch offset, or checked full AP stack extent; hardware values stay physical."
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "function": "smp_boot_aps",
+      "anchor": "volatile uint8_t *ptr_gdtr = (volatile uint8_t *)(trampoline + ((uint64_t)&smp_trampoline_gdtr - (uint64_t)_trampoline_start));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked bootstrap-page CPU pointer plus symbol-derived patch offset, or checked full AP stack extent; hardware values stay physical."
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "function": "smp_boot_aps",
+      "anchor": "*(volatile uint32_t *)(ptr_gdtr + 2) = gdt_phys_addr;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked bootstrap-page CPU pointer plus symbol-derived patch offset, or checked full AP stack extent; hardware values stay physical."
+    },
+    {
+      "path": "kernel/src/smp/smp_boot.c",
+      "function": "smp_boot_aps",
+      "anchor": "(const void *)(uintptr_t)(cpu->stack_top - SMP_AP_STACK_BYTES), SMP_AP_STACK_BYTES);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Checked bootstrap-page CPU pointer plus symbol-derived patch offset, or checked full AP stack extent; hardware values stay physical."
+    },
+    {
+      "path": "kernel/src/smp/smp_topology.c",
+      "function": "smp_prepare_cpu_structures",
+      "anchor": "Tss64 *tss_virt = (Tss64 *)checked_cpu_pointer(tss_pointer, sizeof(Tss64));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/smp/smp_topology.c",
+      "function": "smp_prepare_cpu_structures",
+      "anchor": "GdtTable *gdt_virt = (GdtTable *)checked_cpu_pointer(gdt_pointer, sizeof(GdtTable));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_read_counter64_split",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_MAIN_COUNTER + 4));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_read_counter64_split",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_MAIN_COUNTER));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_read_counter64_split",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_MAIN_COUNTER + 4));",
+      "occurrence": 2,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_read_counter_sample",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_MAIN_COUNTER));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "init_hpet",
+      "anchor": "HpetTable *hpet = (HpetTable *)acpi_find_table(ACPI_SIG_HPET);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "init_hpet",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_CAPABILITIES));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "init_hpet",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_CAPABILITIES + 4));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "init_hpet",
+      "anchor": "uint32_t config = mmio_read32((void *)(g_hpet_base + HPET_REG_CONFIG));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "init_hpet",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_CONFIG),",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "init_hpet",
+      "anchor": "(void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "init_hpet",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)),",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "init_hpet",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_MAIN_COUNTER), 0);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "init_hpet",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_MAIN_COUNTER + 4), 0);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "init_hpet",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_INT_STATUS), UINT32_MAX);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "init_hpet",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_CONFIG),",
+      "occurrence": 2,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_prepare",
+      "anchor": "(void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0) + 4));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_prepare",
+      "anchor": "(void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_prepare",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)),",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_prepare",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_INT_STATUS), 1u);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_clear_pending",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_INT_STATUS), 1u);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_clear_pending",
+      "anchor": "(mmio_read32((void *)(g_hpet_base + HPET_REG_INT_STATUS)) & 1u) != 0;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_arm",
+      "anchor": "(void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_arm",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)),",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_arm",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_INT_STATUS), 1u);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_arm",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_TN_COMPARATOR(0)),",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_arm",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_TN_COMPARATOR(0) + 4),",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_arm",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)),",
+      "occurrence": 2,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_disable",
+      "anchor": "(void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0))) & ~(1u << 2);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_disable",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)),",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_disable",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_INT_STATUS), 1u);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_force_quiescent",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_CONFIG));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_force_quiescent",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_CONFIG), global_config);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_force_quiescent",
+      "anchor": "(void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_force_quiescent",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)),",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_force_quiescent",
+      "anchor": "mmio_write32((void *)(g_hpet_base + HPET_REG_INT_STATUS), 1u);",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_force_quiescent",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_CONFIG));",
+      "occurrence": 2,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_force_quiescent",
+      "anchor": "(void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)));",
+      "occurrence": 2,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_force_quiescent",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_INT_STATUS));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_runtime_snapshot",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_CONFIG));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_runtime_snapshot",
+      "anchor": "(void *)(g_hpet_base + HPET_TN_CONFIG_CAP(0)));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_runtime_snapshot",
+      "anchor": "(void *)(g_hpet_base + HPET_REG_INT_STATUS));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "hpet_timer0_snapshot",
+      "anchor": "(mmio_read32((void *)(g_hpet_base + HPET_REG_INT_STATUS)) & 1u) != 0;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "CPU register address cached after ACPI-origin mapping proof; unchanged width and split-counter algorithm."
+    },
+    {
+      "path": "kernel/src/utils/bitmap.c",
+      "function": "bitmap_init_checked",
+      "anchor": "bitmap->buffer = (uint8_t *)buffer;",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    },
+    {
+      "path": "shared/mem_map.h",
+      "function": "mmap_get_descriptor",
+      "anchor": "return (EfiMemoryDescriptor *)((uint8_t *)map->Base + (i * map->DescriptorSize));",
+      "occurrence": 1,
+      "domain": "CPU_POINTER",
+      "reason": "Existing CPU object, validated structure field, byte offset, or callback-owned buffer; no physical-address inversion."
+    }
+  ],
+  "mapping_producers": [
+    {
+      "path": "kernel/src/apic/ioapic.c",
+      "function": "ioapic_init_all",
+      "flags": 27
+    },
+    {
+      "path": "kernel/src/apic/lapic.c",
+      "function": "init_lapic",
+      "flags": 27
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "function": "pci_enumerate_function",
+      "flags": 19
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "function": "pci_enumerate_device",
+      "flags": 19
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "function": "pci_init",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "function": "pci_list_function",
+      "flags": 19
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "function": "pci_list_device",
+      "flags": 19
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "function": "pci_list_devices",
+      "flags": 19
+    },
+    {
+      "path": "kernel/src/drivers/pci.c",
+      "function": "pci_list_devices",
+      "flags": 19
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_endpoint_irq",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_endpoint_irq",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_endpoint_irq",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_endpoint_irq",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_set_leds",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_alloc_dcbaa",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_alloc_dcbaa",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_alloc_dcbaa",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_init_command_ring",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_init_event_ring",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_init_event_ring",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_map_identity_range",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_init",
+      "flags": 27
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_evaluate_context",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_evaluate_context",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_get_descriptor_device",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_get_config_descriptor",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_get_config_descriptor",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device_with_context",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device_with_context",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/usb/xhci/xhci.c",
+      "function": "xhci_configure_device_with_context",
+      "flags": 3
+    },
+    {
+      "path": "kernel/src/drivers/watchdog/acpi_wdat.c",
+      "function": "wdat_ensure_mapped",
+      "flags": 19
+    },
+    {
+      "path": "kernel/src/timer/hpet.c",
+      "function": "init_hpet",
+      "flags": 27
+    }
+  ]
+}

@@ -2,13 +2,20 @@
 #include "../acpi/acpi.h"
 #include "../cpu/mmio.h"
 #include "../apic/ioapic.h"
-#include "../memory/paging.h"
+#include "../memory/mmio_mapping.h"
+#include "../memory/physical_translation.h"
 #include "../core/spinlock.h"
 #include "../core/task_metrics.h"
 #include "../core/idt.h"
 #include "../drivers/serial.h"
+#if defined(HOBBYOS_IRQ_ENTRY_DIAGNOSTIC) && HOBBYOS_IRQ_ENTRY_DIAGNOSTIC
+#include "../core/irq_latency_tsc.h"
+#endif
 
+/* CPU register address, derived once from the retained ACPI physical base. */
 static uint64_t g_hpet_base = 0;
+static uint64_t g_hpet_physical;
+static mapping_view_t g_hpet_mapping;
 static uint64_t g_clk_period_fs = 0;
 static hpet_timer_snapshot_t g_hpet_timer0;
 static volatile uint64_t g_hpet_stray_irqs;
@@ -160,16 +167,18 @@ void init_hpet(void)
     g_hpet_quarantine_failures = 0;
 
     HpetTable *hpet = (HpetTable *)acpi_find_table(ACPI_SIG_HPET);
-    if (!hpet)
+    if (!hpet || hpet->header.length < sizeof(*hpet))
         return;
 
-    g_hpet_base = hpet->address;
-    if (!g_hpet_base)
+    g_hpet_physical = hpet->address;
+    if (!g_hpet_physical)
         return;
 
-    uint64_t base_page = g_hpet_base & ~0xFFFULL;
-    paging_map(base_page, base_page, PAGE_PRESENT | PAGE_RW | PAGE_PCD | PAGE_PWT);
-    __asm__ volatile("invlpg (%0)" ::"r"(base_page) : "memory");
+    mmio_origin_t origin;
+    if (!mmio_origin_resolve(MMIO_HPET, physical_require_address(hpet, sizeof(*hpet)), &origin)) return;
+    if (mmio_mapping_acquire(&origin, CACHE_UNCACHEABLE, &g_hpet_mapping) != MAPPING_OK)
+        return;
+    g_hpet_base = (uintptr_t)g_hpet_mapping.cpu;
 
     uint32_t caps_low = mmio_read32(
         (void *)(g_hpet_base + HPET_REG_CAPABILITIES));
@@ -292,8 +301,15 @@ uint64_t hpet_counter_to_ns(uint64_t ticks)
     if (UINT64_MAX - base < ns) return UINT64_MAX;
     return base + ns;
 }
+#if defined(HOBBYOS_IRQ_ENTRY_DIAGNOSTIC) && HOBBYOS_IRQ_ENTRY_DIAGNOSTIC
+bool hpet_read_clock_sample_attributed(hpet_clock_sample_t *out, uint64_t *counter_end)
+#else
 bool hpet_read_clock_sample(hpet_clock_sample_t *out)
+#endif
 {
+#if defined(HOBBYOS_IRQ_ENTRY_DIAGNOSTIC) && HOBBYOS_IRQ_ENTRY_DIAGNOSTIC
+    if (counter_end) *counter_end=0;
+#endif
     if (!out)
         return false;
     *out = (hpet_clock_sample_t){0};
@@ -303,6 +319,9 @@ bool hpet_read_clock_sample(hpet_clock_sample_t *out)
         out->mode = counter.mode;
         return false;
     }
+#if defined(HOBBYOS_IRQ_ENTRY_DIAGNOSTIC) && HOBBYOS_IRQ_ENTRY_DIAGNOSTIC
+    if (counter_end) *counter_end=irq_latency_read_tsc();
+#endif
     out->ticks = counter.ticks;
     out->ns = hpet_counter_to_ns(counter.ticks);
     out->retries = counter.retries;
@@ -310,6 +329,12 @@ bool hpet_read_clock_sample(hpet_clock_sample_t *out)
     out->valid = out->ns != UINT64_MAX;
     return out->valid;
 }
+#if defined(HOBBYOS_IRQ_ENTRY_DIAGNOSTIC) && HOBBYOS_IRQ_ENTRY_DIAGNOSTIC
+bool hpet_read_clock_sample(hpet_clock_sample_t *out)
+{
+    return hpet_read_clock_sample_attributed(out, NULL);
+}
+#endif
 
 bool hpet_counter_extend32_test(uint32_t previous, uint64_t high,
                                 uint32_t current, uint64_t *out)

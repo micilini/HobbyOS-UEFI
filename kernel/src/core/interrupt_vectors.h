@@ -1,0 +1,34 @@
+#ifndef INTERRUPT_VECTORS_H
+#define INTERRUPT_VECTORS_H
+
+/* 0..31 are architectural exceptions. Unlisted external vectors are reserved.
+ * The request service uses priority class E, above ordinary device IRQs.
+ * FD is the legacy halt dispatch, FE is a masked error LVT, FF is spurious. */
+#define INT_VECTOR_HPET_TIMER 32
+#define INT_VECTOR_KEYBOARD 33
+#define INT_VECTOR_LAPIC_TIMER 34
+#define INT_VECTOR_RUNTIME_RENDEZVOUS_WAKE 35
+#define INT_VECTOR_XHCI 64
+#define INT_VECTOR_CPU_REQUEST 0xE1
+#define INT_VECTOR_LEGACY_HALT 0xFD
+#define INT_VECTOR_LAPIC_ERROR 0xFE
+#define INT_VECTOR_SPURIOUS 0xFF
+
+#ifndef __ASSEMBLER__
+_Static_assert(INT_VECTOR_HPET_TIMER >= 32 &&
+    INT_VECTOR_HPET_TIMER < INT_VECTOR_KEYBOARD &&
+    INT_VECTOR_KEYBOARD < INT_VECTOR_LAPIC_TIMER &&
+    INT_VECTOR_LAPIC_TIMER < INT_VECTOR_RUNTIME_RENDEZVOUS_WAKE &&
+    INT_VECTOR_RUNTIME_RENDEZVOUS_WAKE < INT_VECTOR_XHCI &&
+    INT_VECTOR_XHCI < INT_VECTOR_CPU_REQUEST &&
+    INT_VECTOR_CPU_REQUEST < INT_VECTOR_LEGACY_HALT &&
+    INT_VECTOR_LEGACY_HALT < INT_VECTOR_LAPIC_ERROR &&
+    INT_VECTOR_LAPIC_ERROR < INT_VECTOR_SPURIOUS &&
+    INT_VECTOR_SPURIOUS <= 255, "interrupt vector collision or invalid range");
+_Static_assert(INT_VECTOR_HPET_TIMER == 32 && INT_VECTOR_KEYBOARD == 33 &&
+    INT_VECTOR_LAPIC_TIMER == 34 && INT_VECTOR_RUNTIME_RENDEZVOUS_WAKE == 35 &&
+    INT_VECTOR_XHCI == 64 && INT_VECTOR_LEGACY_HALT == 0xFD &&
+    INT_VECTOR_LAPIC_ERROR == 0xFE && INT_VECTOR_SPURIOUS == 0xFF,
+    "existing interrupt routing must remain unchanged");
+#endif
+#endif

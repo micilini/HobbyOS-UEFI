@@ -1,5 +1,14 @@
 # Build e QEMU
 
+Current build roles: use `make production-image` for the normal image. It
+excludes all laboratory commands. Commands such as `irq`, `accounttest`,
+`taskdiag` and the suites below require a separate `SELFTEST=1` build:
+`make kernel-check SELFTEST=1` and `make image SELFTEST=1`. Pass the same
+role to any rebuild performed by a development harness. Historical release
+receipts retain their original source and build policy. See
+[the maintenance closure](../memory/maintenance-closure.md) for the revised
+scope and deferred validation.
+
 A interface canônica é o Makefile raiz. `make deps-check` inventaria separadamente toolchain do kernel, GNU-EFI/imagem e QEMU; use `SCOPE=kernel|image|qemu|all`. Em Debian/Ubuntu, os pacotes normalmente envolvidos são `build-essential`, `binutils`, `gnu-efi`, `mtools`, `qemu-system-x86`, `ovmf` e `python3`; o script apenas sugere, nunca instala.
 
 ## Build

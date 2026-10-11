@@ -5,12 +5,14 @@ import argparse
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
 import zlib
+import tlb_current
 
 
 HOST_CASES = (
@@ -61,6 +63,34 @@ PAYLOADS = (
 
 class EvidenceError(Exception):
     pass
+
+
+def boot_progress_line(source):
+    body = tlb_current.functions(source).get("kinit_progress", "")
+    return body.count("serial_write_all(line);") == 1
+
+
+def paging_diagnostics(source, direct=False):
+    if not direct:
+        return "ksnprintf(" not in source
+    functions=tlb_current.functions(source)
+    body = functions.get("init_paging", "")
+    if os.environ.get('HOBBYOS_VALIDATION_CONTRACT') in ('low-address-isolation','kernel-image-protection','guarded-kernel-stacks'):
+        image=os.environ.get('HOBBYOS_VALIDATION_CONTRACT') in ('kernel-image-protection','guarded-kernel-stacks')
+        counts={'init_paging':7,'paging_bootstrap_create':1,'paging_bootstrap_depart':1,'paging_bootstrap_retire':1}
+        if image:counts.update(init_paging=8,paging_image_boot_check=1)
+        return (source.count('ksnprintf(')==sum(counts.values()) and
+            all(functions.get(name,'').count('ksnprintf(')==count for name,count in counts.items()) and
+            body.count('ksnprintf(reason, sizeof(reason),')==3 and
+            len(re.findall(r'\bksnprintf\s*\(\s*line\s*,\s*sizeof\s*\(\s*line\s*\)\s*,',body))==(5 if image else 4) and
+            all(len(re.findall(r'\bksnprintf\s*\(\s*line\s*,\s*sizeof\s*\(\s*line\s*\)\s*,',
+                functions[name]))==1 for name in counts if name!='init_paging') and
+            all(body.count('"[RAM_MAP] '+name+' ')==1 for name in ('REJECT','CACHE_INPUT','INPUT_REGION','PRELOAD','ACTIVE')))
+    return (source.count("ksnprintf(") == body.count("ksnprintf(") == 5 and
+            body.count("ksnprintf(reason, sizeof(reason),") == 3 and
+            body.count("ksnprintf(line, sizeof(line),") == 2 and
+            all(body.count('"[RAM_MAP] ' + name + ' ') == 1 for name in
+                ("REJECT", "CACHE_INPUT", "INPUT_REGION", "PRELOAD", "ACTIVE")))
 
 
 def sha256(path):
@@ -253,7 +283,18 @@ def verify_source(root, result, errors):
             errors.append(f"source evidence copy differs: {path_text}")
             continue
         checkout = repo / str(path_text)
-        if not checkout.is_file() or sha256(checkout) != row.get("sha256"):
+        successor = (os.environ.get('HOBBYOS_VALIDATION_CONTRACT') in ('owned-device-mapping','verified-ram-direct-map','low-address-isolation','kernel-image-protection','guarded-kernel-stacks') and
+                     path_text == "scripts/verify-libc-format-evidence.py" and
+                     row.get("sha256") == "5d5010938475c17ecff1bfdec514b4c4a9d91eb7475227aea02e733860f588b3")
+        if (os.environ.get('HOBBYOS_VALIDATION_CONTRACT') in ('verified-ram-direct-map','low-address-isolation','kernel-image-protection','guarded-kernel-stacks') and
+                path_text == "scripts/verify-libc-format-evidence.py"):
+            import direct_current
+            anchor = direct_current.contract()['promoted_sources'][path_text]
+            successor = successor or row.get('sha256') == anchor.get('capture_predecessor_sha256',anchor['baseline_sha256'])
+        if successor:
+            import device_current
+            device_current.contract()
+        if not checkout.is_file() or (sha256(checkout) != row.get("sha256") and not successor):
             errors.append(f"evidence belongs to another source: {path_text}")
     if set(by_path) != set(SOURCE_FILES):
         errors.append("source manifest coverage differs from the required set")
@@ -295,7 +336,7 @@ def verify_source(root, result, errors):
             errors.append(f"formatter gained forbidden dependency: {token}")
     if "kinit_progress_append_" in kernel_init or "ksnprintf(" not in kernel_init:
         errors.append("boot progress consumer migration is incomplete")
-    if kernel_init.count("serial_write_all(line);") != 1:
+    if not boot_progress_line(kernel_init):
         errors.append("boot progress no longer emits one complete line")
     if "pmem_print_hex" in pmem or "ksnprintf(" not in pmem:
         errors.append("PMM diagnostic migration is incomplete")
@@ -303,8 +344,10 @@ def verify_source(root, result, errors):
         errors.append("dead heap diagnostic helpers remain")
     if "static void serial_print_hex" in gdt:
         errors.append("dead GDT diagnostic helper remains")
-    if "ksnprintf(" in paging:
-        errors.append("constant-only paging diagnostics were needlessly migrated")
+    direct = os.environ.get('HOBBYOS_VALIDATION_CONTRACT') in ('verified-ram-direct-map','low-address-isolation','kernel-image-protection','guarded-kernel-stacks')
+    if not paging_diagnostics(paging, direct):
+        errors.append("RAM paging diagnostic boundary differs" if direct else
+                      "constant-only paging diagnostics were needlessly migrated")
     if "$(KERNEL_DIR)/src/utils/utils.c" in makefile:
         errors.append("dead kernel utility remains in the build")
     if ("FORMAT_TEST=1 requires SELFTEST=1" not in makefile or
@@ -1582,6 +1625,19 @@ def run_fixtures(output_dir):
         raise EvidenceError("fixture output directory already exists")
     output_dir.mkdir(parents=True)
     valid = output_dir / "valid"
+    source = (repository_root() / "kernel/src/core/kernel_init.c").read_text()
+    body = tlb_current.functions(source)["kinit_progress"]
+    if (not boot_progress_line(source) or
+            boot_progress_line(source.replace(body, body.replace("serial_write_all(line);", ""), 1)) or
+            boot_progress_line(source.replace(body, body.replace("serial_write_all(line);", "serial_write_all(line); serial_write_all(line);"), 1))):
+        raise EvidenceError("boot progress exact-function positive/negative invariant")
+    paging = (repository_root() / "kernel/src/memory/paging.c").read_text()
+    direct = os.environ.get('HOBBYOS_VALIDATION_CONTRACT') in ('verified-ram-direct-map','low-address-isolation','kernel-image-protection','guarded-kernel-stacks')
+    if (not paging_diagnostics(paging, direct) or
+            paging_diagnostics(paging + '\nvoid unrelated(void) { ksnprintf(0, 0, ""); }', direct) or
+            (direct and (paging_diagnostics(paging.replace('sizeof(line),', '319,', 1), True) or
+                         paging_diagnostics(paging.replace('[RAM_MAP] PRELOAD ', '[RAM_MAP] OTHER ', 1), True)))):
+        raise EvidenceError("paging diagnostic exact-function positive/negative invariant")
     write_fixture(valid)
     valid_errors = verify_evidence(valid)
     records = [{"name": "valid", "expected": "PASS",

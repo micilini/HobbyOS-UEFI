@@ -73,6 +73,7 @@ int acpi_wdrt_disable(void)
     }
 
     const AcpiWdrtTable *wdrt = (const AcpiWdrtTable *)tbl;
+    if (wdrt->header.length < sizeof(*wdrt)) return 0;
 
     console_write_debug("[WATCHDOG] ACPI WDRT: present at 0x");
     console_print_hex((uint64_t)wdrt);

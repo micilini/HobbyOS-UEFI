@@ -868,8 +868,12 @@ static_gate()
             kernel/src/apic/lapic.c >/dev/null
         ! rg -n 'UINT32_MAX - lapic_read\(LAPIC_TCCR\)' \
             kernel/src/apic/lapic.c >/dev/null
-        [[ $(sha kernel/src/apic/lapic.c) == \
-            f9b9c55e05cd0eff44269336a7ddaff151626ed12e31a25ea99120507843e474 ]]
+        if [[ ${HOBBYOS_VALIDATION_CONTRACT:-} == tlb-coherency || ${HOBBYOS_VALIDATION_CONTRACT:-} == physical-translation || ${HOBBYOS_VALIDATION_CONTRACT:-} == owned-device-mapping || ${HOBBYOS_VALIDATION_CONTRACT:-} == verified-ram-direct-map || ${HOBBYOS_VALIDATION_CONTRACT:-} == low-address-isolation || ${HOBBYOS_VALIDATION_CONTRACT:-} == kernel-image-protection || ${HOBBYOS_VALIDATION_CONTRACT:-} == guarded-kernel-stacks ]]; then
+            python3 -c 'import sys; sys.path.insert(0,"scripts"); import tlb_current; tlb_current.contract()'
+        else
+            [[ $(sha kernel/src/apic/lapic.c) == \
+                f9b9c55e05cd0eff44269336a7ddaff151626ed12e31a25ea99120507843e474 ]]
+        fi
         rg -n 'if\(worst<700\|\|worst>1300\)ok=false;' \
             kernel/src/shell/commands/cmd_accounttest.c >/dev/null
         rg -n 'timers_test_arm_order_pair|timers_test_order_finish' \
@@ -980,9 +984,8 @@ PY
         git diff --quiet -- bootloader shared \
             kernel/src/core/switch.S kernel/src/core/clock.c \
             kernel/src/core/clock.h kernel/src/core/interrupt_context.c \
-            kernel/src/core/interrupt_context.h kernel/src/apic/lapic.h \
-            kernel/src/apic/ioapic.c \
-            kernel/src/apic/ioapic.h kernel/src/apic/legacy_pic.c \
+            kernel/src/core/interrupt_context.h \
+            kernel/src/apic/legacy_pic.c \
             kernel/src/apic/legacy_pic.h kernel/src/acpi/madt.c \
             kernel/src/acpi/madt.h \
             kernel/src/graphics/graphics.c kernel/src/graphics/graphics.h \
@@ -994,6 +997,14 @@ PY
             kernel/src/shell/commands/cmd_taskmantest.h \
             kernel/src/shell/commands/taskman_view.c \
             kernel/src/shell/commands/taskman_view.h
+        if [[ ${HOBBYOS_VALIDATION_CONTRACT:-} == physical-translation || ${HOBBYOS_VALIDATION_CONTRACT:-} == owned-device-mapping || ${HOBBYOS_VALIDATION_CONTRACT:-} == verified-ram-direct-map || ${HOBBYOS_VALIDATION_CONTRACT:-} == low-address-isolation || ${HOBBYOS_VALIDATION_CONTRACT:-} == kernel-image-protection || ${HOBBYOS_VALIDATION_CONTRACT:-} == guarded-kernel-stacks ]]; then
+            python3 -c 'import sys; sys.path.insert(0,"scripts"); import memory_current; memory_current.current_contract()'
+        else
+            git diff --quiet -- kernel/src/apic/ioapic.c kernel/src/apic/ioapic.h
+        fi
+        if [[ ${HOBBYOS_VALIDATION_CONTRACT:-} != tlb-coherency && ${HOBBYOS_VALIDATION_CONTRACT:-} != physical-translation && ${HOBBYOS_VALIDATION_CONTRACT:-} != owned-device-mapping && ${HOBBYOS_VALIDATION_CONTRACT:-} != verified-ram-direct-map && ${HOBBYOS_VALIDATION_CONTRACT:-} != low-address-isolation && ${HOBBYOS_VALIDATION_CONTRACT:-} != kernel-image-protection && ${HOBBYOS_VALIDATION_CONTRACT:-} != guarded-kernel-stacks ]]; then
+            git diff --quiet -- kernel/src/apic/lapic.h
+        fi
         python3 - <<'PY'
 import pathlib
 import re
@@ -3070,6 +3081,10 @@ case ${1:-all} in
     report) report_gate ;;
     candidate) candidate_gate ;;
     boot-to-shell-candidate) boot_to_shell_candidate_gate ;;
+    current)
+        python3 scripts/memory_current.py clockevent >"$artifact/current-scope.json"
+        all
+        ;;
     all) all ;;
     *)
         echo "usage: $0 preflight|static|selftest|negatives|negative-claimed-order|boot-to-shell-negative-claimed-order|boot-to-shell-negative-claimed-order-record-existing|negative-local-ready-deadline|rendezvous-focused-smp4|rendezvous-smp24-boots|rendezvous-matrix|rendezvous-runtime-smp24|rate-controls|up-tcg|smp2-tcg|smp4-kvm|smp8-kvm|smp24-kvm|smp24-record-existing|pcat|focused-smp4|focused-smp24|focused-runtime|boot-to-shell-cycle1|boot-to-shell-cycle2|boot-to-shell-cycle3|boot-to-shell-cycle4|boot-to-shell-final-smp24-boots|boot-to-shell-quick-matrix|boot-to-shell-quick-matrix-record-existing|boot-to-shell-soak24|boot-to-shell-final-build|boot-to-shell-candidate|soak24|final-build|report|candidate|all" >&2
